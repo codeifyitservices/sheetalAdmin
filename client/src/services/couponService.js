@@ -81,3 +81,13 @@ export const getHomepageCoupon = async () => {
   if (!res.ok) throw new Error(data.message || "Failed to fetch homepage coupon");
   return data;
 };
+
+// Returns the single coupon with showOnLoginPage: true, or null.
+export const getLoginCoupon = async () => {
+  const res = await fetch(`${API_BASE_URL}/coupons/login`, {
+    credentials: "include",
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.message || "Failed to fetch login coupon");
+  return data;
+};

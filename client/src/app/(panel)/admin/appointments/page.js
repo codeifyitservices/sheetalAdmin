@@ -16,6 +16,7 @@ import {
   Clock,
   ThumbsUp,
   AlertCircle,
+  StickyNote,
 } from "lucide-react";
 import toast from "react-hot-toast";
 import axios from "axios";
@@ -62,8 +63,10 @@ export default function AppointmentsPage() {
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
   const [selected, setSelected] = useState(null); // for modal
+  const [notes, setNotes] = useState("");
   const [deletingId, setDeletingId] = useState(null);
   const [updatingId, setUpdatingId] = useState(null);
+  const [savingNotesId, setSavingNotesId] = useState(null);
   const [counts, setCounts] = useState({
     total: 0,
     pending: 0,
@@ -115,6 +118,10 @@ export default function AppointmentsPage() {
     return () => clearTimeout(timer);
   }, [fetchAppointments]);
 
+  useEffect(() => {
+    setNotes(selected?.notes || "");
+  }, [selected?._id, selected?.notes]);
+
   const handleDelete = async (id) => {
     setDeletingId(id);
     try {
@@ -153,6 +160,33 @@ export default function AppointmentsPage() {
       toast.error("Failed to update status");
     } finally {
       setUpdatingId(null);
+    }
+  };
+
+  const handleSaveNotes = async (id, nextNotes) => {
+    setSavingNotesId(id);
+    try {
+      const { data } = await axios.patch(
+        `${API_BASE_URL}/appointments/${id}/notes`,
+        { notes: nextNotes },
+        { withCredentials: true },
+      );
+      if (data.success) {
+        setAppointments((prev) =>
+          prev.map((appointment) =>
+            appointment._id === id ? data.appointment : appointment,
+          ),
+        );
+        if (selected?._id === id) setSelected(data.appointment);
+        toast.success("Notes Saved");
+        return data.appointment;
+      }
+      throw new Error("Failed to save notes");
+    } catch (error) {
+      toast.error("Failed to save notes");
+      throw error;
+    } finally {
+      setSavingNotesId(null);
     }
   };
 
@@ -436,6 +470,39 @@ export default function AppointmentsPage() {
                   value={selected.requirements}
                 />
               )}
+
+              <div className="space-y-2">
+                <div className="flex items-center gap-2">
+                  <StickyNote size={14} className="text-slate-400" />
+                  <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">
+                    Internal Notes
+                  </p>
+                </div>
+                <textarea
+                  value={notes}
+                  onChange={(e) => setNotes(e.target.value)}
+                  placeholder="Add private notes about this appointment..."
+                  rows={3}
+                  className="w-full text-sm text-slate-700 placeholder-slate-300 bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 resize-none outline-none focus:border-slate-400 focus:bg-white transition-all"
+                />
+                <div className="flex justify-end">
+                  <button
+                    onClick={() => handleSaveNotes(selected._id, notes)}
+                    disabled={
+                      savingNotesId === selected._id ||
+                      notes === (selected.notes || "")
+                    }
+                    className="flex items-center gap-1.5 px-4 py-1.5 bg-slate-800 text-white text-xs font-bold rounded-xl hover:bg-slate-700 transition disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
+                  >
+                    {savingNotesId === selected._id ? (
+                      <Loader2 size={12} className="animate-spin" />
+                    ) : (
+                      <StickyNote size={12} />
+                    )}
+                    Save Notes
+                  </button>
+                </div>
+              </div>
             </div>
 
             {/* Status + Actions */}

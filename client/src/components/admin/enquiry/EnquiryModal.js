@@ -27,9 +27,7 @@ export default function EnquiryModal({
   return (
     <div
       className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4"
-      onClick={(e) => {
-        if (e.target === e.currentTarget) onClose();
-      }}
+      onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
     >
       <div className="bg-white rounded-3xl shadow-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto scrollbar-hide animate-in zoom-in-95 duration-200">
 
@@ -56,11 +54,11 @@ export default function EnquiryModal({
 
         {/* Body */}
         <div className="p-6 space-y-4">
-          <DetailRow icon={User} label="Name" value={enquiry.name} />
-          <DetailRow icon={Mail} label="Email" value={enquiry.email} />
-          <DetailRow icon={Phone} label="Phone" value={enquiry.phone} />
-          <DetailRow icon={Package} label="Product" value={enquiry.productName} />
-          <DetailRow icon={Ruler} label="Size" value={enquiry.size} />
+          <DetailRow icon={User}          label="Name"    value={enquiry.name} />
+          <DetailRow icon={Mail}          label="Email"   value={enquiry.email} />
+          <DetailRow icon={Phone}         label="Phone"   value={enquiry.phone} />
+          <DetailRow icon={Package}       label="Product" value={enquiry.productName} />
+          <DetailRow icon={Ruler}         label="Size"    value={enquiry.size} />
           {enquiry.message && (
             <DetailRow icon={MessageSquare} label="Message" value={enquiry.message} />
           )}
@@ -85,17 +83,14 @@ export default function EnquiryModal({
                   onClick={() => onStatusChange(enquiry._id, s)}
                   disabled={isCurrentStatus || isAreaLocked}
                   className={`px-4 cursor-pointer py-2 rounded-xl text-xs font-bold capitalize transition-all border disabled:cursor-not-allowed
-                    ${
-                      isCurrentStatus
-                        ? STATUS_STYLES[s] + " opacity-100"
-                        : "bg-slate-50 border-slate-200 text-slate-500 hover:border-slate-400"
+                    ${isCurrentStatus
+                      ? STATUS_STYLES[s] + " opacity-100"
+                      : "bg-slate-50 border-slate-200 text-slate-500 hover:border-slate-400"
                     }`}
                 >
                   {isThisButtonSpinning ? (
                     <Loader2 size={12} className="animate-spin inline" />
-                  ) : (
-                    s
-                  )}
+                  ) : s}
                 </button>
               );
             })}
@@ -108,9 +103,7 @@ export default function EnquiryModal({
           >
             {isThisEnquiry && pendingAction.action === "send" ? (
               <Loader2 size={13} className="animate-spin" />
-            ) : (
-              <Mail size={13} />
-            )}
+            ) : <Mail size={13} />}
             Send Availability Email
           </button>
 
@@ -121,9 +114,7 @@ export default function EnquiryModal({
           >
             {isThisEnquiry && pendingAction.action === "delete" ? (
               <Loader2 size={13} className="animate-spin" />
-            ) : (
-              <Trash2 size={13} />
-            )}
+            ) : <Trash2 size={13} />}
             Delete Enquiry
           </button>
         </div>

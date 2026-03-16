@@ -13,7 +13,7 @@ import {
   deleteEnquiry,
   updateEnquiryStatus,
   sendAvailabilityEmail,
-  deriveEnquiryCounts,
+  deriveEnquiryCounts
 } from "@/services/enquiryService";
 
 export default function EnquiriesPage() {

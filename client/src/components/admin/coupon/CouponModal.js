@@ -45,6 +45,7 @@ export default function CouponModal({
     usageLimitPerUser: 1,
     status: "Active",
     showOnHomepage: false,
+    showOnLoginPage: false,
   });
 
   const [products, setProducts] = useState([]);
@@ -108,6 +109,7 @@ export default function CouponModal({
         usageLimitPerUser: initialData?.usageLimitPerUser || 1,
         status: initialData?.isActive !== false ? "Active" : "Inactive",
         showOnHomepage: initialData?.showOnHomepage || false,
+        showOnLoginPage: initialData?.showOnLoginPage || false,
       });
 
       if (initialData?.applicableIds) {
@@ -147,6 +149,7 @@ export default function CouponModal({
             : undefined,
       applicableIds: selectedItems.map((i) => i._id),
       showOnHomepage: formData.showOnHomepage,
+      showOnLoginPage: formData.showOnLoginPage,
     };
 
     try {
@@ -283,6 +286,60 @@ export default function CouponModal({
                 aria-hidden="true"
                 className={`absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full shadow-sm transition-transform duration-200 ${
                   formData.showOnHomepage ? "translate-x-5" : "translate-x-0"
+                }`}
+              />
+            </button>
+          </div>
+
+          <div className="flex items-center justify-between p-4 bg-slate-50 border border-slate-200 rounded-xl">
+            <div className="flex items-center gap-3">
+              <div aria-hidden="true" className="w-8 h-8 rounded-lg bg-slate-100 flex items-center justify-center">
+                <Gift size={15} className="text-slate-500" />
+              </div>
+              <div>
+                <p
+                  id="login-toggle-label"
+                  className="text-xs font-black text-slate-800 uppercase tracking-wide"
+                >
+                  Show on Login Page
+                </p>
+                <p className="text-[11px] text-slate-400 mt-0.5">
+                  Display this offer in the login page promotions section
+                </p>
+              </div>
+            </div>
+
+            <button
+              type="button"
+              role="switch"
+              aria-checked={formData.showOnLoginPage}
+              aria-labelledby="login-toggle-label"
+              onClick={() => {
+                if (!formData.showOnLoginPage) {
+                  const conflict = allCoupons.find(
+                    (c) => c.showOnLoginPage && c._id !== initialData?._id,
+                  );
+                  if (conflict) {
+                    toast.error(
+                      `"${conflict.code || conflict.description}" is already set as the login page coupon. Disable it first.`,
+                      { duration: 4000 },
+                    );
+                    return;
+                  }
+                }
+                setFormData((prev) => ({
+                  ...prev,
+                  showOnLoginPage: !prev.showOnLoginPage,
+                }));
+              }}
+              className={`relative w-11 h-6 rounded-full cursor-pointer transition-colors duration-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-slate-900 focus-visible:ring-offset-2 ${
+                formData.showOnLoginPage ? "bg-slate-900" : "bg-slate-200"
+              }`}
+            >
+              <span
+                aria-hidden="true"
+                className={`absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full shadow-sm transition-transform duration-200 ${
+                  formData.showOnLoginPage ? "translate-x-5" : "translate-x-0"
                 }`}
               />
             </button>

@@ -9,33 +9,23 @@ export const createEnquiry = async (req, res, next) => {
     const { productName, size, name, email, phone, message } = req.body;
 
     if (!productName?.trim())
-      return res
-        .status(400)
-        .json({ success: false, message: "Product name is required" });
+      return res.status(400).json({ success: false, message: "Product name is required" });
     if (!size?.trim())
-      return res
-        .status(400)
-        .json({ success: false, message: "Size is required" });
+      return res.status(400).json({ success: false, message: "Size is required" });
     if (!name?.trim())
-      return res
-        .status(400)
-        .json({ success: false, message: "Name is required" });
+      return res.status(400).json({ success: false, message: "Name is required" });
     if (!email?.trim())
-      return res
-        .status(400)
-        .json({ success: false, message: "Email is required" });
+      return res.status(400).json({ success: false, message: "Email is required" });
     if (!phone?.trim())
-      return res
-        .status(400)
-        .json({ success: false, message: "Phone is required" });
+      return res.status(400).json({ success: false, message: "Phone is required" });
 
     const enquiry = await Enquiry.create({
       productName: productName.trim(),
-      size: size.trim(),
-      name: name.trim(),
-      email: email.trim(),
-      phone: phone.trim(),
-      message: message?.trim() || "",
+      size:        size.trim(),
+      name:        name.trim(),
+      email:       email.trim(),
+      phone:       phone.trim(),
+      message:     message?.trim() || "",
     });
 
     res.status(201).json({ success: true, enquiry });
@@ -56,8 +46,8 @@ export const getEnquiries = async (req, res, next) => {
 
     if (search?.trim()) {
       query.$or = [
-        { name: { $regex: search.trim(), $options: "i" } },
-        { email: { $regex: search.trim(), $options: "i" } },
+        { name:        { $regex: search.trim(), $options: "i" } },
+        { email:       { $regex: search.trim(), $options: "i" } },
         { productName: { $regex: search.trim(), $options: "i" } },
       ];
     }
@@ -76,9 +66,7 @@ export const updateStatus = async (req, res, next) => {
   try {
     const { status } = req.body;
     if (!["new", "read", "replied"].includes(status)) {
-      return res
-        .status(400)
-        .json({ success: false, message: "Invalid status" });
+      return res.status(400).json({ success: false, message: "Invalid status" });
     }
 
     const enquiry = await Enquiry.findByIdAndUpdate(
@@ -88,9 +76,8 @@ export const updateStatus = async (req, res, next) => {
     );
 
     if (!enquiry)
-      return res
-        .status(404)
-        .json({ success: false, message: "Enquiry not found" });
+      return res.status(404).json({ success: false, message: "Enquiry not found" });
+
     res.status(200).json({ success: true, enquiry });
   } catch (error) {
     next(error);
@@ -104,44 +91,37 @@ export const deleteEnquiry = async (req, res, next) => {
   try {
     const enquiry = await Enquiry.findByIdAndDelete(req.params.id);
     if (!enquiry)
-      return res
-        .status(404)
-        .json({ success: false, message: "Enquiry not found" });
+      return res.status(404).json({ success: false, message: "Enquiry not found" });
+
     res.status(200).json({ success: true, message: "Enquiry deleted" });
   } catch (error) {
     next(error);
   }
 };
 
-// @desc    Send Enquiry email
-// @route   DELETE /api/v1/enquiries/:id/send-availability
+// @desc    Send availability email
+// @route   POST /api/v1/enquiries/:id/send-availability
 // @access  Private/Admin
 export const sendAvailability = async (req, res, next) => {
   try {
     const enquiry = await Enquiry.findById(req.params.id);
 
     if (!enquiry) {
-      return res
-        .status(404)
-        .json({ success: false, message: "Enquiry not found" });
+      return res.status(404).json({ success: false, message: "Enquiry not found" });
     }
-    
+
     await sendAvailabilityEmail({
-      name: enquiry.name,
-      email: enquiry.email,
+      name:        enquiry.name,
+      email:       enquiry.email,
       productName: enquiry.productName,
-      size: enquiry.size,
+      size:        enquiry.size,
     });
 
     enquiry.status = "replied";
     await enquiry.save();
 
-    res.status(200).json({
-      success: true,
-      message: "Availability email sent",
-      enquiry,
-    });
+    res.status(200).json({ success: true, message: "Availability email sent", enquiry });
   } catch (error) {
-    next(error)
+    next(error);
   }
 };

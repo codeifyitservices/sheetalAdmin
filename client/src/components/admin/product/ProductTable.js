@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useMemo } from "react";
+import { useEffect, useState } from "react";
 import {
   Eye,
   Edit3,
@@ -29,6 +29,7 @@ export default function ProductTable({ refreshStats }) {
   const [products, setProducts] = useState([]);
   const [loading, setLoading] = useState(false);
   const [search, setSearch] = useState("");
+  const [totalProducts, setTotalProducts] = useState(0);
 
   const [rowsPerPage, setRowsPerPage] = useState(10);
   const [currentPage, setCurrentPage] = useState(1);
@@ -63,19 +64,30 @@ export default function ProductTable({ refreshStats }) {
   }, [openProductId, products]);
 
   useEffect(() => {
-    fetchProducts();
-  }, []);
+    const timer = setTimeout(() => {
+      fetchProducts();
+    }, 300);
+
+    return () => clearTimeout(timer);
+  }, [currentPage, rowsPerPage, search, sortConfig]);
 
   const fetchProducts = async (isRefresh = false) => {
     setLoading(true);
     try {
-      // Products fetch logic - Sending params as per your service
-      const res = await getProducts(1, 100, "");
+      const sortParam =
+        sortConfig.direction === "desc"
+          ? `-${sortConfig.key}`
+          : sortConfig.key;
+      const res = await getProducts(
+        currentPage,
+        rowsPerPage,
+        search,
+        sortParam,
+      );
 
       if (res.success) {
-        // FIX: Product service usually returns res.products or res.data.products
-        const dataToSet = res.products || res.data?.products || [];
-        setProducts(dataToSet);
+        setProducts(res.products || []);
+        setTotalProducts(res.totalProducts || 0);
 
         if (refreshStats) refreshStats();
         if (isRefresh) toast.success("Inventory synchronized!");
@@ -93,7 +105,11 @@ export default function ProductTable({ refreshStats }) {
     try {
       const res = await deleteProduct(deleteId);
       if (res.success) {
-        fetchProducts();
+        if (products.length === 1 && currentPage > 1) {
+          setCurrentPage((prev) => prev - 1);
+        } else {
+          fetchProducts();
+        }
         toast.success("Product deleted successfully", { id: loadingToast });
       }
     } catch (err) {
@@ -112,34 +128,11 @@ export default function ProductTable({ refreshStats }) {
     }));
   };
 
-  const filteredData = useMemo(() => {
-    return products
-      .filter((p) => {
-        const searchMatch =
-          p.name?.toLowerCase().includes(search.toLowerCase()) ||
-          p.sku?.toLowerCase().includes(search.toLowerCase());
-
-        return searchMatch;
-      })
-      .sort((a, b) => {
-        const aVal = a[sortConfig.key] || "";
-        const bVal = b[sortConfig.key] || "";
-        if (aVal < bVal) return sortConfig.direction === "asc" ? -1 : 1;
-        if (aVal > bVal) return sortConfig.direction === "asc" ? 1 : -1;
-        return 0;
-      });
-  }, [products, search, sortConfig]);
-
   useEffect(() => {
     setCurrentPage(1);
-  }, [search, rowsPerPage]);
+  }, [search, rowsPerPage, sortConfig]);
 
-  const paginatedData = filteredData.slice(
-    (currentPage - 1) * rowsPerPage,
-    currentPage * rowsPerPage,
-  );
-
-  const totalPages = Math.ceil(filteredData.length / rowsPerPage);
+  const totalPages = Math.max(1, Math.ceil(totalProducts / rowsPerPage));
 
   return (
     <div className="bg-white border border-slate-200 rounded-lg shadow-sm text-slate-900 overflow-hidden">
@@ -223,8 +216,8 @@ export default function ProductTable({ refreshStats }) {
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-100">
-            {paginatedData.length > 0 ? (
-              paginatedData.map((p, i) => (
+            {products.length > 0 ? (
+              products.map((p, i) => (
                 <tr
                   key={p._id}
                   className="hover:bg-slate-50/80 transition-colors"
@@ -372,6 +365,83 @@ export default function ProductTable({ refreshStats }) {
             )}
           </tbody>
         </table>
+      </div>
+
+      <div className="p-4 border-t border-slate-100 flex flex-col md:flex-row items-center justify-between bg-slate-50/50 gap-4">
+        <div className="flex items-center gap-3">
+          <span className="text-[10px] font-bold text-slate-400 uppercase tracking-tighter">
+            Rows per page
+          </span>
+          <select
+            value={rowsPerPage}
+            onChange={(e) => setRowsPerPage(Number(e.target.value))}
+            className="bg-white border border-slate-200 text-xs font-bold text-slate-700 py-1 px-2 rounded-md outline-none cursor-pointer"
+          >
+            {[5, 10, 20, 50].map((val) => (
+              <option key={val} value={val}>
+                {val}
+              </option>
+            ))}
+          </select>
+        </div>
+
+        <div className="flex flex-col sm:flex-row items-center gap-4">
+          <div className="text-[11px] font-medium text-slate-500">
+            {totalProducts > 0 && (
+              <>
+                Showing{" "}
+                <span className="font-bold text-slate-900">
+                  {(currentPage - 1) * rowsPerPage + 1}
+                </span>{" "}
+                to{" "}
+                <span className="font-bold text-slate-900">
+                  {Math.min(currentPage * rowsPerPage, totalProducts)}
+                </span>{" "}
+                of{" "}
+                <span className="font-bold text-slate-900">
+                  {totalProducts}
+                </span>{" "}
+                results
+              </>
+            )}
+          </div>
+
+          <div className="flex items-center gap-1">
+            <button
+              disabled={currentPage === 1 || loading}
+              onClick={() => setCurrentPage((prev) => prev - 1)}
+              className="p-2 border border-slate-200 rounded-lg cursor-pointer bg-white disabled:opacity-30 hover:bg-slate-50 shadow-sm transition-colors"
+            >
+              <ChevronLeft size={16} className="text-slate-600" />
+            </button>
+
+            <div className="flex items-center gap-1">
+              {Array.from({ length: totalPages }, (_, i) => i + 1).map(
+                (page) => (
+                  <button
+                    key={page}
+                    onClick={() => setCurrentPage(page)}
+                    className={`h-8 min-w-[32px] px-2 rounded-lg text-xs font-bold transition-all ${
+                      currentPage === page
+                        ? "bg-slate-900 text-white shadow-md"
+                        : "bg-white border border-slate-100 text-slate-500 hover:border-slate-300"
+                    }`}
+                  >
+                    {page}
+                  </button>
+                ),
+              )}
+            </div>
+
+            <button
+              disabled={currentPage >= totalPages || loading}
+              onClick={() => setCurrentPage((prev) => prev + 1)}
+              className="p-2 border border-slate-200 rounded-lg cursor-pointer bg-white disabled:opacity-30 hover:bg-slate-50 shadow-sm transition-colors"
+            >
+              <ChevronRight size={16} className="text-slate-600" />
+            </button>
+          </div>
+        </div>
       </div>
 
       <ProductModal

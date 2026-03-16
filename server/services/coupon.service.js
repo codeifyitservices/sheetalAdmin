@@ -18,6 +18,10 @@ export const createCouponService = async (data) => {
       await Coupon.updateMany({}, { $set: { showOnHomepage: false } });
     }
 
+    if (data.showOnLoginPage === true) {
+      await Coupon.updateMany({}, { $set: { showOnLoginPage: false } });
+    }
+
     if (data.applicableIds && data.applicableIds.length > 0) {
       if (data.scope === "Specific_Product") {
         data.modelRef = "Product";
@@ -46,6 +50,13 @@ export const updateCouponService = async (id, updateData) => {
       await Coupon.updateMany(
         { _id: { $ne: id } },
         { $set: { showOnHomepage: false } },
+      );
+    }
+
+    if (updateData.showOnLoginPage === true) {
+      await Coupon.updateMany(
+        { _id: { $ne: id } },
+        { $set: { showOnLoginPage: false } },
       );
     }
 
@@ -397,6 +408,15 @@ export const getCouponStatsService = async () => {
 export const getHomepageCouponService = async () => {
   try {
     const coupon = await Coupon.findOne({ showOnHomepage: true }).lean();
+    return { success: true, data: coupon ?? null };
+  } catch (error) {
+    return { success: false, statusCode: 500, message: error.message };
+  }
+};
+
+export const getLoginCouponService = async () => {
+  try {
+    const coupon = await Coupon.findOne({ showOnLoginPage: true }).lean();
     return { success: true, data: coupon ?? null };
   } catch (error) {
     return { success: false, statusCode: 500, message: error.message };

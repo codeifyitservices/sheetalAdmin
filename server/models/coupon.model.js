@@ -54,6 +54,7 @@ const couponSchema = new mongoose.Schema(
     ],
     isActive: { type: Boolean, default: true },
     showOnHomepage: { type: Boolean, default: false },
+    showOnLoginPage: { type: Boolean, default: false },
   },
   { timestamps: true },
 );

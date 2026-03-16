@@ -9,6 +9,7 @@ const appointmentSchema = new mongoose.Schema(
         city: { type: String, required: true, trim: true },
         pincode: { type: String, required: true, trim: true },
         requirements: { type: String, trim: true, default: "" },
+        notes: { type: String, trim: true, default: "" },
         status: {
             type: String,
             enum: ["pending", "confirmed", "cancelled"],

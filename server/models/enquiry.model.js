@@ -1,20 +1,20 @@
 import mongoose from "mongoose";
 
 const enquirySchema = new mongoose.Schema(
-    {
-        productName: { type: String, required: true, trim: true },
-        size:        { type: String, required: true, trim: true },
-        name:        { type: String, required: true, trim: true },
-        email:       { type: String, required: true, trim: true, lowercase: true },
-        phone:       { type: String, required: true, trim: true },
-        message:     { type: String, trim: true, default: "" },
-        status: {
-            type: String,
-            enum: ["new", "read", "replied"],
-            default: "new",
-        },
+  {
+    productName: { type: String, required: true, trim: true },
+    size:        { type: String, required: true, trim: true },
+    name:        { type: String, required: true, trim: true },
+    email:       { type: String, required: true, trim: true, lowercase: true },
+    phone:       { type: String, required: true, trim: true },
+    message:     { type: String, trim: true, default: "" },
+    status: {
+      type: String,
+      enum: ["new", "read", "replied"],
+      default: "new",
     },
-    { timestamps: true }
+  },
+  { timestamps: true },
 );
 
 const Enquiry = mongoose.model("Enquiry", enquirySchema);

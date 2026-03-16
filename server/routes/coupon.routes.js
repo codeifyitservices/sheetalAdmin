@@ -5,6 +5,7 @@ import {
   getAllCouponsAdmin,
   getCouponStats,
   getHomepageCoupon,
+  getLoginCoupon,
   deleteCoupon,
   applyCoupon,
   updateCoupon,
@@ -16,6 +17,7 @@ const router = express.Router();
 // ── Public routes ──────────────────────────────────────────────
 // IMPORTANT: specific string routes must come before /:id wildcard
 router.get("/homepage", getHomepageCoupon);              // public — storefront banner
+router.get("/login", getLoginCoupon);                    // public — storefront login promo
 router.get("/", getAllCoupons);                           // public — active+valid only
 router.post("/apply", isAuthenticated, applyCoupon);
 

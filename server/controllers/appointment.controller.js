@@ -95,6 +95,31 @@ export const updateStatus = async (req, res, next) => {
     }
 };
 
+// @desc    Update appointment notes
+// @route   PATCH /api/v1/appointments/:id/notes
+// @access  Private/Admin
+export const updateNotes = async (req, res, next) => {
+    try {
+        const { notes } = req.body;
+
+        if (typeof notes !== "string") {
+            return res.status(400).json({ success: false, message: "Notes must be a string" });
+        }
+
+        const appointment = await Appointment.findByIdAndUpdate(
+            req.params.id,
+            { notes: notes.trim() },
+            { new: true }
+        );
+
+        if (!appointment) return res.status(404).json({ success: false, message: "Appointment not found" });
+
+        res.status(200).json({ success: true, appointment });
+    } catch (error) {
+        next(error);
+    }
+};
+
 // @desc    Delete appointment
 // @route   DELETE /api/v1/appointments/:id
 // @access  Private/Admin

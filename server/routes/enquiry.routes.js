@@ -13,7 +13,12 @@ const router = express.Router();
 router.post("/", createEnquiry);
 router.get("/", isAuthenticated, isAdmin, getEnquiries);
 router.patch("/:id/status", isAuthenticated, isAdmin, updateStatus);
-router.post("/:id/send-availability", isAuthenticated, isAdmin, sendAvailability);
+router.post(
+  "/:id/send-availability",
+  isAuthenticated,
+  isAdmin,
+  sendAvailability,
+);
 router.delete("/:id", isAuthenticated, isAdmin, deleteEnquiry);
 
 export default router;

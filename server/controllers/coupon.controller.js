@@ -102,3 +102,15 @@ export const getHomepageCoupon = async (req, res, next) => {
     next(error);
   }
 };
+
+// Returns the single coupon with showOnLoginPage: true, or null.
+// Public — used by the storefront login promo surface.
+export const getLoginCoupon = async (req, res, next) => {
+  try {
+    const result = await couponService.getLoginCouponService();
+    if (!result.success) return res.status(500).json(result);
+    return successResponse(res, 200, result.data, "Login coupon retrieved");
+  } catch (error) {
+    next(error);
+  }
+};

@@ -6,9 +6,22 @@
     return data;
   };
 
-  export const getProducts = async (page = 1, limit = 10, search = "") => {
+  export const getProducts = async (
+    page = 1,
+    limit = 10,
+    search = "",
+    sort = "",
+  ) => {
+    const params = new URLSearchParams({
+      page: String(page),
+      limit: String(limit),
+    });
+
+    if (search) params.set("search", search);
+    if (sort) params.set("sort", sort);
+
     const res = await fetch(
-      `${API_BASE_URL}/products/all?page=${page}&limit=${limit}&search=${search}`,
+      `${API_BASE_URL}/products/all?${params.toString()}`,
       { credentials: "include" },
     );
     return handleResponse(res);
