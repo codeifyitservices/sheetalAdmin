@@ -64,6 +64,7 @@ export default function ProductModal({
     work: [],
     fabric: [],
     productType: [],
+    byPrice: [],
     brandInfo: "",
     metaTitle: "",
     metaDescription: "",
@@ -124,6 +125,7 @@ export default function ProductModal({
           productType: Array.isArray(initialData.productType)
             ? initialData.productType
             : [],
+          byPrice: Array.isArray(initialData.byPrice) ? initialData.byPrice : [],
           returnPolicy: initialData.returnPolicy || "7 Days Easy Return",
           price: undefined,
           discountPrice: undefined,
@@ -185,6 +187,7 @@ export default function ProductModal({
       work: [],
       fabric: [],
       productType: [],
+      byPrice: [],
       brandInfo: "",
       returnPolicy: "7 Days Easy Return",
       isTrending: false,
@@ -269,6 +272,7 @@ export default function ProductModal({
             "work",
             "fabric",
             "productType",
+            "byPrice",
           ].includes(key)
         ) {
           data.append(key, JSON.stringify(formData[key] || []));

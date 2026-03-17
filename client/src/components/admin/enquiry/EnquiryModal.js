@@ -20,6 +20,7 @@ export default function EnquiryModal({
   onDelete,
   onSendAvailability,
   pendingAction,
+  type = "notify",
 }) {
   const isThisEnquiry = pendingAction?.id === enquiry._id;
   const isAreaLocked = isThisEnquiry;
@@ -57,10 +58,16 @@ export default function EnquiryModal({
           <DetailRow icon={User}          label="Name"    value={enquiry.name} />
           <DetailRow icon={Mail}          label="Email"   value={enquiry.email} />
           <DetailRow icon={Phone}         label="Phone"   value={enquiry.phone} />
-          <DetailRow icon={Package}       label="Product" value={enquiry.productName} />
-          <DetailRow icon={Ruler}         label="Size"    value={enquiry.size} />
-          {enquiry.message && (
-            <DetailRow icon={MessageSquare} label="Message" value={enquiry.message} />
+          {type === "contact" ? (
+            <DetailRow icon={MessageSquare} label="Query" value={enquiry.query} />
+          ) : (
+            <>
+              <DetailRow icon={Package} label="Product" value={enquiry.productName} />
+              <DetailRow icon={Ruler} label="Size" value={enquiry.size} />
+              {enquiry.message && (
+                <DetailRow icon={MessageSquare} label="Message" value={enquiry.message} />
+              )}
+            </>
           )}
         </div>
 
@@ -96,16 +103,18 @@ export default function EnquiryModal({
             })}
           </div>
 
-          <button
-            onClick={() => onSendAvailability(enquiry)}
-            disabled={isAreaLocked}
-            className="w-full cursor-pointer flex items-center justify-center gap-2 border border-emerald-200 text-emerald-600 hover:bg-emerald-500 hover:text-white py-2.5 rounded-xl text-xs font-bold transition-all disabled:opacity-50"
-          >
-            {isThisEnquiry && pendingAction.action === "send" ? (
-              <Loader2 size={13} className="animate-spin" />
-            ) : <Mail size={13} />}
-            Send Availability Email
-          </button>
+          {type !== "contact" && (
+            <button
+              onClick={() => onSendAvailability(enquiry)}
+              disabled={isAreaLocked}
+              className="w-full cursor-pointer flex items-center justify-center gap-2 border border-emerald-200 text-emerald-600 hover:bg-emerald-500 hover:text-white py-2.5 rounded-xl text-xs font-bold transition-all disabled:opacity-50"
+            >
+              {isThisEnquiry && pendingAction.action === "send" ? (
+                <Loader2 size={13} className="animate-spin" />
+              ) : <Mail size={13} />}
+              Send Availability Email
+            </button>
+          )}
 
           <button
             onClick={() => onDelete(enquiry._id)}
@@ -115,7 +124,7 @@ export default function EnquiryModal({
             {isThisEnquiry && pendingAction.action === "delete" ? (
               <Loader2 size={13} className="animate-spin" />
             ) : <Trash2 size={13} />}
-            Delete Enquiry
+            Delete {type === "contact" ? "Contact Enquiry" : "Enquiry"}
           </button>
         </div>
       </div>

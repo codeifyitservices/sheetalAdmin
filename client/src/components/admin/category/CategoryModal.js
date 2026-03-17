@@ -39,6 +39,7 @@ export default function CategoryModal({
     productType: [],
     wearType: [],
     occasion: [],
+    byPrice: [],
     mainImage: null,
     bannerImage: null,
     // SEO fields
@@ -66,6 +67,7 @@ export default function CategoryModal({
         productType: initialData?.productType || [],
         wearType: initialData?.wearType || [],
         occasion: initialData?.occasion || [],
+        byPrice: initialData?.byPrice || [],
         mainImage: null,
         bannerImage: null,
         metaTitle: initialData?.metaTitle || "",
@@ -166,6 +168,7 @@ export default function CategoryModal({
     data.append("productType", JSON.stringify(formData.productType));
     data.append("wearType", JSON.stringify(formData.wearType));
     data.append("occasion", JSON.stringify(formData.occasion));
+    data.append("byPrice", JSON.stringify(formData.byPrice));
     // SEO
     data.append("metaTitle", formData.metaTitle);
     data.append("metaDescription", formData.metaDescription);
@@ -512,6 +515,11 @@ export default function CategoryModal({
                           label: "Occasion",
                           key: "occasion",
                           color: "text-pink-600 bg-pink-50 border-pink-200",
+                        },
+                        {
+                          label: "By Price",
+                          key: "byPrice",
+                          color: "text-amber-600 bg-amber-50 border-amber-200",
                         },
                       ].map((section) => (
                         <div

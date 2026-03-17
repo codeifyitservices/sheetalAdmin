@@ -24,6 +24,7 @@ export const createCategoryService = async (data, files) => {
     productType,
     wearType,
     occasion,
+    byPrice,
   } = data;
 
   if (!name) return { success: false, message: "Category name is required" };
@@ -67,6 +68,7 @@ export const createCategoryService = async (data, files) => {
   const parsedProductType = parseArrayField(productType);
   const parsedWearType = parseArrayField(wearType);
   const parsedOccasion = parseArrayField(occasion);
+  const parsedByPrice = parseArrayField(byPrice);
 
   const newCategoryData = {
     name,
@@ -88,6 +90,7 @@ export const createCategoryService = async (data, files) => {
     productType: parsedProductType,
     wearType: parsedWearType,
     occasion: parsedOccasion,
+    byPrice: parsedByPrice,
   };
 
   if (files && files.mainImage) {
@@ -122,7 +125,7 @@ export const createCategoryService = async (data, files) => {
 export const getAllCategoriesService = async () => {
   const categories = await Category.find({ isActive: true })
     .select(
-      "name slug mainImage bannerImage parentCategory subCategories style work fabric productType wearType occasion",
+      "name slug mainImage bannerImage parentCategory subCategories style work fabric productType wearType occasion byPrice",
     )
     .populate("parentCategory", "name")
     .sort({ order: 1 });
@@ -277,6 +280,8 @@ export const updateCategoryService = async (id, data, files) => {
     updateData.wearType = parseArrayField(data.wearType);
   if (data.occasion !== undefined)
     updateData.occasion = parseArrayField(data.occasion);
+  if (data.byPrice !== undefined)
+    updateData.byPrice = parseArrayField(data.byPrice);
 
   if (data.subCategories !== undefined) {
     let parsedSubCategories = [];

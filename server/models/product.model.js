@@ -70,6 +70,11 @@ const productSchema = new mongoose.Schema(
       default: [],
       index: true,
     },
+    byPrice: {
+      type: [String],
+      default: [],
+      index: true,
+    },
 
     displayCollections: { type: [String], default: [], index: true },
     eventTags: { type: [String], default: [], index: true },
@@ -179,6 +184,7 @@ productSchema.index({
   work: "text",
   fabric: "text",
   productType: "text",
+  byPrice: "text",
   metaKeywords: "text",
   materialCare: "text",
 });

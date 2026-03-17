@@ -125,15 +125,30 @@ const generateNgrams = (text, n = N) => {
 const documentNgrams = (doc) => {
   const fields = [
     doc.name,
+    doc.sku,
+    doc.subCategory,
     doc.description,
     doc.shortDescription,
+    doc.materialCare,
+    doc.brandInfo,
+    doc.returnPolicy,
+    doc.metaTitle,
+    doc.metaDescription,
+    doc.metaKeywords,
     doc.category,
     ...(doc.tags || []),
+    ...(doc.productType || []),
     ...(doc.fabric || []),
     ...(doc.style || []),
     ...(doc.work || []),
     ...(doc.occasion || []),
     ...(doc.wearType || []),
+    ...(doc.byPrice || []),
+    ...(doc.displayCollections || []),
+    ...(doc.eventTags || []),
+    ...(doc.keyBenefits || []),
+    ...(doc.specifications || []),
+    ...(doc.sizes || []),
     ...(doc.colors || []),
   ]
     .filter(Boolean)
@@ -425,8 +440,16 @@ const buildProductDoc = (product) => {
     type: "product",
     name: product.name || "",
     slug: product.slug || "",
+    sku: product.sku || "",
+    subCategory: product.subCategory || "",
     description: product.description || "",
     shortDescription: product.shortDescription || "",
+    materialCare: product.materialCare || "",
+    brandInfo: product.brandInfo || "",
+    returnPolicy: product.returnPolicy || "",
+    metaTitle: product.metaTitle || "",
+    metaDescription: product.metaDescription || "",
+    metaKeywords: product.metaKeywords || "",
     mainImage: product.mainImage || null,
     // FIX #5: category?.name covers populated docs; toString() covers raw ObjectIds
     // so the field is never silently empty when syncToIndex is called post-create/update.
@@ -437,13 +460,32 @@ const buildProductDoc = (product) => {
         ? "" // ObjectId — name unknowable without population; index as empty
         : ""),
     tags: product.tags || [],
+    productType: product.productType || [],
     fabric: product.fabric || [],
     style: product.style || [],
     work: product.work || [],
     occasion: product.occasion || [],
     wearType: product.wearType || [],
+    byPrice: product.byPrice || [],
+    displayCollections: product.displayCollections || [],
+    eventTags: product.eventTags || [],
+    keyBenefits: product.keyBenefits || [],
+    specifications: Array.isArray(product.specifications)
+      ? product.specifications.flatMap((spec) =>
+          [spec?.key, spec?.value].filter(Boolean),
+        )
+      : [],
     stock: product.stock,
     status: product.status,
+    sizes: product.variants
+      ? [
+          ...new Set(
+            product.variants.flatMap((v) =>
+              (v.sizes || []).map((size) => size?.name).filter(Boolean),
+            ),
+          ),
+        ]
+      : [],
     colors: product.variants
       ? [...new Set(product.variants.map((v) => v.color?.name).filter(Boolean))]
       : [],

@@ -31,6 +31,7 @@ export const getAllProductsService = async (queryStr) => {
     work,
     fabric,
     productType,
+    byPrice,
     minPrice,
     maxPrice,
   } = queryStr;
@@ -124,6 +125,12 @@ export const getAllProductsService = async (queryStr) => {
   if (productType) {
     filter.productType = {
       $in: Array.isArray(productType) ? productType : [productType],
+    };
+  }
+
+  if (byPrice) {
+    filter.byPrice = {
+      $in: Array.isArray(byPrice) ? byPrice : [byPrice],
     };
   }
 
@@ -297,6 +304,10 @@ export const createProductService = async (data, files, userId) => {
       typeof data.productType === "string"
         ? JSON.parse(data.productType)
         : data.productType,
+    byPrice:
+      typeof data.byPrice === "string"
+        ? JSON.parse(data.byPrice)
+        : data.byPrice,
   };
 
   if (parsedData.sizeChart === "null" || !parsedData.sizeChart)
@@ -448,6 +459,10 @@ export const updateProductService = async (id, data, files) => {
       typeof data.productType === "string"
         ? JSON.parse(data.productType)
         : data.productType,
+    byPrice:
+      typeof data.byPrice === "string"
+        ? JSON.parse(data.byPrice)
+        : data.byPrice,
   };
 
   if (parsedData.sizeChart === "null" || !parsedData.sizeChart)
@@ -899,6 +914,7 @@ export const bulkImportService = async (files, userId) => {
         work: safeSplit(item.Work),
         fabric: safeSplit(item.Fabric),
         productType: safeSplit(item.Type),
+        byPrice: safeSplit(item.ByPrice),
         mainImage,
         ...(hoverImage && { hoverImage }),
         images: galleryImages,
