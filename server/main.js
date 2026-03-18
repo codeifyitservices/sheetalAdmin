@@ -35,6 +35,7 @@ import testimonialRouter from './routes/testimonial.routes.js'
 import appointmentRouter from './routes/appointment.routes.js'
 import homepageRouter from './routes/homepage.routes.js'
 import enquiryRouter from './routes/enquiry.routes.js'
+import contactEnquiryRouter from './routes/contactEnquiry.routes.js'
 
 import errorHandler from "./middlewares/error.middleware.js";
 import sanitizeBody from "./middlewares/sanitize.middleware.js";
@@ -166,6 +167,7 @@ app.use('/api/v1/testimonials', testimonialRouter)
 app.use('/api/v1/appointments', appointmentRouter)
 app.use('/api/v1/homepage', homepageRouter)
 app.use('/api/v1/enquiry', enquiryRouter)
+app.use('/api/v1/contact-enquiries', contactEnquiryRouter)
 
 app.get("/", (req, res) => {
   const clientIp = req.headers["x-forwarded-for"] || req.socket.remoteAddress;

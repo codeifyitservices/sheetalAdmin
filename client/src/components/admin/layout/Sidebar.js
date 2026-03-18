@@ -24,6 +24,7 @@ import {
   Home,
   Headset,
   Eye,
+  MessageSquare,
 } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
@@ -73,7 +74,12 @@ export default function Sidebar({ storeName = "Admin", isOpen, setIsOpen }) {
       label: "Appointments",
       href: "/admin/appointments",
     },
-    { icon: Headset, label: "Enquiry", href: "/admin/enquiry" },
+    { icon: Headset, label: "Notify Enquiries", href: "/admin/notify-enquiry" },
+    {
+      icon: MessageSquare,
+      label: "Contact Enquiries",
+      href: "/admin/contact-enquiry",
+    },
     { icon: Star, label: "Reviews", href: "/admin/reviews" },
     { icon: Newspaper, label: "Blogs", href: "/admin/blogs" },
     {

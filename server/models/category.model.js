@@ -52,6 +52,7 @@ const categorySchema = new mongoose.Schema(
     productType: { type: [String], default: [] },
     wearType: { type: [String], default: [], index: true },
     occasion: { type: [String], default: [], index: true },
+    byPrice: { type: [String], default: [], index: true },
   },
   { timestamps: true },
 );

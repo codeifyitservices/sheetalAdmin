@@ -7,15 +7,19 @@ export default function EnquiryFilters({
   statusFilter,
   onStatusFilterChange,
   count,
+  title = "Notify Enquiries",
+  singularLabel = "enquiry",
+  pluralLabel = "enquiries",
+  searchPlaceholder = "Search by name, email or product...",
 }) {
   return (
     <div className="bg-white border border-slate-200 rounded-3xl p-6 shadow-sm">
       <div className="mb-5">
         <h3 className="text-sm font-black text-slate-900 uppercase">
-          Enquiries
+          {title}
         </h3>
         <p className="text-[10px] text-slate-500 mt-0.5">
-          {count} enquir{count !== 1 ? "ies" : "y"} found
+          {count} {count !== 1 ? pluralLabel : singularLabel} found
         </p>
       </div>
       <div className="flex flex-col sm:flex-row gap-3">
@@ -33,7 +37,7 @@ export default function EnquiryFilters({
             type="text"
             value={search}
             onChange={(e) => onSearchChange(e.target.value)}
-            placeholder="Search by name, email or product..."
+            placeholder={searchPlaceholder}
             className="w-full pl-8 text-sm text-slate-800 bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 outline-none focus:ring-2 focus:ring-slate-400 focus:border-slate-400 transition placeholder:text-slate-300"
           />
         </div>

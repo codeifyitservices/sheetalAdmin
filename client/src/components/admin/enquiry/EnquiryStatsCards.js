@@ -48,7 +48,12 @@ const STAT_CARDS = [
   },
 ];
 
-export default function EnquiryStatsCards({ counts, statusFilter, onFilterChange }) {
+export default function EnquiryStatsCards({
+  counts,
+  statusFilter,
+  onFilterChange,
+  totalLabel = "All enquiries",
+}) {
   return (
     <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
       {STAT_CARDS.map((card) => (
@@ -70,7 +75,9 @@ export default function EnquiryStatsCards({ counts, statusFilter, onFilterChange
               <p className="text-3xl font-black text-slate-900 mt-1 leading-none">
                 {counts[card.key]}
               </p>
-              <p className="text-[11px] text-slate-400 mt-1">{card.sub(counts)}</p>
+              <p className="text-[11px] text-slate-400 mt-1">
+                {card.key === "total" ? totalLabel : card.sub(counts)}
+              </p>
             </div>
           </div>
         </button>

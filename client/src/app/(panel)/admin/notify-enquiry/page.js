@@ -22,9 +22,7 @@ export default function EnquiriesPage() {
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
   const [selected, setSelected] = useState(null);
-  const [deletingId, setDeletingId] = useState(null);
-  const [updatingId, setUpdatingId] = useState(null);
-  const [sendingId, setSendingId] = useState(null);
+  const [pendingAction, setPendingAction] = useState(null);
   const [counts, setCounts] = useState({ total: 0, new: 0, read: 0, replied: 0 });
 
   // Ref holds the AbortController for the in-flight fetch pair so we can
@@ -83,35 +81,35 @@ export default function EnquiriesPage() {
   };
 
   const handleStatusChange = async (id, status, silent = false) => {
-    setUpdatingId(id);
+    setPendingAction({ id, action: "status", targetStatus: status });
     try {
       const updated = await updateEnquiryStatus(id, status);
-      await loadEnquiries()
+      await loadEnquiries();
       if (selected?._id === id) setSelected(updated);
       if (!silent) toast.success("Status updated");
     } catch {
       if (!silent) toast.error("Failed to update status");
     } finally {
-      setUpdatingId(null);
+      setPendingAction(null);
     }
   };
 
   const handleDelete = async (id) => {
-    setDeletingId(id);
+    setPendingAction({ id, action: "delete" });
     try {
       await deleteEnquiry(id);
-      await loadEnquiries()
+      await loadEnquiries();
       if (selected?._id === id) setSelected(null);
       toast.success("Enquiry deleted");
     } catch {
       toast.error("Failed to delete");
     } finally {
-      setDeletingId(null);
+      setPendingAction(null);
     }
   };
 
   const handleSendAvailability = async (enquiry) => {
-    setSendingId(enquiry._id);
+    setPendingAction({ id: enquiry._id, action: "send" });
     try {
       await sendAvailabilityEmail(enquiry._id);
       await handleStatusChange(enquiry._id, "replied", true);
@@ -119,7 +117,7 @@ export default function EnquiriesPage() {
     } catch {
       toast.error("Failed to send email");
     } finally {
-      setSendingId(null);
+      setPendingAction(null);
     }
   };
 
@@ -131,6 +129,7 @@ export default function EnquiriesPage() {
         counts={counts}
         statusFilter={statusFilter}
         onFilterChange={setStatusFilter}
+        totalLabel="All notify enquiries"
       />
 
       <EnquiryFilters
@@ -139,13 +138,15 @@ export default function EnquiriesPage() {
         statusFilter={statusFilter}
         onStatusFilterChange={setStatusFilter}
         count={enquiries.length}
+        title="Notify Enquiries"
+        searchPlaceholder="Search by name, email or product..."
       />
 
       <div className="bg-white border border-slate-200 rounded-3xl shadow-sm overflow-hidden">
         <EnquiryTable
           enquiries={enquiries}
           isLoading={isLoading}
-          deletingId={deletingId}
+          deletingId={pendingAction?.action === "delete" ? pendingAction.id : null}
           onSelect={handleSelect}
           onDelete={handleDelete}
         />
@@ -158,9 +159,7 @@ export default function EnquiriesPage() {
           onStatusChange={handleStatusChange}
           onDelete={handleDelete}
           onSendAvailability={handleSendAvailability}
-          updatingId={updatingId}
-          deletingId={deletingId}
-          sendingId={sendingId}
+          pendingAction={pendingAction}
         />
       )}
     </div>

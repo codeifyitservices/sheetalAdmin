@@ -3,6 +3,7 @@ import StatusBadge from "./StatusBadge";
 import { formatEnquiryDate } from "@/services/enquiryService";
 
 const TABLE_HEADERS = ["Name", "Product", "Size", "Date", "Status", "Actions"];
+const CONTACT_TABLE_HEADERS = ["Name", "Email", "Phone", "Date", "Status", "Actions"];
 
 export default function EnquiryTable({
   enquiries,
@@ -10,6 +11,7 @@ export default function EnquiryTable({
   deletingId,
   onSelect,
   onDelete,
+  type = "notify",
 }) {
   if (isLoading) {
     return (
@@ -24,7 +26,7 @@ export default function EnquiryTable({
       <div className="flex flex-col items-center justify-center py-16 text-slate-300">
         <MessageSquare size={40} strokeWidth={1} />
         <p className="text-[10px] font-bold mt-2 uppercase tracking-widest text-slate-400">
-          No enquiries found
+          No {type === "contact" ? "contact enquiries" : "enquiries"} found
         </p>
       </div>
     );
@@ -35,7 +37,7 @@ export default function EnquiryTable({
       <table className="w-full text-sm">
         <thead>
           <tr className="border-b border-slate-100 bg-slate-50">
-            {TABLE_HEADERS.map((h) => (
+            {(type === "contact" ? CONTACT_TABLE_HEADERS : TABLE_HEADERS).map((h) => (
               <th
                 key={h}
                 className="text-left text-[10px] font-black text-slate-400 uppercase tracking-widest px-5 py-3.5"
@@ -63,12 +65,16 @@ export default function EnquiryTable({
                 </button>
               </td>
               <td className="px-5 py-3.5 text-slate-600 font-medium">
-                {e.productName}
+                {type === "contact" ? e.email : e.productName}
               </td>
               <td className="px-5 py-3.5">
-                <span className="bg-slate-100 text-slate-700 text-[10px] font-black px-2 py-0.5 rounded-full uppercase">
-                  {e.size}
-                </span>
+                {type === "contact" ? (
+                  <span className="text-slate-600 font-medium">{e.phone}</span>
+                ) : (
+                  <span className="bg-slate-100 text-slate-700 text-[10px] font-black px-2 py-0.5 rounded-full uppercase">
+                    {e.size}
+                  </span>
+                )}
               </td>
               <td className="px-5 py-3.5 text-slate-400 text-xs whitespace-nowrap">
                 {formatEnquiryDate(e.createdAt)}
@@ -85,7 +91,7 @@ export default function EnquiryTable({
                     View
                   </button>
                   <button
-                    aria-label={`Delete enquiry from ${e.name}`}
+                    aria-label={`Delete ${type === "contact" ? "contact enquiry" : "enquiry"} from ${e.name}`}
                     onClick={() => onDelete(e._id)}
                     disabled={deletingId === e._id}
                     className="p-1.5 rounded-lg cursor-pointer text-rose-400 hover:bg-rose-500 hover:text-white border border-slate-200 hover:border-rose-500 transition disabled:opacity-50"

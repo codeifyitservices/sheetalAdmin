@@ -268,6 +268,12 @@ export default function BasicInfoParams({
             color: "bg-pink-600",
             lightColor: "bg-pink-50 text-pink-700 border-pink-200",
           },
+          {
+            label: "By Price",
+            key: "byPrice",
+            color: "bg-amber-600",
+            lightColor: "bg-amber-50 text-amber-700 border-amber-200",
+          },
         ].map((section) => (
           <div
             key={section.key}
