@@ -5,25 +5,14 @@ import Category from "../models/category.model.js";
 /**
  * Searches products and categories using the custom n-gram index.
  *
- * Behaviour:
- *  - Typo / phonetic queries like "soot", "shrt", "lehnga" first try to resolve
- *    to a matching CATEGORY via fuzzy + phonetic matching.
- *  - If a category is resolved, only products from that category are returned —
- *    not a global product dump.
- *  - Attribute-style queries like "party" return all field-matched products.
- *  - Final fallback trusts the n-gram ranker if all text filters yield nothing.
- *
  * Pipeline:
- *  1. searchNgram  — fuzzy + phonetic scored hits from the in-memory index
- *  2. hydrateSearchHits — enrich raw index hits with full Mongo docs
- *  3. findTargetedCategoryHit — fuzzy + phonetic category resolution (FIX #9)
- *     → if found: return [category, ...its products only]
- *  4. productMatchesStructuredFields — attribute queries (wearType, occasion…)
- *  5. hitMatchesPrimaryIntent — name / slug / subCategory text match
- *  6. Fallback — trust the ranker (FIX #8)
- *
- * @param {{ query: string, limit: number, page: number }} params
- * @returns {Promise<Array<{ type: string, data: Object }>>}
+ *  1. searchNgram          — fuzzy + phonetic scored hits from in-memory index
+ *  2. hydrateSearchHits    — enrich raw hits with full Mongo docs
+ *  3. findTargetedCategory — fuzzy + phonetic + de-plural category resolution
+ *     → if matched: [category + ALL its products from MongoDB only]
+ *  4. structuredFields     — attribute queries (wearType, occasion, tags…)
+ *  5. primaryIntent        — name / slug / subCategory text match
+ *  6. Fallback             — fuzzy word-matched products only (FIX #8 + #11 + #12)
  */
 export const searchService = async ({ query, limit, page }) => {
   const result = await searchNgram(query, { limit, page });
@@ -33,49 +22,57 @@ export const searchService = async ({ query, limit, page }) => {
 
   const normalisedQuery = normalise(query);
 
-  // --- Step 1: Fuzzy + phonetic category resolution (FIX #9) ---
-  // Previously isCategoryTargeted used strict equality only.
-  // "soot" !== "suits" so the category path was always skipped for typos,
-  // causing a random product dump instead of Suits-only results.
-  // Now we resolve the category with the same fuzzy + phonetic logic the
-  // n-gram engine uses for scoring, so "soot" → Suits, "shrt" → Shirts, etc.
+  // --- Step 1: Category resolution ---
   const targetedCategory = findTargetedCategoryHit(hits, normalisedQuery);
-
   if (targetedCategory) {
     return await buildCategoryWithProductsResults(targetedCategory.data);
   }
 
-  // --- Step 2: Attribute / structured-field queries ---
+  // --- Step 2: Structured / attribute queries ---
   const fieldMatchedProducts = hits.filter(
     (hit) =>
       hit.type === "product" &&
       productMatchesStructuredFields(hit.data, normalisedQuery),
   );
+  if (fieldMatchedProducts.length > 0) return fieldMatchedProducts;
 
-  if (fieldMatchedProducts.length > 0) {
-    return fieldMatchedProducts;
-  }
-
-  // --- Step 3: Primary intent — name / slug / subCategory text match ---
+  // --- Step 3: Primary intent — name / slug / subCategory text ---
   const directMatchedHits = hits.filter((hit) =>
     hitMatchesPrimaryIntent(hit, normalisedQuery),
   );
+  if (directMatchedHits.length > 0) return directMatchedHits;
 
-  // --- Step 4: Fallback — trust the n-gram ranker (FIX #8) ---
-  // Handles heavy typos ("saaarees") where no field literally contains the
-  // misspelled string but the scoring pipeline already found the right docs.
-  return directMatchedHits.length > 0 ? directMatchedHits : hits;
+  // --- Step 4: Fallback — word-level fuzzy filter (FIX #8 + #11 + #12) ---
+  //
+  // FIX #12: The n-gram engine returns products that share unigrams/bigrams
+  // with the query (e.g., "shrt" shares s,r,t with sarees and suits) even when
+  // NO word in the product name is close to the query. The result was sarees and
+  // suit sets appearing for "shrt" because they passed minBaseScore via character
+  // n-gram overlap alone.
+  //
+  // Solution: filter the fallback products through productHasFuzzyWordMatch —
+  // only keep products where at least one word in the name/subCategory/category
+  // is a fuzzy (Levenshtein ratio ≤ 0.35) or phonetic (Soundex) match of a
+  // query word. This replicates the same standard used for category resolution
+  // and discards pure n-gram noise.
+  //
+  // "shrt" → only "Blue Printed Straight Shirt" survives (shirt: dist 1/5=0.20)
+  //        → "Blue Chanderi Suit Set" dropped (suit: dist 2/4=0.50, soundex S300≠S630)
+  //        → "Onion Pink Saree" dropped (saree: soundex S600≠S630)
+  //
+  // FIX #11: Return products only — never return raw category hits in fallback.
+  const productHits = hits.filter((hit) => hit.type === "product");
+  const fuzzyMatchedProducts = productHits.filter((hit) =>
+    productHasFuzzyWordMatch(hit.data, normalisedQuery),
+  );
+
+  return fuzzyMatchedProducts;
 };
 
 // ---------------------------------------------------------------------------
-// Fuzzy + Phonetic helpers (mirrored from ngram.search.service.js)
-// Kept here so search.service.js has no import dependency on the ngram module
-// internals and can be tested / replaced independently.
+// Fuzzy + Phonetic helpers
 // ---------------------------------------------------------------------------
 
-/**
- * Standard Levenshtein distance between two strings.
- */
 const levenshteinDistance = (a, b) => {
   if (a === b) return 0;
   if (a.length === 0) return b.length;
@@ -96,17 +93,11 @@ const levenshteinDistance = (a, b) => {
             );
     }
   }
-
   return matrix[b.length][a.length];
 };
 
-/**
- * Soundex phonetic code for a word.
- * "saree" and "sari" both → S600; "lehenga" and "lahenga" → L520.
- */
 const soundex = (word) => {
   if (!word || word.length === 0) return "";
-
   const map = {
     b: 1, f: 1, p: 1, v: 1,
     c: 2, g: 2, j: 2, k: 2, q: 2, s: 2, x: 2, z: 2,
@@ -115,56 +106,92 @@ const soundex = (word) => {
     m: 5, n: 5,
     r: 6,
   };
-
   const w = word.toLowerCase();
   let code = w[0].toUpperCase();
   let prev = map[w[0]] || 0;
-
   for (let i = 1; i < w.length && code.length < 4; i++) {
     const curr = map[w[i]];
     if (curr && curr !== prev) code += curr;
     prev = curr || 0;
   }
-
   return code.padEnd(4, "0");
 };
 
 /**
- * Returns true if the query is a fuzzy or phonetic match for the category name.
- *
- * Match tiers (any one is sufficient):
- *   1. Exact           — "suits" === "suits"
- *   2. Contains        — "suit" ⊂ "suits" or "suits" ⊃ "suit"
- *   3. Levenshtein ≤ 2 — "soot" → "suit" (dist=2), "shrt" → "shirt" (dist=1)
- *   4. Soundex         — "saris" → "sarees" (both S620)
- *
- * Matching is word-level so "party wear" resolves if user typed "perty"
- * (matches "party") even though the full string doesn't match.
+ * Generates singular/plural morphological variants of a word.
+ *   "suits"   → ["suits", "suit"]
+ *   "dresses" → ["dresses", "dress"]
+ *   "shirt"   → ["shirt", "shirts"]
  */
-const isCategoryFuzzyMatch = (normalisedQuery, normalisedCategoryName) => {
-  if (!normalisedQuery || !normalisedCategoryName) return false;
+const wordVariants = (word) => {
+  const variants = new Set([word]);
+  if (word.endsWith("es") && word.length > 4) variants.add(word.slice(0, -2));
+  if (word.endsWith("s")  && word.length > 3) variants.add(word.slice(0, -1));
+  if (!word.endsWith("s"))                    variants.add(word + "s");
+  return [...variants];
+};
 
-  // Tier 1 & 2 — exact / contains (fast path, no distance needed)
-  if (normalisedCategoryName === normalisedQuery) return true;
-  if (normalisedCategoryName.includes(normalisedQuery)) return true;
-  if (normalisedQuery.includes(normalisedCategoryName)) return true;
+/**
+ * Returns true if a single query word fuzzy/phonetically matches a single
+ * product word. Used for both category matching and product fallback filtering.
+ *
+ * Match rules (any one sufficient):
+ *   - Exact match or substring
+ *   - Soundex same phonetic code
+ *   - Levenshtein ratio ≤ 0.35  (≈ 1 edit per 3 chars of the longer word)
+ *     Prevents false positives on short words:
+ *       "shrt"(4) vs "set"(3):  2/4 = 0.50 → reject
+ *       "shrt"(4) vs "shirt"(5): 1/5 = 0.20 → accept
+ *
+ * Both words and their morphological variants are tried.
+ */
+const wordsMatch = (qWord, pWord) => {
+  if (qWord === pWord) return true;
+  if (qWord.includes(pWord) || pWord.includes(qWord)) return true;
 
-  // Tier 3 & 4 — word-level fuzzy + phonetic
-  const queryWords = normalisedQuery.split(" ").filter((w) => w.length >= 3);
-  const catWords = normalisedCategoryName.split(" ").filter((w) => w.length >= 3);
+  const qVariants = wordVariants(qWord);
+  const pVariants = wordVariants(pWord);
 
-  for (const qWord of queryWords) {
-    for (const cWord of catWords) {
-      // Soundex — same phonetic code means same-sounding word
-      if (soundex(qWord) === soundex(cWord)) return true;
-
-      // Levenshtein — allow distance ≤ 2, length diff ≤ 3
-      // Slightly more generous than product scoring to catch category-level typos
-      const lenDiff = Math.abs(qWord.length - cWord.length);
-      if (lenDiff <= 3 && levenshteinDistance(qWord, cWord) <= 2) return true;
+  for (const qv of qVariants) {
+    for (const pv of pVariants) {
+      if (soundex(qv) === soundex(pv)) return true;
+      const maxLen = Math.max(qv.length, pv.length);
+      if (maxLen > 0 && levenshteinDistance(qv, pv) / maxLen <= 0.35) return true;
     }
   }
 
+  return false;
+};
+
+/**
+ * Returns true if at least one word in the product's primary text fields
+ * (name, subCategory, category name) fuzzy/phonetically matches at least one
+ * query word.
+ *
+ * Only primary fields are checked — not description/tags — so that broad
+ * keyword overlap (e.g. a saree description mentioning "shirt-style" does not
+ * cause the saree to appear for query "shrt").
+ */
+const productHasFuzzyWordMatch = (product, normalisedQuery) => {
+  const queryWords = normalisedQuery.split(" ").filter((w) => w.length >= 2);
+  if (queryWords.length === 0) return false;
+
+  const productText = normalise(
+    [
+      product.name,
+      product.subCategory,
+      getProductCategoryName(product),
+    ]
+      .filter(Boolean)
+      .join(" "),
+  );
+  const productWords = productText.split(" ").filter((w) => w.length >= 2);
+
+  for (const qWord of queryWords) {
+    for (const pWord of productWords) {
+      if (wordsMatch(qWord, pWord)) return true;
+    }
+  }
   return false;
 };
 
@@ -173,15 +200,38 @@ const isCategoryFuzzyMatch = (normalisedQuery, normalisedCategoryName) => {
 // ---------------------------------------------------------------------------
 
 /**
- * Finds the first category hit whose name fuzzy/phonetically matches the query.
- * Categories are already ranked at the top of hits by the n-gram engine's sort
- * comparator, so the first matching one is also the most relevant.
+ * Returns true when the query is a fuzzy / phonetic match for a category name.
+ * Uses the same wordsMatch logic as product filtering for consistency.
  *
- * FIX #9: Replaced strict equality with isCategoryFuzzyMatch so typo and
- * phonetic queries ("soot", "shrt", "lehnga") correctly resolve to their
- * category and trigger category-scoped product fetching instead of falling
- * through to an unscoped product dump.
+ * Tier 1 — fast path: exact / contains
+ * Tier 2 — word-level: soundex + Levenshtein ratio via wordsMatch()
+ *
+ *   "soot"  → wordVariants("suits") includes "suit"
+ *             soundex("soot")=S300 = soundex("suit")=S300  ✓
+ *   "shrt"  → wordVariants("shirts") includes "shirt"
+ *             levenshtein("shrt","shirt")=1, ratio=1/5=0.20  ✓  (if Shirts existed)
+ *   "shrt"  → "sarees": soundex S630≠S620, ratio 4/6>0.35   ✗ correctly rejected
+ *   "shrt"  → "kurta sets" / "set": ratio 2/4=0.50           ✗ correctly rejected
  */
+const isCategoryFuzzyMatch = (normalisedQuery, normalisedCategoryName) => {
+  if (!normalisedQuery || !normalisedCategoryName) return false;
+
+  if (normalisedCategoryName === normalisedQuery) return true;
+  if (normalisedCategoryName.includes(normalisedQuery)) return true;
+  if (normalisedQuery.includes(normalisedCategoryName)) return true;
+
+  const queryWords = normalisedQuery.split(" ").filter((w) => w.length >= 3);
+  const catWords   = normalisedCategoryName.split(" ").filter((w) => w.length >= 3);
+
+  for (const qWord of queryWords) {
+    for (const cWord of catWords) {
+      if (wordsMatch(qWord, cWord)) return true;
+    }
+  }
+
+  return false;
+};
+
 const findTargetedCategoryHit = (hits, normalisedQuery) => {
   return hits.find(
     (hit) =>
@@ -190,11 +240,6 @@ const findTargetedCategoryHit = (hits, normalisedQuery) => {
   );
 };
 
-/**
- * Returns [category, ...all products in that category].
- * Products are fetched directly from MongoDB so we get the full set,
- * not just the subset that happened to score in the n-gram pass.
- */
 const buildCategoryWithProductsResults = async (category) => {
   const products = await Product.find({
     category: category._id,
@@ -239,7 +284,6 @@ const hitMatchesPrimaryIntent = (hit, normalisedQuery) => {
       primaryTextMatches(hit.data.slug, normalisedQuery)
     );
   }
-
   if (hit.type === "product") {
     return (
       primaryTextMatches(hit.data.name, normalisedQuery) ||
@@ -248,7 +292,6 @@ const hitMatchesPrimaryIntent = (hit, normalisedQuery) => {
       primaryTextMatches(getProductCategoryName(hit.data), normalisedQuery)
     );
   }
-
   return false;
 };
 
@@ -263,18 +306,14 @@ const primaryTextMatches = (value, normalisedExpandedQuery) => {
 };
 
 // ---------------------------------------------------------------------------
-// Hit hydration (raw index docs → full Mongo docs)
+// Hit hydration
 // ---------------------------------------------------------------------------
 
 const hydrateSearchHits = async (rawHits) => {
   if (!rawHits?.length) return [];
 
-  const productIds = rawHits
-    .filter((hit) => hit.type === "product")
-    .map((hit) => hit.id);
-  const categoryIds = rawHits
-    .filter((hit) => hit.type === "category")
-    .map((hit) => hit.id);
+  const productIds  = rawHits.filter((h) => h.type === "product").map((h) => h.id);
+  const categoryIds = rawHits.filter((h) => h.type === "category").map((h) => h.id);
 
   const [products, categories] = await Promise.all([
     productIds.length
@@ -287,20 +326,18 @@ const hydrateSearchHits = async (rawHits) => {
       : [],
   ]);
 
-  const productMap = new Map(products.map((p) => [p._id.toString(), p]));
+  const productMap  = new Map(products.map((p) => [p._id.toString(), p]));
   const categoryMap = new Map(categories.map((c) => [c._id.toString(), c]));
 
   return rawHits
     .map((hit) => {
       if (hit.type === "product") {
         const product = productMap.get(hit.id);
-        if (!product) return null;
-        return { type: "product", data: product };
+        return product ? { type: "product", data: product } : null;
       }
       if (hit.type === "category") {
         const category = categoryMap.get(hit.id);
-        if (!category) return null;
-        return { type: "category", data: category };
+        return category ? { type: "category", data: category } : null;
       }
       return null;
     })
@@ -317,10 +354,6 @@ const getProductCategoryName = (product) => {
   return product.category.name || "";
 };
 
-/**
- * Lowercases, strips punctuation, collapses whitespace.
- * Mirrors normalise() in ngram.search.service.js exactly.
- */
 const normalise = (text) => {
   if (!text || typeof text !== "string") return "";
   return text
