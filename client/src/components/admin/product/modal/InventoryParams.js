@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { Plus, Trash2, Layers, Shirt, X } from "lucide-react";
 
 export default function InventoryParams({
@@ -6,9 +6,65 @@ export default function InventoryParams({
     setFormData,
     emptyVariant,
 }) {
+    const [filePreviews, setFilePreviews] = useState(() => new Map());
+    const previewsRef = useRef(filePreviews);
+
+    useEffect(() => {
+        previewsRef.current = filePreviews;
+    }, [filePreviews]);
+
+    useEffect(() => () => {
+        previewsRef.current.forEach((url) => URL.revokeObjectURL(url));
+    }, []);
+
+    useEffect(() => {
+        const variants = Array.isArray(formData?.variants)
+            ? formData.variants
+            : [];
+
+        setFilePreviews((prev) => {
+            const next = new Map(prev);
+            let mutated = false;
+            const activeFiles = new Set();
+
+            variants.forEach((variant) => {
+                if (variant?.v_image instanceof File) {
+                    activeFiles.add(variant.v_image);
+                }
+                if (Array.isArray(variant?.gallery)) {
+                    variant.gallery.forEach((image) => {
+                        if (image instanceof File) {
+                            activeFiles.add(image);
+                        }
+                    });
+                }
+            });
+
+            activeFiles.forEach((file) => {
+                if (!next.has(file)) {
+                    next.set(file, URL.createObjectURL(file));
+                    mutated = true;
+                }
+            });
+
+            const stale = [];
+            next.forEach((url, file) => {
+                if (file instanceof File && !activeFiles.has(file)) {
+                    stale.push(file);
+                    URL.revokeObjectURL(url);
+                    mutated = true;
+                }
+            });
+
+            stale.forEach((file) => next.delete(file));
+
+            return mutated ? next : prev;
+        });
+    }, [formData.variants]);
+
     const getImagePreview = (image) => {
         if (!image) return "/placeholder.png";
-        if (image instanceof File) return URL.createObjectURL(image);
+        if (image instanceof File) return filePreviews.get(image) || "/placeholder.png";
         return image.url || image;
     };
 

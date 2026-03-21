@@ -20,7 +20,11 @@ const buildUploadedImage = (file, alt) => ({
   alt,
 });
 
-const normaliseVariantGallery = (variant, uploadedVariantGalleryFiles, fallbackAlt) => {
+const normaliseVariantGallery = (
+  variant,
+  uploadedVariantGalleryFiles,
+  fallbackAlt,
+) => {
   const rawGallery = Array.isArray(variant.gallery) ? variant.gallery : [];
 
   return rawGallery
@@ -52,6 +56,44 @@ const normaliseVariantGallery = (variant, uploadedVariantGalleryFiles, fallbackA
     .filter(Boolean);
 };
 
+const variantMediaKey = (media) => {
+  if (!media) return null;
+  if (media.public_id) return `id:${media.public_id}`;
+  if (media.url) return `url:${media.url}`;
+  return null;
+};
+
+const collectVariantMediaMap = (variants) => {
+  const map = new Map();
+  if (!Array.isArray(variants)) return map;
+
+  variants.forEach((variant) => {
+    if (!variant) return;
+    if (variant.v_image) {
+      const key = variantMediaKey(variant.v_image);
+      if (key) map.set(key, variant.v_image);
+    }
+    if (Array.isArray(variant.gallery)) {
+      variant.gallery.forEach((item) => {
+        if (!item) return;
+        const key = variantMediaKey(item);
+        if (key && !map.has(key)) map.set(key, item);
+      });
+    }
+  });
+
+  return map;
+};
+
+const cleanupMediaItems = async (items) => {
+  for (const item of items) {
+    if (!item) continue;
+    if (item.public_id) await deleteS3File(item.public_id);
+    else if (item.url && !item.url.startsWith("http"))
+      await deleteFile(item.url);
+  }
+};
+
 export const getAllProductsService = async (queryStr) => {
   const {
     page = 1,
@@ -80,7 +122,11 @@ export const getAllProductsService = async (queryStr) => {
   let filter = {};
 
   if (search) {
-    const searchResults = await searchService({ query: search, limit: 1000, page: 1 });
+    const searchResults = await searchService({
+      query: search,
+      limit: 1000,
+      page: 1,
+    });
     const productIds = searchResults
       .filter((hit) => hit.type === "product" && hit.data && hit.data._id)
       .map((hit) => new mongoose.Types.ObjectId(hit.data._id));
@@ -408,7 +454,9 @@ export const createProductService = async (data, files, userId) => {
   if (parsedData.variants && Array.isArray(parsedData.variants)) {
     let variantFileIndex = 0;
     const uploadedVariantFiles = files?.["variantImages"] || [];
-    const uploadedVariantGalleryFiles = [...(files?.["variantGalleryImages"] || [])];
+    const uploadedVariantGalleryFiles = [
+      ...(files?.["variantGalleryImages"] || []),
+    ];
     parsedData.variants = parsedData.variants.map((v) => {
       // Process sizes to ensure numerical types for stock, price, and discountPrice
       const processedSizes = v.sizes.map((s) => ({
@@ -595,7 +643,9 @@ export const updateProductService = async (id, data, files) => {
   if (parsedData.variants && Array.isArray(parsedData.variants)) {
     let variantFileIndex = 0;
     const uploadedVariantFiles = files?.["variantImages"] || [];
-    const uploadedVariantGalleryFiles = [...(files?.["variantGalleryImages"] || [])];
+    const uploadedVariantGalleryFiles = [
+      ...(files?.["variantGalleryImages"] || []),
+    ];
 
     parsedData.variants = parsedData.variants.map((v) => {
       // Process sizes to ensure numerical types for stock, price, and discountPrice
@@ -632,6 +682,16 @@ export const updateProductService = async (id, data, files) => {
       return { ...rest, sizes: processedSizes, gallery }; // Return variant with processed sizes
     });
   }
+
+  const existingVariantMediaMap = collectVariantMediaMap(product.variants);
+  const newVariantMediaMap = collectVariantMediaMap(parsedData.variants);
+  const removedVariantMedia = [];
+  for (const [key, media] of existingVariantMediaMap.entries()) {
+    if (!newVariantMediaMap.has(key)) {
+      removedVariantMedia.push(media);
+    }
+  }
+  await cleanupMediaItems(removedVariantMedia);
 
   const existingImages =
     typeof data.existingImages === "string"
@@ -691,6 +751,11 @@ export const deleteProductService = async (id) => {
   if (product.video?.public_id) await deleteS3File(product.video.public_id);
   else if (product.video?.url && !product.video.url.startsWith("http"))
     await deleteFile(product.video.url);
+
+  const variantMediaItems = Array.from(
+    collectVariantMediaMap(product.variants).values(),
+  );
+  await cleanupMediaItems(variantMediaItems);
 
   await product.deleteOne();
 
@@ -821,7 +886,9 @@ const bulkImportRowBasedService = async (files, userId) => {
   const hasAnyField = (row, keys) =>
     keys.some((key) => {
       const value = row[key];
-      return value !== null && value !== undefined && value.toString().trim() !== "";
+      return (
+        value !== null && value !== undefined && value.toString().trim() !== ""
+      );
     });
 
   const BASE_FIELD_KEYS = [
@@ -887,12 +954,28 @@ const bulkImportRowBasedService = async (files, userId) => {
   const batchSlugs = new Set();
   const batchSkus = new Set();
 
+  const allUploadedMedia = [];
+  let activeUploadTracker = null;
+  const trackUpload = (media) => {
+    if (!media || !activeUploadTracker) return;
+    activeUploadTracker.push(media);
+  };
+
+  const uploadedImageCache = new Map();
+
   const processImage = async (filename, folder = "products") => {
     if (!filename) return null;
-    const file = imageMap.get(filename.toString().trim().toLowerCase());
+    const normalized = filename.toString().trim().toLowerCase();
+    const cached = uploadedImageCache.get(normalized);
+    if (cached) return cached;
+
+    const file = imageMap.get(normalized);
     if (!file) return null;
     const s3Result = await uploadS3File(file.path, folder);
-    return { url: s3Result.url, public_id: s3Result.public_id };
+    const uploaded = { url: s3Result.url, public_id: s3Result.public_id };
+    uploadedImageCache.set(normalized, uploaded);
+    trackUpload(uploaded);
+    return uploaded;
   };
 
   const buildVariantRow = async (row, rowIndex, productName) => {
@@ -969,274 +1052,319 @@ const bulkImportRowBasedService = async (files, userId) => {
     if (!draft) return;
 
     const { rowIndex, name, sku, item } = draft;
+    const rowUploads = [];
+    const previousTracker = activeUploadTracker;
+    activeUploadTracker = rowUploads;
+    let rowSucceeded = false;
 
-    if (existingSkus.has(sku) || batchSkus.has(sku)) {
-      errors.push(
-        `Row ${rowIndex} (${name}): SKU "${sku}" already exists — row skipped`,
-      );
-      return;
-    }
-
-    if (!item.Description) {
-      errors.push(`Row ${rowIndex} (${name}): Description is required — row skipped`);
-      return;
-    }
-
-    if (!item.MaterialCare) {
-      errors.push(`Row ${rowIndex} (${name}): MaterialCare is required — row skipped`);
-      return;
-    }
-
-    const catName = item.Category?.trim().toLowerCase();
-    const categoryId = catName ? categoryMap.get(catName) : null;
-    if (!categoryId) {
-      errors.push(
-        `Row ${rowIndex} (${name}): Category "${item.Category || ""}" not found — row skipped`,
-      );
-      return;
-    }
-
-    const mainImage = await processImage(item.MainImage);
-    if (!mainImage?.url) {
-      errors.push(
-        `Row ${rowIndex} (${name}): mainImage is required but "${item.MainImage || "no filename provided"}" was not found in uploaded images — row skipped`,
-      );
-      return;
-    }
-
-    const hoverImage = await processImage(item.HoverImage);
-    const galleryImages = [];
-    for (const imgName of safeSplit(item.Images)) {
-      const img = await processImage(imgName);
-      if (img) galleryImages.push(img);
-      else {
+    try {
+      if (existingSkus.has(sku) || batchSkus.has(sku)) {
         errors.push(
-          `Row ${rowIndex} (${name}): Gallery image "${imgName}" not found in uploaded images`,
+          `Row ${rowIndex} (${name}): SKU "${sku}" already exists — row skipped`,
         );
+        return;
+      }
+
+      if (!item.Description) {
+        errors.push(
+          `Row ${rowIndex} (${name}): Description is required — row skipped`,
+        );
+        return;
+      }
+
+      if (!item.MaterialCare) {
+        errors.push(
+          `Row ${rowIndex} (${name}): MaterialCare is required — row skipped`,
+        );
+        return;
+      }
+
+      const catName = item.Category?.trim().toLowerCase();
+      const categoryId = catName ? categoryMap.get(catName) : null;
+      if (!categoryId) {
+        errors.push(
+          `Row ${rowIndex} (${name}): Category "${item.Category || ""}" not found — row skipped`,
+        );
+        return;
+      }
+
+      const mainImage = await processImage(item.MainImage);
+      if (!mainImage?.url) {
+        errors.push(
+          `Row ${rowIndex} (${name}): mainImage is required but "${item.MainImage || "no filename provided"}" was not found in uploaded images — row skipped`,
+        );
+        return;
+      }
+
+      const hoverImage = await processImage(item.HoverImage);
+      const galleryImages = [];
+      for (const imgName of safeSplit(item.Images)) {
+        const img = await processImage(imgName);
+        if (img) galleryImages.push(img);
+        else {
+          errors.push(
+            `Row ${rowIndex} (${name}): Gallery image "${imgName}" not found in uploaded images`,
+          );
+        }
+      }
+
+      const variants = [...draft.variantMap.values()];
+      if (variants.length === 0) {
+        errors.push(
+          `Row ${rowIndex} (${name}): At least one variant row is required — row skipped`,
+        );
+        return;
+      }
+
+      let totalStock = 0;
+      variants.forEach((variant) => {
+        totalStock += variant.sizes.reduce(
+          (sum, size) => sum + (Number(size.stock) || 0),
+          0,
+        );
+      });
+
+      let slug = slugify(name, { lower: true, strict: true });
+      if (existingSlugs.has(slug) || batchSlugs.has(slug)) {
+        const base = slug;
+        let suffix = 1;
+        while (
+          existingSlugs.has(`${base}-${suffix}`) ||
+          batchSlugs.has(`${base}-${suffix}`)
+        ) {
+          suffix++;
+        }
+        slug = `${base}-${suffix}`;
+      }
+
+      productsToInsert.push({
+        name,
+        sku,
+        slug,
+        description: item.Description,
+        shortDescription: item.ShortDescription || "",
+        materialCare: item.MaterialCare,
+        category: categoryId,
+        subCategory: item.SubCategory || null,
+        stock: totalStock,
+        status: item.Status || "Active",
+        wearType: safeSplit(item.WearType),
+        occasion: safeSplit(item.Occasion),
+        tags: safeSplit(item.Tags),
+        style: safeSplit(item.Style),
+        work: safeSplit(item.Work),
+        fabric: safeSplit(item.Fabric),
+        productType: safeSplit(item.Type),
+        byPrice: safeSplit(item.ByPrice),
+        specifications: draft.specifications,
+        metaTitle: item.MetaTitle || "",
+        metaDescription: item.MetaDescription || "",
+        metaKeywords: item.MetaKeywords || "",
+        mainImage,
+        ...(hoverImage && { hoverImage }),
+        images: galleryImages,
+        variants,
+        createdBy: userId,
+      });
+
+      batchSlugs.add(slug);
+      batchSkus.add(sku);
+      rowSucceeded = true;
+      allUploadedMedia.push(...rowUploads);
+    } finally {
+      activeUploadTracker = previousTracker;
+      if (!rowSucceeded && rowUploads.length > 0) {
+        await cleanupMediaItems(rowUploads);
       }
     }
-
-    const variants = [...draft.variantMap.values()];
-    if (variants.length === 0) {
-      errors.push(`Row ${rowIndex} (${name}): At least one variant row is required — row skipped`);
-      return;
-    }
-
-    let totalStock = 0;
-    variants.forEach((variant) => {
-      totalStock += variant.sizes.reduce(
-        (sum, size) => sum + (Number(size.stock) || 0),
-        0,
-      );
-    });
-
-    let slug = slugify(name, { lower: true, strict: true });
-    if (existingSlugs.has(slug) || batchSlugs.has(slug)) {
-      const base = slug;
-      let suffix = 1;
-      while (
-        existingSlugs.has(`${base}-${suffix}`) ||
-        batchSlugs.has(`${base}-${suffix}`)
-      ) {
-        suffix++;
-      }
-      slug = `${base}-${suffix}`;
-    }
-
-    productsToInsert.push({
-      name,
-      sku,
-      slug,
-      description: item.Description,
-      shortDescription: item.ShortDescription || "",
-      materialCare: item.MaterialCare,
-      category: categoryId,
-      subCategory: item.SubCategory || null,
-      stock: totalStock,
-      status: item.Status || "Active",
-      wearType: safeSplit(item.WearType),
-      occasion: safeSplit(item.Occasion),
-      tags: safeSplit(item.Tags),
-      style: safeSplit(item.Style),
-      work: safeSplit(item.Work),
-      fabric: safeSplit(item.Fabric),
-      productType: safeSplit(item.Type),
-      byPrice: safeSplit(item.ByPrice),
-      specifications: draft.specifications,
-      metaTitle: item.MetaTitle || "",
-      metaDescription: item.MetaDescription || "",
-      metaKeywords: item.MetaKeywords || "",
-      mainImage,
-      ...(hoverImage && { hoverImage }),
-      images: galleryImages,
-      variants,
-      createdBy: userId,
-    });
-
-    batchSlugs.add(slug);
-    batchSkus.add(sku);
   };
-
-  let currentDraft = null;
-
-  for (let i = 0; i < rawData.length; i++) {
-    const item = rawData[i];
-    const rowIndex = i + 2;
-
-    try {
-      const hasAnyValue = Object.values(item).some(
-        (v) => v !== null && v !== undefined && v.toString().trim() !== "",
-      );
-      if (!hasAnyValue) continue;
-
-      const startsNewProduct = hasAnyField(item, BASE_FIELD_KEYS);
-      const hasVariantData = hasAnyField(item, VARIANT_FIELD_KEYS);
-
-      if (startsNewProduct) {
-        await finalizeDraftProduct(currentDraft);
-
-        const name = readCell(item, ["Name"]);
-        const sku = readCell(item, ["SKU"]).toString().trim().toUpperCase();
-
-        if (!name || !sku) {
-          errors.push(`Row ${rowIndex}: Name and SKU are required for the first row of a product`);
-          currentDraft = null;
-          continue;
-        }
-
-        currentDraft = {
-          rowIndex,
-          name: name.toString(),
-          sku,
-          item,
-          variantMap: new Map(),
-          specifications: [],
-        };
-      } else if (!currentDraft) {
-        errors.push(`Row ${rowIndex}: Variant row found before any product base row`);
-        continue;
-      }
-
-      if (!hasVariantData) {
-        const hasDetailData = hasAnyField(item, DETAIL_FIELD_KEYS);
-        if (!hasDetailData) {
-          errors.push(`Row ${rowIndex}: No variant or detail data found for this row`);
-          continue;
-        }
-      }
-
-      const detailKey = readCell(item, ["DetailKey"]);
-      const detailValue = readCell(item, ["DetailValue"]);
-      if (detailKey || detailValue) {
-        if (!detailKey || !detailValue) {
-          errors.push(
-            `Row ${rowIndex} (${currentDraft.name}): DetailKey and DetailValue must both be filled`,
-          );
-        } else {
-          currentDraft.specifications.push({
-            key: detailKey.toString(),
-            value: detailValue.toString(),
-          });
-        }
-      }
-
-      if (!hasVariantData) {
-        continue;
-      }
-
-      const variantRow = await buildVariantRow(item, rowIndex, currentDraft.name);
-      if (!variantRow) continue;
-
-      const variantKey = `${variantRow.colorName.toLowerCase()}|${variantRow.v_sku || ""}`;
-      let variant = currentDraft.variantMap.get(variantKey);
-
-      if (!variant) {
-        variant = {
-          v_sku: variantRow.v_sku,
-          color: {
-            name: variantRow.colorName,
-            code: variantRow.colorCode || "#000000",
-            swatchImage: "",
-          },
-          sizes: [],
-          gallery: variantRow.gallery || [],
-          ...(variantRow.v_image && { v_image: variantRow.v_image }),
-        };
-        currentDraft.variantMap.set(variantKey, variant);
-      } else if (!variant.v_image && variantRow.v_image) {
-        variant.v_image = variantRow.v_image;
-      }
-
-      if (variantRow.gallery?.length) {
-        const existingUrls = new Set((variant.gallery || []).map((img) => img.url));
-        variant.gallery = [
-          ...(variant.gallery || []),
-          ...variantRow.gallery.filter((img) => !existingUrls.has(img.url)),
-        ];
-      }
-
-      const duplicateSize = variant.sizes.some(
-        (size) => size.name.toLowerCase() === variantRow.size.name.toLowerCase(),
-      );
-      if (duplicateSize) {
-        errors.push(
-          `Row ${rowIndex} (${currentDraft.name}): Duplicate size "${variantRow.size.name}" for color "${variantRow.colorName}" skipped`,
-        );
-        continue;
-      }
-
-      variant.sizes.push(variantRow.size);
-    } catch (err) {
-      errors.push(`Row ${rowIndex}: Unexpected error — ${err.message}`);
-    }
-  }
-
-  await finalizeDraftProduct(currentDraft);
-
-  let inserted = [];
-  if (productsToInsert.length > 0) {
-    try {
-      inserted = await Product.insertMany(productsToInsert, { ordered: false });
-    } catch (err) {
-      if (err.insertedDocs) {
-        inserted = err.insertedDocs;
-      }
-      if (err.writeErrors?.length) {
-        err.writeErrors.forEach((we) => {
-          const failed = productsToInsert[we.index];
-          errors.push(
-            `DB insert failed for "${failed?.name || `index ${we.index}`}": ${we.errmsg || we.err?.errmsg || "unknown error"}`,
-          );
-        });
-      } else {
-        errors.push(`Database insert error: ${err.message}`);
-      }
-    }
-  }
-
-  if (inserted.length > 0) {
-    rebuildIndex().catch((err) =>
-      console.error(
-        "[NGramSearch] Auto-rebuild failed after bulk import:",
-        err,
-      ),
-    );
-  }
 
   try {
-    const allFiles = [excelFile, ...imageFiles];
-    for (const f of allFiles) {
-      if (f?.path) await deleteFile(f.path);
-    }
-  } catch (e) {
-    console.error("Cleanup error:", e);
-  }
+    let currentDraft = null;
 
-  return {
-    success: true,
-    data: inserted,
-    errors,
-  };
+    for (let i = 0; i < rawData.length; i++) {
+      const item = rawData[i];
+      const rowIndex = i + 2;
+
+      try {
+        const hasAnyValue = Object.values(item).some(
+          (v) => v !== null && v !== undefined && v.toString().trim() !== "",
+        );
+        if (!hasAnyValue) continue;
+
+        const startsNewProduct = hasAnyField(item, BASE_FIELD_KEYS);
+        const hasVariantData = hasAnyField(item, VARIANT_FIELD_KEYS);
+
+        if (startsNewProduct) {
+          await finalizeDraftProduct(currentDraft);
+
+          const name = readCell(item, ["Name"]);
+          const sku = readCell(item, ["SKU"]).toString().trim().toUpperCase();
+
+          if (!name || !sku) {
+            errors.push(
+              `Row ${rowIndex}: Name and SKU are required for the first row of a product`,
+            );
+            currentDraft = null;
+            continue;
+          }
+
+          currentDraft = {
+            rowIndex,
+            name: name.toString(),
+            sku,
+            item,
+            variantMap: new Map(),
+            specifications: [],
+          };
+        } else if (!currentDraft) {
+          errors.push(
+            `Row ${rowIndex}: Variant row found before any product base row`,
+          );
+          continue;
+        }
+
+        if (!hasVariantData && !startsNewProduct) {
+          const hasDetailData = hasAnyField(item, DETAIL_FIELD_KEYS);
+          if (!hasDetailData) {
+            errors.push(
+              `Row ${rowIndex}: No variant or detail data found for this row`,
+            );
+            continue;
+          }
+        }
+
+        const detailKey = readCell(item, ["DetailKey"]);
+        const detailValue = readCell(item, ["DetailValue"]);
+        if (detailKey || detailValue) {
+          if (!detailKey || !detailValue) {
+            errors.push(
+              `Row ${rowIndex} (${currentDraft.name}): DetailKey and DetailValue must both be filled`,
+            );
+          } else {
+            currentDraft.specifications.push({
+              key: detailKey.toString(),
+              value: detailValue.toString(),
+            });
+          }
+        }
+
+        if (!hasVariantData) {
+          continue;
+        }
+
+        const variantRow = await buildVariantRow(
+          item,
+          rowIndex,
+          currentDraft.name,
+        );
+        if (!variantRow) continue;
+
+        const variantKey = `${variantRow.colorName.toLowerCase()}|${variantRow.v_sku || ""}`;
+        let variant = currentDraft.variantMap.get(variantKey);
+
+        if (!variant) {
+          variant = {
+            v_sku: variantRow.v_sku,
+            color: {
+              name: variantRow.colorName,
+              code: variantRow.colorCode || "#000000",
+              swatchImage: "",
+            },
+            sizes: [],
+            gallery: variantRow.gallery || [],
+            ...(variantRow.v_image && { v_image: variantRow.v_image }),
+          };
+          currentDraft.variantMap.set(variantKey, variant);
+        } else if (!variant.v_image && variantRow.v_image) {
+          variant.v_image = variantRow.v_image;
+        }
+
+        if (variantRow.gallery?.length) {
+          const existingUrls = new Set(
+            (variant.gallery || []).map((img) => img.url),
+          );
+          variant.gallery = [
+            ...(variant.gallery || []),
+            ...variantRow.gallery.filter((img) => !existingUrls.has(img.url)),
+          ];
+        }
+
+        const duplicateSize = variant.sizes.some(
+          (size) =>
+            size.name.toLowerCase() === variantRow.size.name.toLowerCase(),
+        );
+        if (duplicateSize) {
+          errors.push(
+            `Row ${rowIndex} (${currentDraft.name}): Duplicate size "${variantRow.size.name}" for color "${variantRow.colorName}" skipped`,
+          );
+          continue;
+        }
+
+        variant.sizes.push(variantRow.size);
+      } catch (err) {
+        errors.push(`Row ${rowIndex}: Unexpected error — ${err.message}`);
+      }
+    }
+
+    await finalizeDraftProduct(currentDraft);
+
+    if (productsToInsert.length === 0) {
+      throw new Error("No products found in Excel file");
+    }
+
+    let inserted = [];
+    if (productsToInsert.length > 0) {
+      try {
+        inserted = await Product.insertMany(productsToInsert, {
+          ordered: false,
+        });
+      } catch (err) {
+        await cleanupMediaItems(allUploadedMedia);
+        allUploadedMedia.length = 0;
+        if (err.insertedDocs) {
+          inserted = err.insertedDocs;
+        }
+        if (err.writeErrors?.length) {
+          err.writeErrors.forEach((we) => {
+            const failed = productsToInsert[we.index];
+            errors.push(
+              `DB insert failed for "${failed?.name || `index ${we.index}`}": ${we.errmsg || we.err?.errmsg || "unknown error"}`,
+            );
+          });
+        } else {
+          errors.push(`Database insert error: ${err.message}`);
+        }
+      }
+    }
+
+    if (inserted.length > 0) {
+      rebuildIndex().catch((err) =>
+        console.error(
+          "[NGramSearch] Auto-rebuild failed after bulk import:",
+          err,
+        ),
+      );
+    }
+
+    try {
+      const allFiles = [excelFile, ...imageFiles];
+      for (const f of allFiles) {
+        if (f?.path) await deleteFile(f.path);
+      }
+    } catch (e) {
+      console.error("Cleanup error:", e);
+    }
+
+    return {
+      success: true,
+      data: inserted,
+      errors,
+    };
+  } catch (err) {
+    await cleanupMediaItems(allUploadedMedia);
+    throw err;
+  }
 };
 
 export const bulkImportService = async (files, userId) => {
@@ -1341,12 +1469,20 @@ export const bulkImportService = async (files, userId) => {
       }
 
       // ── 4. Image processing ───────────────────────────────────────────────
+      const uploadedImageCache = new Map();
+
       const processImage = async (filename, folder = "products") => {
         if (!filename) return null;
-        const file = imageMap.get(filename.trim().toLowerCase());
+        const normalized = filename.toString().trim().toLowerCase();
+        const cached = uploadedImageCache.get(normalized);
+        if (cached) return cached;
+
+        const file = imageMap.get(normalized);
         if (!file) return null;
         const s3Result = await uploadS3File(file.path, folder);
-        return { url: s3Result.url, public_id: s3Result.public_id };
+        const uploaded = { url: s3Result.url, public_id: s3Result.public_id };
+        uploadedImageCache.set(normalized, uploaded);
+        return uploaded;
       };
 
       const mainImage = await processImage(item.MainImage);

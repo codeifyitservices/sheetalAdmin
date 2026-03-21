@@ -4,6 +4,7 @@ import ErrorResponse from "../utils/ErrorResponse.js";
 import { deleteFile, deleteS3File } from "../utils/fileHelper.js";
 import Product from "../models/product.model.js";
 import fs from "fs";
+import xlsx from "xlsx";
 
 const clearFiles = async (files) => {
   if (!files) return;
@@ -126,12 +127,130 @@ export const bulkImportProducts = async (req, res, next) => {
 
 export const getSampleExcel = async (req, res, next) => {
   try {
-    const filePath = "sample_product_import.xlsx";
-    if (fs.existsSync(filePath)) {
-      res.download(filePath, "product_import_template.xlsx");
-    } else {
-      res.status(404).json({ success: false, message: "Sample file not found" });
-    }
+    const headers = [
+      "Name",
+      "SKU",
+      "Description",
+      "ShortDescription",
+      "MaterialCare",
+      "Category",
+      "SubCategory",
+      "Status",
+      "Tags",
+      "WearType",
+      "Occasion",
+      "Style",
+      "Work",
+      "Fabric",
+      "Type",
+      "ByPrice",
+      "MainImage",
+      "HoverImage",
+      "Images",
+      "DetailKey",
+      "DetailValue",
+      "VariantSKU",
+      "Color",
+      "ColorCode",
+      "Size",
+      "Price",
+      "DiscountPrice",
+      "Stock",
+      "VariantImage",
+      "VariantImageName",
+      "MetaTitle",
+      "MetaDescription",
+      "MetaKeywords",
+    ];
+
+    const rows = [
+      {
+        Name: "Example Product",
+        SKU: "EXAMPLE-001",
+        Description: "Add a full description for the product.",
+        ShortDescription: "Short summary shown in cards.",
+        MaterialCare: "Hand wash only.",
+        Category: "Sarees",
+        SubCategory: "Festive",
+        Status: "Active",
+        Tags: "festive, silk",
+        WearType: "Casual,Party",
+        Occasion: "Wedding,Festival",
+        Style: "Traditional",
+        Work: "Embroidery",
+        Fabric: "Silk",
+        Type: "Regular",
+        ByPrice: "5000-10000",
+        MainImage: "example-main.jpg",
+        HoverImage: "example-hover.jpg",
+        Images: "example-1.jpg,example-2.jpg",
+        DetailKey: "Wash Care",
+        DetailValue: "Dry clean only",
+        VariantSKU: "EXAMPLE-001-RED-M",
+        Color: "Red",
+        ColorCode: "#B91C1C",
+        Size: "M",
+        Price: 4999,
+        DiscountPrice: 3999,
+        Stock: 10,
+        VariantImage: "example-variant.jpg",
+        VariantImageName: "example-variant.jpg",
+        MetaTitle: "Example Product",
+        MetaDescription: "Example meta description.",
+        MetaKeywords: "example,product",
+      },
+      {
+        Name: "",
+        SKU: "",
+        Description: "",
+        ShortDescription: "",
+        MaterialCare: "",
+        Category: "",
+        SubCategory: "",
+        Status: "",
+        Tags: "",
+        WearType: "",
+        Occasion: "",
+        Style: "",
+        Work: "",
+        Fabric: "",
+        Type: "",
+        ByPrice: "",
+        MainImage: "",
+        HoverImage: "",
+        Images: "",
+        DetailKey: "",
+        DetailValue: "",
+        VariantSKU: "EXAMPLE-001-BLK-L",
+        Color: "Black",
+        ColorCode: "#111827",
+        Size: "L",
+        Price: 4999,
+        DiscountPrice: 0,
+        Stock: 7,
+        VariantImage: "example-variant-2.jpg",
+        VariantImageName: "example-variant-2.jpg",
+        MetaTitle: "",
+        MetaDescription: "",
+        MetaKeywords: "",
+      },
+    ];
+
+    const worksheet = xlsx.utils.json_to_sheet(rows, { header: headers });
+    const workbook = xlsx.utils.book_new();
+    xlsx.utils.book_append_sheet(workbook, worksheet, "Template");
+
+    const buffer = xlsx.write(workbook, { bookType: "xlsx", type: "buffer" });
+
+    res.setHeader(
+      "Content-Type",
+      "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    );
+    res.setHeader(
+      "Content-Disposition",
+      'attachment; filename="product_import_template.xlsx"',
+    );
+    return res.send(buffer);
   } catch (error) {
     next(error);
   }
