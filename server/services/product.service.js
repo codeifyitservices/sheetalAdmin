@@ -14,6 +14,44 @@ import {
 } from "./ngram.search.service.js";
 import { searchService } from "./search.service.js";
 
+const buildUploadedImage = (file, alt) => ({
+  url: file.location || file.path,
+  public_id: file.key || file.filename,
+  alt,
+});
+
+const normaliseVariantGallery = (variant, uploadedVariantGalleryFiles, fallbackAlt) => {
+  const rawGallery = Array.isArray(variant.gallery) ? variant.gallery : [];
+
+  return rawGallery
+    .map((item, index) => {
+      if (item?.__newFile) {
+        const file = uploadedVariantGalleryFiles.shift();
+        if (!file) return null;
+        return buildUploadedImage(file, `${fallbackAlt} ${index + 1}`);
+      }
+
+      if (item?.url) {
+        return {
+          url: item.url,
+          public_id: item.public_id || "",
+          alt: item.alt || `${fallbackAlt} ${index + 1}`,
+        };
+      }
+
+      if (typeof item === "string" && item.trim()) {
+        return {
+          url: item,
+          public_id: "",
+          alt: `${fallbackAlt} ${index + 1}`,
+        };
+      }
+
+      return null;
+    })
+    .filter(Boolean);
+};
+
 export const getAllProductsService = async (queryStr) => {
   const {
     page = 1,
@@ -369,7 +407,8 @@ export const createProductService = async (data, files, userId) => {
   let totalStock = 0;
   if (parsedData.variants && Array.isArray(parsedData.variants)) {
     let variantFileIndex = 0;
-    const uploadedVariantFiles = files["variantImages"] || [];
+    const uploadedVariantFiles = files?.["variantImages"] || [];
+    const uploadedVariantGalleryFiles = [...(files?.["variantGalleryImages"] || [])];
     parsedData.variants = parsedData.variants.map((v) => {
       // Process sizes to ensure numerical types for stock, price, and discountPrice
       const processedSizes = v.sizes.map((s) => ({
@@ -387,19 +426,22 @@ export const createProductService = async (data, files, userId) => {
       );
       totalStock += variantStock; // Add to master stock
 
+      const gallery = normaliseVariantGallery(
+        v,
+        uploadedVariantGalleryFiles,
+        `${parsedData.name} ${v.color?.name || "variant"} gallery`,
+      );
+
       if (v.hasNewImage === true && uploadedVariantFiles[variantFileIndex]) {
         const file = uploadedVariantFiles[variantFileIndex];
-        const v_image = {
-          url: file.location || file.path,
-          public_id: file.key || file.filename,
-        };
+        const v_image = buildUploadedImage(file);
         variantFileIndex++;
         const { hasNewImage, ...rest } = v;
-        return { ...rest, sizes: processedSizes, v_image: v_image };
+        return { ...rest, sizes: processedSizes, v_image: v_image, gallery };
       }
 
       const { hasNewImage, ...rest } = v;
-      return { ...rest, sizes: processedSizes }; // Return variant with processed sizes
+      return { ...rest, sizes: processedSizes, gallery }; // Return variant with processed sizes
     });
   }
 
@@ -552,7 +594,8 @@ export const updateProductService = async (id, data, files) => {
   let totalStock = 0;
   if (parsedData.variants && Array.isArray(parsedData.variants)) {
     let variantFileIndex = 0;
-    const uploadedVariantFiles = files["variantImages"] || [];
+    const uploadedVariantFiles = files?.["variantImages"] || [];
+    const uploadedVariantGalleryFiles = [...(files?.["variantGalleryImages"] || [])];
 
     parsedData.variants = parsedData.variants.map((v) => {
       // Process sizes to ensure numerical types for stock, price, and discountPrice
@@ -571,19 +614,22 @@ export const updateProductService = async (id, data, files) => {
       );
       totalStock += variantStock; // Add to master stock
 
+      const gallery = normaliseVariantGallery(
+        v,
+        uploadedVariantGalleryFiles,
+        `${parsedData.name || product.name} ${v.color?.name || "variant"} gallery`,
+      );
+
       if (v.hasNewImage === true && uploadedVariantFiles[variantFileIndex]) {
         const file = uploadedVariantFiles[variantFileIndex];
-        const v_image = {
-          url: file.location || file.path,
-          public_id: file.key || file.filename,
-        };
+        const v_image = buildUploadedImage(file);
         variantFileIndex++;
         const { hasNewImage, ...rest } = v;
-        return { ...rest, sizes: processedSizes, v_image: v_image };
+        return { ...rest, sizes: processedSizes, v_image: v_image, gallery };
       }
 
       const { hasNewImage, ...rest } = v;
-      return { ...rest, sizes: processedSizes }; // Return variant with processed sizes
+      return { ...rest, sizes: processedSizes, gallery }; // Return variant with processed sizes
     });
   }
 
@@ -732,7 +778,470 @@ export const getProductReviewsService = async (productId) => {
     : { success: false, statusCode: 404 };
 };
 
+const bulkImportRowBasedService = async (files, userId) => {
+  const excelFile = files.file ? files.file[0] : null;
+  const imageFiles = files.images || [];
+
+  if (!excelFile) {
+    throw new Error("Excel file is required");
+  }
+
+  const workbook = xlsx.readFile(excelFile.path);
+  const rawData = xlsx.utils.sheet_to_json(
+    workbook.Sheets[workbook.SheetNames[0]],
+  );
+
+  const productsToInsert = [];
+  const errors = [];
+
+  const safeSplit = (val) => {
+    if (val == null) return [];
+    return val
+      .toString()
+      .split(",")
+      .map((s) => s.trim())
+      .filter(Boolean);
+  };
+
+  const readCell = (row, keys) => {
+    for (const key of keys) {
+      if (!(key in row)) continue;
+      const value = row[key];
+      if (value === null || value === undefined) continue;
+      if (typeof value === "string") {
+        const trimmed = value.trim();
+        if (trimmed !== "") return trimmed;
+        continue;
+      }
+      return value;
+    }
+    return "";
+  };
+
+  const hasAnyField = (row, keys) =>
+    keys.some((key) => {
+      const value = row[key];
+      return value !== null && value !== undefined && value.toString().trim() !== "";
+    });
+
+  const BASE_FIELD_KEYS = [
+    "Name",
+    "SKU",
+    "Description",
+    "ShortDescription",
+    "MaterialCare",
+    "Category",
+    "SubCategory",
+    "Status",
+    "Tags",
+    "WearType",
+    "Occasion",
+    "Style",
+    "Work",
+    "Fabric",
+    "Type",
+    "ByPrice",
+    "MainImage",
+    "HoverImage",
+    "MetaTitle",
+    "MetaDescription",
+    "MetaKeywords",
+  ];
+
+  const DETAIL_FIELD_KEYS = ["DetailKey", "DetailValue"];
+
+  const VARIANT_FIELD_KEYS = [
+    "VariantSKU",
+    "VSKU",
+    "VariantSku",
+    "Color",
+    "ColorName",
+    "ColorCode",
+    "Size",
+    "Price",
+    "MRP",
+    "DiscountPrice",
+    "SellingPrice",
+    "Stock",
+    "VariantImage",
+    "VariantImageName",
+  ];
+
+  const imageMap = new Map();
+  imageFiles.forEach((file) => {
+    imageMap.set(file.originalname.trim().toLowerCase(), file);
+  });
+
+  const allCategories = await Category.find({}).lean();
+  const categoryMap = new Map();
+  allCategories.forEach((c) => {
+    categoryMap.set(c.name.toLowerCase().trim(), c._id);
+  });
+
+  const existingSlugs = new Set(
+    (await Product.find({}, { slug: 1 }).lean()).map((p) => p.slug),
+  );
+  const existingSkus = new Set(
+    (await Product.find({}, { sku: 1 }).lean()).map((p) => p.sku),
+  );
+  const batchSlugs = new Set();
+  const batchSkus = new Set();
+
+  const processImage = async (filename, folder = "products") => {
+    if (!filename) return null;
+    const file = imageMap.get(filename.toString().trim().toLowerCase());
+    if (!file) return null;
+    const s3Result = await uploadS3File(file.path, folder);
+    return { url: s3Result.url, public_id: s3Result.public_id };
+  };
+
+  const buildVariantRow = async (row, rowIndex, productName) => {
+    const colorName = readCell(row, ["Color", "ColorName"]);
+    const sizeName = readCell(row, ["Size"]);
+    const priceValue = readCell(row, ["Price", "MRP"]);
+    const discountValue = readCell(row, ["DiscountPrice", "SellingPrice"]);
+    const stockValue = readCell(row, ["Stock"]);
+    const variantImageNames = readCell(row, [
+      "VariantImages",
+      "VariantImage",
+      "VariantImageName",
+    ]);
+    const variantSku = readCell(row, ["VariantSKU", "VSKU", "VariantSku"]);
+    const colorCode = readCell(row, ["ColorCode", "HexCode"]);
+
+    if (!colorName || !sizeName) {
+      errors.push(
+        `Row ${rowIndex} (${productName}): Color and Size are required for each variant row`,
+      );
+      return null;
+    }
+
+    const price = Number(priceValue || 0);
+    const discountPrice = Number(discountValue || 0);
+    const stock = Number(stockValue || 0);
+
+    if (!price || Number.isNaN(price)) {
+      errors.push(
+        `Row ${rowIndex} (${productName}): Price is required for size "${sizeName}"`,
+      );
+      return null;
+    }
+
+    const gallery = [];
+    const variantImageList = safeSplit(variantImageNames);
+    for (const imageName of variantImageList) {
+      const image = await processImage(imageName);
+      if (image) {
+        gallery.push({
+          ...image,
+          alt: `${productName} ${colorName} gallery`,
+        });
+      } else {
+        errors.push(
+          `Row ${rowIndex} (${productName}): Variant image "${imageName}" not found in uploaded images`,
+        );
+      }
+    }
+
+    const v_image = gallery[0]
+      ? {
+          url: gallery[0].url,
+          public_id: gallery[0].public_id,
+        }
+      : null;
+
+    return {
+      colorName: colorName.toString(),
+      colorCode: colorCode ? colorCode.toString() : "#000000",
+      v_sku: variantSku ? variantSku.toString().trim().toUpperCase() : "",
+      v_image,
+      gallery,
+      size: {
+        name: sizeName.toString(),
+        stock,
+        price,
+        discountPrice: Number.isNaN(discountPrice) ? 0 : discountPrice,
+      },
+    };
+  };
+
+  const finalizeDraftProduct = async (draft) => {
+    if (!draft) return;
+
+    const { rowIndex, name, sku, item } = draft;
+
+    if (existingSkus.has(sku) || batchSkus.has(sku)) {
+      errors.push(
+        `Row ${rowIndex} (${name}): SKU "${sku}" already exists — row skipped`,
+      );
+      return;
+    }
+
+    if (!item.Description) {
+      errors.push(`Row ${rowIndex} (${name}): Description is required — row skipped`);
+      return;
+    }
+
+    if (!item.MaterialCare) {
+      errors.push(`Row ${rowIndex} (${name}): MaterialCare is required — row skipped`);
+      return;
+    }
+
+    const catName = item.Category?.trim().toLowerCase();
+    const categoryId = catName ? categoryMap.get(catName) : null;
+    if (!categoryId) {
+      errors.push(
+        `Row ${rowIndex} (${name}): Category "${item.Category || ""}" not found — row skipped`,
+      );
+      return;
+    }
+
+    const mainImage = await processImage(item.MainImage);
+    if (!mainImage?.url) {
+      errors.push(
+        `Row ${rowIndex} (${name}): mainImage is required but "${item.MainImage || "no filename provided"}" was not found in uploaded images — row skipped`,
+      );
+      return;
+    }
+
+    const hoverImage = await processImage(item.HoverImage);
+    const galleryImages = [];
+    for (const imgName of safeSplit(item.Images)) {
+      const img = await processImage(imgName);
+      if (img) galleryImages.push(img);
+      else {
+        errors.push(
+          `Row ${rowIndex} (${name}): Gallery image "${imgName}" not found in uploaded images`,
+        );
+      }
+    }
+
+    const variants = [...draft.variantMap.values()];
+    if (variants.length === 0) {
+      errors.push(`Row ${rowIndex} (${name}): At least one variant row is required — row skipped`);
+      return;
+    }
+
+    let totalStock = 0;
+    variants.forEach((variant) => {
+      totalStock += variant.sizes.reduce(
+        (sum, size) => sum + (Number(size.stock) || 0),
+        0,
+      );
+    });
+
+    let slug = slugify(name, { lower: true, strict: true });
+    if (existingSlugs.has(slug) || batchSlugs.has(slug)) {
+      const base = slug;
+      let suffix = 1;
+      while (
+        existingSlugs.has(`${base}-${suffix}`) ||
+        batchSlugs.has(`${base}-${suffix}`)
+      ) {
+        suffix++;
+      }
+      slug = `${base}-${suffix}`;
+    }
+
+    productsToInsert.push({
+      name,
+      sku,
+      slug,
+      description: item.Description,
+      shortDescription: item.ShortDescription || "",
+      materialCare: item.MaterialCare,
+      category: categoryId,
+      subCategory: item.SubCategory || null,
+      stock: totalStock,
+      status: item.Status || "Active",
+      wearType: safeSplit(item.WearType),
+      occasion: safeSplit(item.Occasion),
+      tags: safeSplit(item.Tags),
+      style: safeSplit(item.Style),
+      work: safeSplit(item.Work),
+      fabric: safeSplit(item.Fabric),
+      productType: safeSplit(item.Type),
+      byPrice: safeSplit(item.ByPrice),
+      specifications: draft.specifications,
+      metaTitle: item.MetaTitle || "",
+      metaDescription: item.MetaDescription || "",
+      metaKeywords: item.MetaKeywords || "",
+      mainImage,
+      ...(hoverImage && { hoverImage }),
+      images: galleryImages,
+      variants,
+      createdBy: userId,
+    });
+
+    batchSlugs.add(slug);
+    batchSkus.add(sku);
+  };
+
+  let currentDraft = null;
+
+  for (let i = 0; i < rawData.length; i++) {
+    const item = rawData[i];
+    const rowIndex = i + 2;
+
+    try {
+      const hasAnyValue = Object.values(item).some(
+        (v) => v !== null && v !== undefined && v.toString().trim() !== "",
+      );
+      if (!hasAnyValue) continue;
+
+      const startsNewProduct = hasAnyField(item, BASE_FIELD_KEYS);
+      const hasVariantData = hasAnyField(item, VARIANT_FIELD_KEYS);
+
+      if (startsNewProduct) {
+        await finalizeDraftProduct(currentDraft);
+
+        const name = readCell(item, ["Name"]);
+        const sku = readCell(item, ["SKU"]).toString().trim().toUpperCase();
+
+        if (!name || !sku) {
+          errors.push(`Row ${rowIndex}: Name and SKU are required for the first row of a product`);
+          currentDraft = null;
+          continue;
+        }
+
+        currentDraft = {
+          rowIndex,
+          name: name.toString(),
+          sku,
+          item,
+          variantMap: new Map(),
+          specifications: [],
+        };
+      } else if (!currentDraft) {
+        errors.push(`Row ${rowIndex}: Variant row found before any product base row`);
+        continue;
+      }
+
+      if (!hasVariantData) {
+        const hasDetailData = hasAnyField(item, DETAIL_FIELD_KEYS);
+        if (!hasDetailData) {
+          errors.push(`Row ${rowIndex}: No variant or detail data found for this row`);
+          continue;
+        }
+      }
+
+      const detailKey = readCell(item, ["DetailKey"]);
+      const detailValue = readCell(item, ["DetailValue"]);
+      if (detailKey || detailValue) {
+        if (!detailKey || !detailValue) {
+          errors.push(
+            `Row ${rowIndex} (${currentDraft.name}): DetailKey and DetailValue must both be filled`,
+          );
+        } else {
+          currentDraft.specifications.push({
+            key: detailKey.toString(),
+            value: detailValue.toString(),
+          });
+        }
+      }
+
+      if (!hasVariantData) {
+        continue;
+      }
+
+      const variantRow = await buildVariantRow(item, rowIndex, currentDraft.name);
+      if (!variantRow) continue;
+
+      const variantKey = `${variantRow.colorName.toLowerCase()}|${variantRow.v_sku || ""}`;
+      let variant = currentDraft.variantMap.get(variantKey);
+
+      if (!variant) {
+        variant = {
+          v_sku: variantRow.v_sku,
+          color: {
+            name: variantRow.colorName,
+            code: variantRow.colorCode || "#000000",
+            swatchImage: "",
+          },
+          sizes: [],
+          gallery: variantRow.gallery || [],
+          ...(variantRow.v_image && { v_image: variantRow.v_image }),
+        };
+        currentDraft.variantMap.set(variantKey, variant);
+      } else if (!variant.v_image && variantRow.v_image) {
+        variant.v_image = variantRow.v_image;
+      }
+
+      if (variantRow.gallery?.length) {
+        const existingUrls = new Set((variant.gallery || []).map((img) => img.url));
+        variant.gallery = [
+          ...(variant.gallery || []),
+          ...variantRow.gallery.filter((img) => !existingUrls.has(img.url)),
+        ];
+      }
+
+      const duplicateSize = variant.sizes.some(
+        (size) => size.name.toLowerCase() === variantRow.size.name.toLowerCase(),
+      );
+      if (duplicateSize) {
+        errors.push(
+          `Row ${rowIndex} (${currentDraft.name}): Duplicate size "${variantRow.size.name}" for color "${variantRow.colorName}" skipped`,
+        );
+        continue;
+      }
+
+      variant.sizes.push(variantRow.size);
+    } catch (err) {
+      errors.push(`Row ${rowIndex}: Unexpected error — ${err.message}`);
+    }
+  }
+
+  await finalizeDraftProduct(currentDraft);
+
+  let inserted = [];
+  if (productsToInsert.length > 0) {
+    try {
+      inserted = await Product.insertMany(productsToInsert, { ordered: false });
+    } catch (err) {
+      if (err.insertedDocs) {
+        inserted = err.insertedDocs;
+      }
+      if (err.writeErrors?.length) {
+        err.writeErrors.forEach((we) => {
+          const failed = productsToInsert[we.index];
+          errors.push(
+            `DB insert failed for "${failed?.name || `index ${we.index}`}": ${we.errmsg || we.err?.errmsg || "unknown error"}`,
+          );
+        });
+      } else {
+        errors.push(`Database insert error: ${err.message}`);
+      }
+    }
+  }
+
+  if (inserted.length > 0) {
+    rebuildIndex().catch((err) =>
+      console.error(
+        "[NGramSearch] Auto-rebuild failed after bulk import:",
+        err,
+      ),
+    );
+  }
+
+  try {
+    const allFiles = [excelFile, ...imageFiles];
+    for (const f of allFiles) {
+      if (f?.path) await deleteFile(f.path);
+    }
+  } catch (e) {
+    console.error("Cleanup error:", e);
+  }
+
+  return {
+    success: true,
+    data: inserted,
+    errors,
+  };
+};
+
 export const bulkImportService = async (files, userId) => {
+  return bulkImportRowBasedService(files, userId);
+
   const excelFile = files.file ? files.file[0] : null;
   const imageFiles = files.images || [];
 

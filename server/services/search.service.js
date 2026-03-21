@@ -21,6 +21,7 @@ export const searchService = async ({ query, limit, page }) => {
   if (hits.length === 0) return hits;
 
   const normalisedQuery = normalise(query);
+  const shortPartialQuery = isShortPartialQuery(normalisedQuery);
 
   // --- Step 1: Category resolution ---
   const targetedCategory = findTargetedCategoryHit(hits, normalisedQuery);
@@ -29,12 +30,20 @@ export const searchService = async ({ query, limit, page }) => {
   }
 
   // --- Step 2 & 3: Structured / attribute queries OR Primary intent ---
-  const intentOrFieldMatchedProducts = hits.filter(
-    (hit) =>
-      hit.type === "product" &&
-      (productMatchesStructuredFields(hit.data, normalisedQuery) ||
-       hitMatchesPrimaryIntent(hit, normalisedQuery))
-  );
+  const intentOrFieldMatchedProducts = hits.filter((hit) => {
+    if (hit.type !== "product") return false;
+
+    // Tighten 1-2 char partials to product names only. This prevents false
+    // positives from tags, descriptions, or other indexed fields.
+    if (shortPartialQuery) {
+      return productNameHasPartialMatch(hit.data, normalisedQuery);
+    }
+
+    return (
+      productMatchesStructuredFields(hit.data, normalisedQuery) ||
+      hitMatchesPrimaryIntent(hit, normalisedQuery)
+    );
+  });
   if (intentOrFieldMatchedProducts.length > 0) return intentOrFieldMatchedProducts;
 
   // --- Step 4: Fallback — word-level fuzzy filter (FIX #8 + #11 + #12) ---
@@ -57,9 +66,13 @@ export const searchService = async ({ query, limit, page }) => {
   //
   // FIX #11: Return products only — never return raw category hits in fallback.
   const productHits = hits.filter((hit) => hit.type === "product");
-  const fuzzyMatchedProducts = productHits.filter((hit) =>
-    productHasFuzzyWordMatch(hit.data, normalisedQuery),
-  );
+  const fuzzyMatchedProducts = shortPartialQuery
+    ? productHits.filter((hit) =>
+        productNameHasPartialMatch(hit.data, normalisedQuery),
+      )
+    : productHits.filter((hit) =>
+        productHasFuzzyWordMatch(hit.data, normalisedQuery),
+      );
 
   return fuzzyMatchedProducts;
 };
@@ -213,7 +226,11 @@ const isCategoryFuzzyMatch = (normalisedQuery, normalisedCategoryName) => {
   if (!normalisedQuery || !normalisedCategoryName) return false;
 
   if (normalisedCategoryName === normalisedQuery) return true;
-  if (normalisedCategoryName.includes(normalisedQuery)) return true;
+
+  // Keep short partials broad. Queries like "s" or "le" should surface all
+  // matching products, not collapse the result set into a single category.
+  if (normalisedQuery.length < 3) return false;
+
   if (normalisedQuery.includes(normalisedCategoryName)) return true;
 
   const queryWords = normalisedQuery.split(" ").filter((w) => w.length >= 3);
@@ -318,6 +335,15 @@ const primaryTextMatches = (value, normalisedExpandedQuery) => {
     normalisedValue.includes(normalisedExpandedQuery) ||
     normalisedExpandedQuery.includes(normalisedValue)
   );
+};
+
+const isShortPartialQuery = (normalisedQuery) =>
+  normalisedQuery.length > 0 && normalisedQuery.length < 3;
+
+const productNameHasPartialMatch = (product, normalisedQuery) => {
+  const normalisedName = normalise(product?.name);
+  if (!normalisedName || !normalisedQuery) return false;
+  return normalisedName.includes(normalisedQuery);
 };
 
 // ---------------------------------------------------------------------------

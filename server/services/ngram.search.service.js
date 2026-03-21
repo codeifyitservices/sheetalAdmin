@@ -321,6 +321,30 @@ const getPhoneticBonus = (normalisedQuery, normalisedName) => {
   return maxBonus;
 };
 
+/**
+ * Extra ranking for token-level prefix / infix matches.
+ * This makes short partial queries like "s" or "le" behave predictably:
+ * direct token prefixes rank above incidental infix matches elsewhere.
+ */
+const getPartialNameBonus = (normalisedQuery, normalisedName) => {
+  if (!normalisedQuery || !normalisedName) return 0;
+
+  const nameWords = normalisedName.split(" ").filter(Boolean);
+  let maxBonus = 0;
+
+  nameWords.forEach((word) => {
+    if (word === normalisedQuery) {
+      maxBonus = Math.max(maxBonus, 700);
+    } else if (word.startsWith(normalisedQuery)) {
+      maxBonus = Math.max(maxBonus, 350);
+    } else if (word.includes(normalisedQuery)) {
+      maxBonus = Math.max(maxBonus, 150);
+    }
+  });
+
+  return maxBonus;
+};
+
 // ---------------------------------------------------------------------------
 // Index Mutation Helpers
 // ---------------------------------------------------------------------------
@@ -727,6 +751,7 @@ export const searchNgram = async (query, options = {}) => {
       const { doc } = entry;
       let boostedScore = score;
       const normalisedName = normalise(doc.name);
+      const partialNameBonus = getPartialNameBonus(normalisedQuery, normalisedName);
 
       // FIX #3 (Medium): Removed the ×50 category score multiply.
       // The sort comparator below already hard-sorts categories above products.
@@ -747,6 +772,8 @@ export const searchNgram = async (query, options = {}) => {
         const phoneticBonus = getPhoneticBonus(normalisedQuery, normalisedName);
         boostedScore += Math.max(fuzzyBonus, phoneticBonus);
       }
+
+      boostedScore += partialNameBonus;
 
       // Attribute / Tags boost
       const structuredFields = [
@@ -799,6 +826,7 @@ export const searchNgram = async (query, options = {}) => {
 
   const total = ranked.length;
   const totalPages = Math.ceil(total / limit);
+  
   const skip = (page - 1) * limit;
 
   const hits = ranked

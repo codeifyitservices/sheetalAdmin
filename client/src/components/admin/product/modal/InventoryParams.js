@@ -6,6 +6,12 @@ export default function InventoryParams({
     setFormData,
     emptyVariant,
 }) {
+    const getImagePreview = (image) => {
+        if (!image) return "/placeholder.png";
+        if (image instanceof File) return URL.createObjectURL(image);
+        return image.url || image;
+    };
+
     return (
         <div className="space-y-6 animate-in fade-in duration-300">
             <div className="border border-slate-200 rounded-xl overflow-hidden bg-white shadow-md">
@@ -122,13 +128,7 @@ export default function InventoryParams({
                                         {v.v_image ? (
                                             <div className="relative w-10 h-10 rounded border border-slate-300 overflow-hidden bg-white">
                                                 <img
-                                                    src={
-                                                        v.v_image instanceof File
-                                                            ? URL.createObjectURL(v.v_image)
-                                                            : v.v_image
-                                                                ? v.v_image.url || v.v_image
-                                                                : "/placeholder.png"
-                                                    }
+                                                    src={getImagePreview(v.v_image)}
                                                     className="w-full h-full object-cover"
                                                     alt="variant-preview"
                                                     onError={(e) => {
@@ -172,6 +172,82 @@ export default function InventoryParams({
                                         </span>
                                     </div>
                                 </div>
+                            </div>
+
+                            <div className="mt-4 pt-4 border-t border-slate-200">
+                                <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                                    <div>
+                                        <label className="text-[10px] font-bold text-slate-500 uppercase">
+                                            Variant Gallery
+                                        </label>
+                                        <p className="text-[10px] text-slate-400 mt-1">
+                                            Add multiple images for this color variant
+                                        </p>
+                                    </div>
+                                    <label className="inline-flex cursor-pointer items-center gap-2 rounded-lg border border-slate-300 bg-white px-3 py-2 text-xs font-bold text-slate-700 hover:bg-slate-50">
+                                        <Plus size={14} /> Add Images
+                                        <input
+                                            type="file"
+                                            className="hidden"
+                                            multiple
+                                            accept="image/*"
+                                            onChange={(e) => {
+                                                const selectedFiles = Array.from(e.target.files || []);
+                                                if (selectedFiles.length === 0) return;
+
+                                                const up = [...formData.variants];
+                                                const existingGallery = Array.isArray(up[i].gallery)
+                                                    ? up[i].gallery
+                                                    : [];
+                                                up[i].gallery = [...existingGallery, ...selectedFiles];
+                                                setFormData({
+                                                    ...formData,
+                                                    variants: up,
+                                                });
+                                                e.target.value = "";
+                                            }}
+                                        />
+                                    </label>
+                                </div>
+
+                                {Array.isArray(v.gallery) && v.gallery.length > 0 ? (
+                                    <div className="mt-3 grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-6 gap-3">
+                                        {v.gallery.map((image, imageIndex) => (
+                                            <div
+                                                key={imageIndex}
+                                                className="relative aspect-square overflow-hidden rounded-xl border border-slate-200 bg-white"
+                                            >
+                                                <img
+                                                    src={getImagePreview(image)}
+                                                    alt={`variant-gallery-${imageIndex + 1}`}
+                                                    className="h-full w-full object-cover"
+                                                    onError={(e) => {
+                                                        e.target.onerror = null;
+                                                        e.target.src = "/placeholder.png";
+                                                    }}
+                                                />
+                                                <button
+                                                    type="button"
+                                                    onClick={() => {
+                                                        const up = [...formData.variants];
+                                                        up[i].gallery = up[i].gallery.filter((_, idx) => idx !== imageIndex);
+                                                        setFormData({
+                                                            ...formData,
+                                                            variants: up,
+                                                        });
+                                                    }}
+                                                    className="absolute right-1 top-1 rounded-full bg-black/60 p-1 text-white transition hover:bg-black/80"
+                                                >
+                                                    <X size={12} />
+                                                </button>
+                                            </div>
+                                        ))}
+                                    </div>
+                                ) : (
+                                    <div className="mt-3 rounded-xl border border-dashed border-slate-300 bg-white px-4 py-5 text-xs text-slate-400">
+                                        No gallery images added for this variant
+                                    </div>
+                                )}
                             </div>
 
                             <div className="mt-4 pt-4 border-t border-slate-200">

@@ -65,6 +65,7 @@ router.post(
     { name: "ogImage", maxCount: 1 },
     { name: "images", maxCount: 10 },
     { name: "variantImages", maxCount: 20 },
+    { name: "variantGalleryImages", maxCount: 100 },
   ]),
   createProduct,
 );
@@ -80,6 +81,7 @@ router.put(
     { name: "ogImage", maxCount: 1 },
     { name: "images", maxCount: 10 },
     { name: "variantImages", maxCount: 20 },
+    { name: "variantGalleryImages", maxCount: 100 },
   ]),
   updateProduct,
 );

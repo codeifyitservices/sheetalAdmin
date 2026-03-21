@@ -30,14 +30,13 @@ export default function ProductModal({
   const [activeTab, setActiveTab] = useState("basic");
   const [loading, setLoading] = useState(false);
   const [categories, setCategories] = useState([]);
-  const [imageFiles, setImageFiles] = useState([]);
-  const [existingImages, setExistingImages] = useState([]);
 
   const emptyVariant = {
     v_sku: "",
     color: { name: "", code: "#000000", swatchImage: "" },
     sizes: [{ name: "", stock: 0, price: 0, discountPrice: 0 }],
     v_image: "",
+    gallery: [],
   };
 
   const [formData, setFormData] = useState({
@@ -90,6 +89,7 @@ export default function ProductModal({
           ? initialData.variants.map((v) => ({
               ...v,
               sizes: Array.isArray(v.sizes) ? v.sizes : [],
+              gallery: Array.isArray(v.gallery) ? v.gallery : [],
             }))
           : [];
         setFormData({
@@ -130,8 +130,6 @@ export default function ProductModal({
           price: undefined,
           discountPrice: undefined,
         });
-        setExistingImages(initialData.images || []);
-        setImageFiles([]);
       } else {
         resetForm();
       }
@@ -194,8 +192,6 @@ export default function ProductModal({
       isNewArrival: false,
       isCollection: false,
     });
-    setImageFiles([]);
-    setExistingImages([]);
   };
 
   const handleChange = (e) => {
@@ -249,8 +245,6 @@ export default function ProductModal({
         "mainImageFile",
         "hoverImageFile",
         "videoFile",
-        "images",
-        "existingImages",
         "variants",
         "sizeChart",
         "category",
@@ -304,11 +298,30 @@ export default function ProductModal({
       });
 
       const cleanedVariants = formData.variants.map((v) => {
+        const cleanedGallery = Array.isArray(v.gallery)
+          ? v.gallery.map((item) => {
+              if (item instanceof File) {
+                data.append("variantGalleryImages", item);
+                return { __newFile: true };
+              }
+
+              if (item?.url) {
+                return {
+                  url: item.url,
+                  public_id: item.public_id || "",
+                  alt: item.alt || "",
+                };
+              }
+
+              return item;
+            })
+          : [];
+
         if (v.v_image instanceof File) {
           data.append("variantImages", v.v_image);
-          return { ...v, hasNewImage: true };
+          return { ...v, hasNewImage: true, gallery: cleanedGallery };
         }
-        return { ...v, hasNewImage: false };
+        return { ...v, hasNewImage: false, gallery: cleanedGallery };
       });
       data.append("variants", JSON.stringify(cleanedVariants));
 
@@ -331,11 +344,6 @@ export default function ProductModal({
       } else if (typeof formData.video === "string") {
         data.append("existingVideo", formData.video);
       }
-
-      if (imageFiles && imageFiles.length > 0) {
-        imageFiles.forEach((file) => data.append("images", file));
-      }
-      data.append("existingImages", JSON.stringify(existingImages || []));
 
       if (formData.ogImage instanceof File) {
         data.append("ogImage", formData.ogImage);
@@ -493,10 +501,6 @@ export default function ProductModal({
               <MediaParams
                 formData={formData}
                 setFormData={setFormData}
-                imageFiles={imageFiles}
-                setImageFiles={setImageFiles}
-                existingImages={existingImages}
-                setExistingImages={setExistingImages}
               />
             )}
           </form>

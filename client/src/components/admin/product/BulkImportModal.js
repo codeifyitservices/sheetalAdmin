@@ -133,7 +133,7 @@ export default function BulkImportModal({ isOpen, onClose, onSuccess }) {
         <div className="px-6 py-4 border-b border-slate-100 flex justify-between items-center bg-slate-50/50">
           <div>
             <h2 className="text-xl font-bold text-slate-900">Bulk Import Products</h2>
-            <p className="text-sm text-slate-500">Upload Excel sheet and associated images</p>
+            <p className="text-sm text-slate-500">Upload Excel rows grouped by product, plus matching images</p>
           </div>
           <button
             onClick={handleClose}
@@ -225,6 +225,9 @@ export default function BulkImportModal({ isOpen, onClose, onSuccess }) {
                     Download Sample Template
                   </button>
                   <span className="text-slate-400">Max file size: 10MB</span>
+                </div>
+                <div className="rounded-xl border border-blue-100 bg-blue-50 px-4 py-3 text-xs text-blue-900">
+                  Row format: first row of a product contains base fields plus the first variant. Following rows for that same product should leave base fields blank and fill only variant columns like `Color`, `Size`, `Price`, `DiscountPrice`, `Stock`, and `VariantImage`.
                 </div>
               </div>
 

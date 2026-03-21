@@ -99,6 +99,13 @@ const productSchema = new mongoose.Schema(
           url: { type: String },
           public_id: { type: String },
         },
+        gallery: [
+          {
+            url: { type: String },
+            public_id: { type: String },
+            alt: { type: String, default: "variant gallery image" },
+          },
+        ],
       },
     ],
 

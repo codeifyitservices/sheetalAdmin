@@ -5,9 +5,6 @@ import {
     MousePointer2,
     Trash2,
     ImageIcon,
-    PlusSquare,
-    X,
-    Images,
     Video,
     CheckCircle2,
     Film,
@@ -17,10 +14,6 @@ import toast from "react-hot-toast";
 export default function MediaParams({
     formData,
     setFormData,
-    imageFiles,
-    setImageFiles,
-    existingImages,
-    setExistingImages,
 }) {
     return (
         <div className="space-y-8 animate-in fade-in slide-in-from-bottom-2 duration-400">
@@ -202,92 +195,6 @@ export default function MediaParams({
                             })
                         }
                     />
-                </div>
-            </div>
-
-            <div className="bg-slate-50 rounded-3xl p-6 border border-slate-200">
-                <div className="flex justify-between items-center mb-6">
-                    <div>
-                        <h3 className="text-sm font-black text-slate-900 uppercase">
-                            Product Gallery
-                        </h3>
-                        <p className="text-[10px] text-slate-500 mt-0.5">
-                            Add multiple angles and lifestyle shots
-                        </p>
-                    </div>
-                    <label className="group flex items-center gap-2 bg-slate-900 hover:bg-black text-white px-5 py-2.5 rounded-2xl text-xs font-bold cursor-pointer transition-all shadow-lg active:scale-95">
-                        <PlusSquare
-                            size={18}
-                            className="text-slate-400 group-hover:text-white"
-                        />
-                        <span>Add Images</span>
-                        <input
-                            type="file"
-                            multiple
-                            className="hidden"
-                            onChange={(e) =>
-                                setImageFiles([...imageFiles, ...Array.from(e.target.files)])
-                            }
-                        />
-                    </label>
-                </div>
-
-                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-4">
-                    {existingImages.map((img, i) => (
-                        <div
-                            key={`old-${i}`}
-                            className="aspect-square rounded-2xl overflow-hidden bg-white border border-slate-200 relative group shadow-sm ring-offset-2 hover:ring-2 hover:ring-slate-900 transition-all"
-                        >
-                            <img
-                                src={img.url}
-                                className="w-full h-full object-cover"
-                            />
-                            <button
-                                type="button"
-                                onClick={() =>
-                                    setExistingImages(
-                                        existingImages.filter((_, idx) => idx !== i),
-                                    )
-                                }
-                                className="absolute top-2 right-2 bg-white/90 backdrop-blur text-rose-500 p-1.5 rounded-lg opacity-0 group-hover:opacity-100 transition-opacity shadow-sm hover:bg-rose-500 hover:text-white"
-                            >
-                                <X size={14} />
-                            </button>
-                        </div>
-                    ))}
-
-                    {imageFiles.map((file, i) => (
-                        <div
-                            key={`new-${i}`}
-                            className="aspect-square rounded-2xl overflow-hidden bg-white border-2 border-blue-500 relative group shadow-md animate-in zoom-in-95 duration-200"
-                        >
-                            <img
-                                src={URL.createObjectURL(file)}
-                                className="w-full h-full object-cover opacity-90 hover:opacity-100 transition-opacity"
-                            />
-                            <div className="absolute top-2 left-2 bg-blue-500 text-white text-[8px] font-black px-1.5 py-0.5 rounded uppercase">
-                                New
-                            </div>
-                            <button
-                                type="button"
-                                onClick={() =>
-                                    setImageFiles(imageFiles.filter((_, idx) => idx !== i))
-                                }
-                                className="absolute top-2 right-2 bg-rose-500 text-white p-1.5 rounded-lg opacity-0 group-hover:opacity-100 transition-opacity shadow-sm"
-                            >
-                                <Trash2 size={14} />
-                            </button>
-                        </div>
-                    ))}
-
-                    {existingImages.length === 0 && imageFiles.length === 0 && (
-                        <div className="col-span-full py-10 flex flex-col items-center justify-center text-slate-300 border-2 border-dashed border-slate-200 rounded-2xl">
-                            <Images size={40} strokeWidth={1} />
-                            <p className="text-[10px] font-bold mt-2 uppercase tracking-widest">
-                                No gallery images added
-                            </p>
-                        </div>
-                    )}
                 </div>
             </div>
 
