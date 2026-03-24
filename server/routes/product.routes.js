@@ -50,6 +50,7 @@ router.post(
   uploadTo("temp/bulk").fields([
     { name: "file", maxCount: 1 },
     { name: "images", maxCount: 500 },
+    { name: "variantVideos", maxCount: 500 },
   ]),
   bulkImportProducts,
 );

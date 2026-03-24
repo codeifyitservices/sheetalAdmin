@@ -78,6 +78,8 @@ abandonedCartReminderJobSchema.index(
   { unique: true },
 );
 
+abandonedCartReminderJobSchema.index({ status: 1, runAt: 1 });
+
 const AbandonedCartReminderJob =
   mongoose.models.AbandonedCartReminderJob ||
   mongoose.model("AbandonedCartReminderJob", abandonedCartReminderJobSchema);

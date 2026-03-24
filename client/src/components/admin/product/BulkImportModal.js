@@ -58,6 +58,12 @@ export default function BulkImportModal({ isOpen, onClose, onSuccess }) {
     setImageFiles((prev) => [...prev, ...newEntries]);
   };
 
+  const clearVariantVideoInput = () => {
+    if (variantVideosInputRef.current) {
+      variantVideosInputRef.current.value = "";
+    }
+  };
+
   const handleVariantVideosChange = (e) => {
     const files = Array.from(e.target.files);
     const validVideos = files.filter((file) => {
@@ -88,7 +94,11 @@ export default function BulkImportModal({ isOpen, onClose, onSuccess }) {
   const removeVariantVideo = (index) => {
     setVariantVideoFiles((prev) => {
       URL.revokeObjectURL(prev[index].url);
-      return prev.filter((_, i) => i !== index);
+      const next = prev.filter((_, i) => i !== index);
+      if (next.length === 0) {
+        clearVariantVideoInput();
+      }
+      return next;
     });
   };
 
@@ -153,6 +163,7 @@ export default function BulkImportModal({ isOpen, onClose, onSuccess }) {
     setExcelFile(null);
     setImageFiles([]);
     setVariantVideoFiles([]);
+    clearVariantVideoInput();
     setStep(1);
     setProgress(0);
     setResult(null);
@@ -175,9 +186,10 @@ export default function BulkImportModal({ isOpen, onClose, onSuccess }) {
             <h2 className="text-xl font-bold text-slate-900">
               Bulk Import Products
             </h2>
-              <p className="text-sm text-slate-500">
-                Upload Excel rows grouped by product, plus matching images and variant videos
-              </p>
+            <p className="text-sm text-slate-500">
+              Upload Excel rows grouped by product, plus matching images and
+              variant videos
+            </p>
           </div>
           <button
             onClick={handleClose}
@@ -338,7 +350,7 @@ export default function BulkImportModal({ isOpen, onClose, onSuccess }) {
                       </div>
                     ))}
                   </div>
-                  
+
                   <div className="flex justify-between items-center">
                     <p className="text-xs text-slate-500">
                       {imageFiles.length} images selected
@@ -432,6 +444,7 @@ export default function BulkImportModal({ isOpen, onClose, onSuccess }) {
                           URL.revokeObjectURL(url),
                         );
                         setVariantVideoFiles([]);
+                        clearVariantVideoInput();
                       }}
                       className={`text-xs text-red-600 hover:underline ${variantVideoFiles.length === 0 ? "invisible" : ""}`}
                     >
@@ -441,7 +454,8 @@ export default function BulkImportModal({ isOpen, onClose, onSuccess }) {
                 </div>
 
                 <p className="text-xs text-slate-400 italic">
-                  Note: Variant video filenames must match the VariantVideo column in the Excel sheet.
+                  Note: Variant video filenames must match the VariantVideo
+                  column in the Excel sheet.
                 </p>
               </div>
             </div>

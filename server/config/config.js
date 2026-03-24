@@ -38,7 +38,10 @@ export const config = Object.freeze({
     ),
     discountPercent: Math.max(
       1,
-      parseInt(process.env.ABANDONED_CART_DISCOUNT_PERCENT || "10", 10) || 10,
+      Math.min(
+        parseInt(process.env.ABANDONED_CART_DISCOUNT_PERCENT || "10", 10) || 10,
+        100,
+      ),
     ),
     couponCode: process.env.ABANDONED_CART_COUPON_CODE || "SAVE10",
   },

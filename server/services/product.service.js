@@ -1053,6 +1053,15 @@ const bulkImportRowBasedService = async (files, userId) => {
     };
     uploadedVideoCache.set(normalized, uploaded);
     trackUpload(uploaded);
+    if (file?.path) {
+      try {
+        await deleteFile(file.path);
+      } catch (error) {
+        console.warn(
+          `[BulkImport] Failed to remove temp video file "${file.path}": ${error.message}`,
+        );
+      }
+    }
     return uploaded;
   };
 
@@ -1447,7 +1456,7 @@ const bulkImportRowBasedService = async (files, userId) => {
     }
 
     try {
-      const allFiles = [excelFile, ...imageFiles];
+      const allFiles = [excelFile, ...imageFiles, ...videoFiles];
       for (const f of allFiles) {
         if (f?.path) await deleteFile(f.path);
       }

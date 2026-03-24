@@ -71,10 +71,10 @@ function buildDateMatch(query = {}, period = "weekly") {
       end.setHours(23, 59, 59, 999);
       match.$lte = end;
     }
-    return match;
+    return { createdAt: match };
   }
 
-  return getDateRange(period);
+  return { createdAt: getDateRange(period) };
 }
 
 /* ---------------- GROUPING ---------------- */
@@ -330,7 +330,7 @@ export const getChartData = async (req, res) => {
     const results = await Order.aggregate([
       {
         $match: {
-          createdAt: dateMatch,
+          ...dateMatch,
           orderStatus: { $nin: ["Cancelled", "Returned"] },
         },
       },
@@ -593,40 +593,65 @@ export const sendAbandonedCartRecovery = async (req, res) => {
       });
     }
 
-    const cart = await Cart.findOne({ user: user._id }).populate(
+    const liveCart = await Cart.findOne({ user: user._id }).populate(
       "items.product",
       "name images",
     );
 
-    if (!cart || !cart.items.length) {
-      return res.status(404).json({
-        success: false,
-        message: "No abandoned cart found.",
-      });
-    }
-
-    const cartValue = cart.items.reduce((sum, item) => {
+    let items = liveCart?.items || [];
+    let cartValue = items.reduce((sum, item) => {
       const price = item.discountPrice > 0 ? item.discountPrice : item.price;
       return sum + price * item.quantity;
     }, 0);
 
-    if (cartValue <= 0) {
-      return res.status(400).json({
-        success: false,
-        message: "Cart has no value.",
-      });
+    if (!liveCart || !liveCart.items.length || cartValue <= 0) {
+      const cycle = await AbandonedCartCycle.findOne({
+        user: user._id,
+        status: "abandoned",
+        itemsSnapshot: { $exists: true, $ne: [] },
+      })
+        .sort({ abandonedAt: -1 })
+        .lean();
+
+      if (!cycle || !Array.isArray(cycle.itemsSnapshot) || cycle.itemsSnapshot.length === 0) {
+        return res.status(404).json({
+          success: false,
+          message: "No abandoned cart snapshot found.",
+        });
+      }
+
+      items = cycle.itemsSnapshot;
+      cartValue =
+        Number(cycle.cartValue || 0) > 0
+          ? Number(cycle.cartValue)
+          : items.reduce((sum, item) => {
+              const price =
+                Number(item.discountPrice || 0) > 0
+                  ? Number(item.discountPrice || 0)
+                  : Number(item.price || 0);
+              return sum + price * Number(item.quantity || 1);
+            }, 0);
+
+      if (cartValue <= 0) {
+        return res.status(400).json({
+          success: false,
+          message: "Cart snapshot has no value.",
+        });
+      }
     }
 
     await sendAbandonedCartEmail({
       name: user.name || user.email,
       email: user.email,
-      items: cart.items,
+      items,
       cartValue,
     });
 
-    await Cart.findByIdAndUpdate(cart._id, {
-      recoverySentAt: new Date(),
-    });
+    if (liveCart?._id) {
+      await Cart.findByIdAndUpdate(liveCart._id, {
+        recoverySentAt: new Date(),
+      });
+    }
 
     console.log(`[AbandonedCarts] Recovery email sent → ${email}`);
 

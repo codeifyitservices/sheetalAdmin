@@ -140,6 +140,7 @@ function buildReminderCopy(reminderType, cycle) {
   const discountPercent = getDiscountPercent(cycle);
   const couponCode = getCouponCode(cycle);
   const cartUrl = snapshot.ctaUrl;
+  const cartValue = snapshot.cartValue;
 
   if (reminderType === "first") {
     return {
@@ -149,6 +150,7 @@ function buildReminderCopy(reminderType, cycle) {
         "Your cart is still waiting. Complete your order before the items disappear.",
       cta: "Complete your order",
       cartUrl,
+      cartValue,
       text: `You left something behind. ${productName} is still waiting for you. Price: ₹${productPrice}. Complete your order here: ${cartUrl}`,
       productImage,
       productName,
@@ -164,6 +166,7 @@ function buildReminderCopy(reminderType, cycle) {
         "Free delivery and limited stock can disappear quickly. Checkout now before the cart expires.",
       cta: "Checkout now",
       cartUrl,
+      cartValue,
       text: `Your cart is about to expire. Free delivery and limited stock may end soon. Checkout now: ${cartUrl}`,
       productImage,
       productName,
@@ -178,6 +181,7 @@ function buildReminderCopy(reminderType, cycle) {
       body: `Use coupon code ${couponCode} to save ${discountPercent}% on the items in your cart.`,
       cta: "Claim the offer",
       cartUrl,
+      cartValue,
       text: `Claim your ${discountPercent}% discount with coupon code ${couponCode}. Checkout now: ${cartUrl}`,
       productImage,
       productName,
@@ -194,6 +198,7 @@ function buildReminderCopy(reminderType, cycle) {
     body: "Your items may still be available, but not for long. Shop now before they are gone.",
     cta: "Shop now",
     cartUrl,
+    cartValue,
     text: `Last chance to grab your items. Shop now: ${cartUrl}`,
     productImage,
     productName,
@@ -308,15 +313,27 @@ function buildChannelPayload(channel, reminderType, cycle) {
 }
 
 async function mockSendWhatsAppMessage({ to, message }) {
-  logger.info(
-    `[AbandonedCart][WhatsApp] Sent to ${to}: ${message.slice(0, 180)}`,
+  logger.warn(
+    `[AbandonedCart][WhatsApp] Mock send attempted for ${to}: ${message.slice(0, 180)}`,
   );
-  return { success: true, channel: "whatsapp", to };
+  return {
+    success: false,
+    delivered: false,
+    channel: "whatsapp",
+    to,
+    reason: "WhatsApp integration is mocked; no outbound delivery occurred",
+  };
 }
 
 async function mockSendSmsMessage({ to, message }) {
-  logger.info(`[AbandonedCart][SMS] Sent to ${to}: ${message.slice(0, 160)}`);
-  return { success: true, channel: "sms", to };
+  logger.warn(`[AbandonedCart][SMS] Mock send attempted for ${to}: ${message.slice(0, 160)}`);
+  return {
+    success: false,
+    delivered: false,
+    channel: "sms",
+    to,
+    reason: "SMS integration is mocked; no outbound delivery occurred",
+  };
 }
 
 async function sendChannelMessage(channel, reminderType, cycle) {
@@ -342,10 +359,16 @@ async function sendChannelMessage(channel, reminderType, cycle) {
       throw new Error("Missing phone number for WhatsApp");
     }
 
-    return await mockSendWhatsAppMessage({
+    const result = await mockSendWhatsAppMessage({
       to: channel.address,
       message: payload.message,
     });
+
+    if (!result?.success || result?.delivered === false) {
+      throw new Error(result?.reason || "WhatsApp message was not delivered");
+    }
+
+    return result;
   }
 
   if (channel.channel === "sms") {
@@ -353,10 +376,16 @@ async function sendChannelMessage(channel, reminderType, cycle) {
       throw new Error("Missing phone number for SMS");
     }
 
-    return await mockSendSmsMessage({
+    const result = await mockSendSmsMessage({
       to: channel.address,
       message: payload.message,
     });
+
+    if (!result?.success || result?.delivered === false) {
+      throw new Error(result?.reason || "SMS message was not delivered");
+    }
+
+    return result;
   }
 
   throw new Error(`Unsupported channel: ${channel.channel}`);
@@ -649,7 +678,11 @@ export async function sendReminder(reminderJobOrId) {
   };
 
   const applicableChannels = getReminderChannels(job.reminderType, contacts);
-  const alreadySent = new Set((job.sentChannels || []).map((item) => item.channel));
+  const alreadySent = new Set(
+    (job.sentChannels || [])
+      .filter((item) => ["sent", "success"].includes(item.status))
+      .map((item) => item.channel),
+  );
   const channelsToSend = applicableChannels.filter(
     (channel) => !alreadySent.has(channel.channel),
   );
@@ -894,8 +927,6 @@ export async function startAbandonedCartScheduler() {
   if (schedulerState.started) return schedulerState;
 
   schedulerState.started = true;
-  await runAbandonedCartSchedulerTick();
-
   schedulerState.timer = setInterval(() => {
     runAbandonedCartSchedulerTick().catch((error) => {
       logger.error(
@@ -907,6 +938,12 @@ export async function startAbandonedCartScheduler() {
   if (typeof schedulerState.timer.unref === "function") {
     schedulerState.timer.unref();
   }
+
+  runAbandonedCartSchedulerTick().catch((error) => {
+    logger.error(
+      `[AbandonedCart] Scheduler warm-up failed: ${error.message}`,
+    );
+  });
 
   logger.info(
     `[AbandonedCart] Scheduler started with ${config.abandonedCart.scanIntervalSeconds}s interval`,

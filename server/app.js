@@ -10,16 +10,21 @@ const startServer = async () => {
     initializeFirebase();
     await connectDB();
     await seedAdmin();
-    await startAbandonedCartScheduler();
-
-    const PORT = config.port;
-    app.listen(PORT, () => {
-      console.log(`Server running in ${config.nodeEnv} mode on port ${PORT}`);
-    });
   } catch (error) {
     console.error("Database connection failed:", error);
     process.exit(1);
   }
+
+  try {
+    await startAbandonedCartScheduler();
+  } catch (error) {
+    console.error("Abandoned cart scheduler failed to start:", error);
+  }
+
+  const PORT = config.port;
+  app.listen(PORT, () => {
+    console.log(`Server running in ${config.nodeEnv} mode on port ${PORT}`);
+  });
 };
 
 startServer();

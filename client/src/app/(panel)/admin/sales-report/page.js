@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { CreditCard, ShoppingBag, BarChart2, ShoppingCart } from "lucide-react";
 import SalesPageHeader from "@/components/admin/sales/SalesPageHeader";
 import AbandonedCarts from "@/components/admin/sales/AbandonedCarts";
@@ -19,6 +19,7 @@ import {
 import { getOrderStats } from "@/services/orderService";
 import { useMostViewed } from "@/hooks/useMostViewed";
 import SalesTrendsChart from "@/components/admin/sales/SalesPageHeader";
+import toast from "react-hot-toast";
 
 const MOCK_TRAFFIC_SOURCES = [
   { label: "Direct", percentage: 45, color: "bg-primary" },
@@ -50,10 +51,14 @@ export default function SalesPage() {
       .catch((err) => setFetchError(err.message));
   }, []);
 
-  const bestSellingByUnits = [...bestSellingProducts].sort(
-    (a, b) =>
-      (b.unitsSold || 0) - (a.unitsSold || 0) ||
-      (b.totalRevenue || 0) - (a.totalRevenue || 0),
+  const bestSellingByUnits = useMemo(
+    () =>
+      [...bestSellingProducts].sort(
+        (a, b) =>
+          (b.unitsSold || 0) - (a.unitsSold || 0) ||
+          (b.totalRevenue || 0) - (a.totalRevenue || 0),
+      ),
+    [bestSellingProducts],
   );
 
   // ── Order stats → StatsRow ─────────────────────────────────────
