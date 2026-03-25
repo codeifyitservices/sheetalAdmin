@@ -7,7 +7,6 @@ import User from '../models/user.model.js';
 import Settings from '../models/settings.model.js';
 import { createShiprocketOrder } from './shiprocket.service.js';
 import { sendOrderConfirmationEmail } from './order.email.service.js';
-import { handleOrderCompletion } from './abandonedCart.service.js';
 
 export const createPaymentLinkService = async (userId, shippingAddress, billingAddress, frontendCallbackUrl) => {
     // 1. Fetch Cart and User
@@ -261,12 +260,6 @@ export const verifyOnlinePaymentService = async (params) => {
         );
     } catch (cartErr) {
         console.error('[PaymentVerify] Cart clear failed:', cartErr.message);
-    }
-
-    try {
-        await handleOrderCompletion({ userId: order.user });
-    } catch (cycleErr) {
-        console.error('[PaymentVerify] Abandoned cart finalization failed:', cycleErr.message);
     }
 
     const user = await User.findById(order.user).select('name email').lean();

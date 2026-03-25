@@ -3,7 +3,7 @@ import successResponse from "../utils/successResponse.js";
 import ErrorResponse from "../utils/ErrorResponse.js";
 import { deleteFile, deleteS3File } from "../utils/fileHelper.js";
 import Product from "../models/product.model.js";
-import xlsx from "xlsx";
+import fs from "fs/promises";
 
 const clearFiles = async (files) => {
   if (!files) return;
@@ -126,118 +126,21 @@ export const bulkImportProducts = async (req, res, next) => {
 
 export const getSampleExcel = async (req, res, next) => {
   try {
-    const headers = [
-      "Name",
-      "SKU",
-      "Description",
-      "ShortDescription",
-      "MaterialCare",
-      "Category",
-      "SubCategory",
-      "Status",
-      "Tags",
-      "WearType",
-      "Occasion",
-      "Style",
-      "Work",
-      "Fabric",
-      "Type",
-      "ByPrice",
-      "MainImage",
-      "HoverImage",
-      "Images",
-      "DetailKey",
-      "DetailValue",
-      "VariantSKU",
-      "Color",
-      "ColorCode",
-      "Size",
-      "Price",
-      "DiscountPrice",
-      "Stock",
-      "VariantImage",
-      "VariantVideo",
-      "MetaTitle",
-      "MetaDescription",
-      "MetaKeywords",
-    ];
+    const updatedTemplatePath = new URL(
+      "../sample_product_import.updated.xlsx",
+      import.meta.url,
+    );
+    const fallbackTemplatePath = new URL(
+      "../sample_product_import.xlsx",
+      import.meta.url,
+    );
 
-    const rows = [
-      {
-        Name: "Example Product",
-        SKU: "EXAMPLE-001",
-        Description: "Add a full description for the product.",
-        ShortDescription: "Short summary shown in cards.",
-        MaterialCare: "Hand wash only.",
-        Category: "Sarees",
-        SubCategory: "Festive",
-        Status: "Active",
-        Tags: "festive, silk",
-        WearType: "Casual,Party",
-        Occasion: "Wedding,Festival",
-        Style: "Traditional",
-        Work: "Embroidery",
-        Fabric: "Silk",
-        Type: "Regular",
-        ByPrice: "5000-10000",
-        MainImage: "example-main.jpg",
-        HoverImage: "example-hover.jpg",
-        Images: "example-1.jpg,example-2.jpg",
-        VariantSKU: "EXAMPLE-001-RED-M",
-        Color: "Red",
-        ColorCode: "#B91C1C",
-        Size: "M",
-        Price: 4999,
-        DiscountPrice: 3999,
-        Stock: 10,
-        VariantImage: "example-variant.jpg",
-        VariantVideo: "example-variant.mp4",
-        MetaTitle: "Example Product",
-        MetaDescription: "Example meta description.",
-        MetaKeywords: "example,product",
-      },
-      {
-        Name: "",
-        SKU: "",
-        Description: "",
-        ShortDescription: "",
-        MaterialCare: "",
-        Category: "",
-        SubCategory: "",
-        Status: "",
-        Tags: "",
-        WearType: "",
-        Occasion: "",
-        Style: "",
-        Work: "",
-        Fabric: "",
-        Type: "",
-        ByPrice: "",
-        MainImage: "",
-        HoverImage: "",
-        Images: "",
-        DetailKey: "Wash Care",
-        DetailValue: "Dry clean only",
-        VariantSKU: "EXAMPLE-001-BLK-L",
-        Color: "Black",
-        ColorCode: "#111827",
-        Size: "L",
-        Price: 4999,
-        DiscountPrice: 0,
-        Stock: 7,
-        VariantImage: "example-variant-2.jpg",
-        VariantVideo: "example-variant-2.mp4",
-        MetaTitle: "",
-        MetaDescription: "",
-        MetaKeywords: "",
-      },
-    ];
-
-    const worksheet = xlsx.utils.json_to_sheet(rows, { header: headers });
-    const workbook = xlsx.utils.book_new();
-    xlsx.utils.book_append_sheet(workbook, worksheet, "Template");
-
-    const buffer = xlsx.write(workbook, { bookType: "xlsx", type: "buffer" });
+    let buffer;
+    try {
+      buffer = await fs.readFile(updatedTemplatePath);
+    } catch {
+      buffer = await fs.readFile(fallbackTemplatePath);
+    }
 
     res.setHeader(
       "Content-Type",
@@ -260,7 +163,7 @@ export const createProduct = async (req, res, next) => {
 
       for (const file of allFiles) {
         const isVideo =
-          file.fieldname === "video" || file.mimetype.startsWith("video/");
+          file.fieldname === "video" || file.mimetype?.startsWith("video/");
         const limit = isVideo ? 50 * 1024 * 1024 : 5 * 1024 * 1024;
 
         if (file.size > limit) {

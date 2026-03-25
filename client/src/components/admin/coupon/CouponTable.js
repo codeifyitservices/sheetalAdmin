@@ -153,7 +153,6 @@ export default function CouponTable({ refreshStats }) {
             <option value="All">All Status</option>
             <option value="Live">Live</option>
             <option value="Expired">Expired</option>
-            <option value="Paused">Paused</option>
           </select>
 
           <button

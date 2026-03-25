@@ -1215,16 +1215,6 @@ const bulkImportRowBasedService = async (files, userId) => {
       }
 
       const hoverImage = await processImage(item.HoverImage);
-      const galleryImages = [];
-      for (const imgName of safeSplit(item.Images)) {
-        const img = await processImage(imgName);
-        if (img) galleryImages.push(img);
-        else {
-          errors.push(
-            `Row ${rowIndex} (${name}): Gallery image "${imgName}" not found in uploaded images`,
-          );
-        }
-      }
 
       const variants = [...draft.variantMap.values()];
       if (variants.length === 0) {
@@ -1280,7 +1270,6 @@ const bulkImportRowBasedService = async (files, userId) => {
         metaKeywords: item.MetaKeywords || "",
         mainImage,
         ...(hoverImage && { hoverImage }),
-        images: galleryImages,
         variants,
         createdBy: userId,
       });
@@ -1406,6 +1395,10 @@ const bulkImportRowBasedService = async (files, userId) => {
             ...(variant.gallery || []),
             ...variantRow.gallery.filter((img) => !existingUrls.has(img.url)),
           ];
+        }
+
+        if (variantRow.v_video && !variant.v_video) {
+          variant.v_video = variantRow.v_video;
         }
 
         const duplicateSize = variant.sizes.some(
@@ -1625,14 +1618,6 @@ export const bulkImportService = async (files, userId) => {
           .filter(Boolean);
       };
 
-      const galleryImages = [];
-      if (item.Images) {
-        for (const imgName of safeSplit(item.Images)) {
-          const img = await processImage(imgName);
-          if (img) galleryImages.push(img);
-        }
-      }
-
       // ── 7. Variants ───────────────────────────────────────────────────────
       const variants = [];
       if (item.Variants) {
@@ -1703,7 +1688,6 @@ export const bulkImportService = async (files, userId) => {
         byPrice: safeSplit(item.ByPrice),
         mainImage,
         ...(hoverImage && { hoverImage }),
-        images: galleryImages,
         variants,
         createdBy: userId,
       };

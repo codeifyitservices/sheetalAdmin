@@ -23,6 +23,7 @@ import SettingsModal from "./SettingsModal";
 import BulkImportModal from "./BulkImportModal";
 
 import { getProducts, deleteProduct } from "@/services/productService";
+import { getCategories } from "@/services/categoryService";
 import { useProductModal } from "@/hooks/useProductModal";
 
 export default function ProductTable({ refreshStats }) {
@@ -30,6 +31,8 @@ export default function ProductTable({ refreshStats }) {
   const [loading, setLoading] = useState(false);
   const [search, setSearch] = useState("");
   const [totalProducts, setTotalProducts] = useState(0);
+  const [categories, setCategories] = useState([]);
+  const [selectedCategory, setSelectedCategory] = useState("all");
 
   const [rowsPerPage, setRowsPerPage] = useState(10);
   const [currentPage, setCurrentPage] = useState(1);
@@ -69,7 +72,22 @@ export default function ProductTable({ refreshStats }) {
     }, 300);
 
     return () => clearTimeout(timer);
-  }, [currentPage, rowsPerPage, search, sortConfig]);
+  }, [currentPage, rowsPerPage, search, selectedCategory, sortConfig]);
+
+  useEffect(() => {
+    const fetchCategories = async () => {
+      try {
+        const res = await getCategories(1, 1000, "");
+        if (res.success) {
+          setCategories(res.data?.categories || []);
+        }
+      } catch (err) {
+        console.error("Failed to fetch categories:", err);
+      }
+    };
+
+    fetchCategories();
+  }, []);
 
   const fetchProducts = async (isRefresh = false) => {
     setLoading(true);
@@ -82,6 +100,7 @@ export default function ProductTable({ refreshStats }) {
         currentPage,
         rowsPerPage,
         search,
+        selectedCategory,
         sortParam,
       );
 
@@ -152,6 +171,22 @@ export default function ProductTable({ refreshStats }) {
               onChange={(e) => setSearch(e.target.value)}
             />
           </div>
+
+          <select
+            value={selectedCategory}
+            onChange={(e) => {
+              setSelectedCategory(e.target.value);
+              setCurrentPage(1);
+            }}
+            className="min-w-[180px] border border-slate-300 rounded px-3 py-2 text-sm bg-white text-slate-700 focus:ring-2 focus:ring-slate-200 outline-none"
+          >
+            <option value="all">All Categories</option>
+            {categories.map((category) => (
+              <option key={category._id} value={category._id}>
+                {category.name}
+              </option>
+            ))}
+          </select>
 
           <button
             onClick={() => fetchProducts(true)}

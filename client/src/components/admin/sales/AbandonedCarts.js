@@ -1,9 +1,8 @@
 'use client'
 
-import { Send, ShoppingCart } from "lucide-react";
+import { ShoppingCart } from "lucide-react";
 
-export default function AbandonedCarts({ carts = [], onSendRecovery }) {
-  console.log(carts)
+export default function AbandonedCarts({ carts = [] }) {
   return (
     <div
       style={{ fontFamily: "'DM Sans', sans-serif" }}
@@ -117,37 +116,6 @@ export default function AbandonedCarts({ carts = [], onSendRecovery }) {
                 ₹{cart.cartValue.toFixed(2)}
               </div>
 
-              {/* Action */}
-              <button
-                onClick={() => onSendRecovery(cart.email)}
-                style={{
-                  display: "inline-flex",
-                  alignItems: "center",
-                  gap: 6,
-                  fontSize: 11,
-                  fontWeight: 700,
-                  color: "#4f46e5",
-                  background: "#eef2ff",
-                  border: "1px solid #e0e7ff",
-                  borderRadius: 8,
-                  padding: "7px 12px",
-                  cursor: "pointer",
-                  flexShrink: 0,
-                  letterSpacing: "0.02em",
-                  transition: "all 0.15s ease",
-                }}
-                onMouseEnter={(e) => {
-                  e.currentTarget.style.background = "#e0e7ff";
-                  e.currentTarget.style.borderColor = "#c7d2fe";
-                }}
-                onMouseLeave={(e) => {
-                  e.currentTarget.style.background = "#eef2ff";
-                  e.currentTarget.style.borderColor = "#e0e7ff";
-                }}
-              >
-                <Send size={11} />
-                Send Recovery
-              </button>
             </div>
           ))}
         </div>

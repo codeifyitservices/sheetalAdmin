@@ -6,19 +6,21 @@
     return data;
   };
 
-  export const getProducts = async (
-    page = 1,
-    limit = 10,
-    search = "",
-    sort = "",
-  ) => {
-    const params = new URLSearchParams({
-      page: String(page),
-      limit: String(limit),
-    });
+export const getProducts = async (
+  page = 1,
+  limit = 10,
+  search = "",
+  category = "",
+  sort = "",
+) => {
+  const params = new URLSearchParams({
+    page: String(page),
+    limit: String(limit),
+  });
 
-    if (search) params.set("search", search);
-    if (sort) params.set("sort", sort);
+  if (search) params.set("search", search);
+  if (category && category !== "all") params.set("category", category);
+  if (sort) params.set("sort", sort);
 
     const res = await fetch(
       `${API_BASE_URL}/products/all?${params.toString()}`,

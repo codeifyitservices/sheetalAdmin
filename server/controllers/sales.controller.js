@@ -2,8 +2,6 @@ import Order from "../models/order.model.js";
 import Cart from "../models/cart.model.js";
 import User from "../models/user.model.js";
 import Product from "../models/product.model.js";
-import AbandonedCartCycle from "../models/abandonedCartCycle.model.js";
-import { sendAbandonedCartEmail } from "../services/abandonedCart.service.js";
 
 /**
  * Helper — builds a $match stage from query params.
@@ -481,19 +479,20 @@ export const getBestSellingProducts = async (req, res) => {
 
 // ─────────────────────────────────────────────────────────────────────────────
 // GET /api/sales/abandoned-carts
-// Returns carts not updated in 7+ days, with user + product details populated.
+// Returns carts not updated in 3+ days, with user + product details populated.
 // Query: ?limit=20 (default 20, max 100)
 // ─────────────────────────────────────────────────────────────────────────────
 export const getAbandonedCarts = async (req, res) => {
   try {
-    const ABANDONED_DAYS = 7;
+    const ABANDONED_DAYS = 3;
     const limit = Math.min(parseInt(req.query.limit) || 20, 100);
 
-    const cutoff = new Date();
-    cutoff.setDate(cutoff.getDate() - ABANDONED_DAYS);
-    cutoff.setHours(0, 0, 0, 0);
+    const cutoff = new Date(Date.now() - ABANDONED_DAYS * 24 * 60 * 60 * 1000);
 
-    const carts = await Cart.find({ updatedAt: { $lt: cutoff } })
+    const carts = await Cart.find({
+      updatedAt: { $lte: cutoff },
+      "items.0": { $exists: true },
+    })
       .populate("user", "name email")
       .populate("items.product", "name images")
       .sort({ updatedAt: -1 })
@@ -570,102 +569,3 @@ export const getAbandonedCarts = async (req, res) => {
 };
 
 // ─────────────────────────────────────────────────────────────────────────────
-// POST /api/admin/abandoned-carts/send-recovery
-// Body: { email: string }
-// Triggers a recovery email and stamps recoverySentAt on the cart.
-// ─────────────────────────────────────────────────────────────────────────────
-export const sendAbandonedCartRecovery = async (req, res) => {
-  try {
-    const { email } = req.body;
-
-    if (!email) {
-      return res.status(400).json({
-        success: false,
-        message: "email is required.",
-      });
-    }
-    const user = await User.findOne({ email });
-
-    if (!user) {
-      return res.status(404).json({
-        success: false,
-        message: "User not found.",
-      });
-    }
-
-    const liveCart = await Cart.findOne({ user: user._id }).populate(
-      "items.product",
-      "name images",
-    );
-
-    let items = liveCart?.items || [];
-    let cartValue = items.reduce((sum, item) => {
-      const price = item.discountPrice > 0 ? item.discountPrice : item.price;
-      return sum + price * item.quantity;
-    }, 0);
-
-    if (!liveCart || !liveCart.items.length || cartValue <= 0) {
-      const cycle = await AbandonedCartCycle.findOne({
-        user: user._id,
-        status: "abandoned",
-        itemsSnapshot: { $exists: true, $ne: [] },
-      })
-        .sort({ abandonedAt: -1 })
-        .lean();
-
-      if (!cycle || !Array.isArray(cycle.itemsSnapshot) || cycle.itemsSnapshot.length === 0) {
-        return res.status(404).json({
-          success: false,
-          message: "No abandoned cart snapshot found.",
-        });
-      }
-
-      items = cycle.itemsSnapshot;
-      cartValue =
-        Number(cycle.cartValue || 0) > 0
-          ? Number(cycle.cartValue)
-          : items.reduce((sum, item) => {
-              const price =
-                Number(item.discountPrice || 0) > 0
-                  ? Number(item.discountPrice || 0)
-                  : Number(item.price || 0);
-              return sum + price * Number(item.quantity || 1);
-            }, 0);
-
-      if (cartValue <= 0) {
-        return res.status(400).json({
-          success: false,
-          message: "Cart snapshot has no value.",
-        });
-      }
-    }
-
-    await sendAbandonedCartEmail({
-      name: user.name || user.email,
-      email: user.email,
-      items,
-      cartValue,
-    });
-
-    if (liveCart?._id) {
-      await Cart.findByIdAndUpdate(liveCart._id, {
-        recoverySentAt: new Date(),
-      });
-    }
-
-    console.log(`[AbandonedCarts] Recovery email sent → ${email}`);
-
-    res.status(200).json({
-      success: true,
-      message: `Recovery email sent to ${email}.`,
-    });
-  } catch (error) {
-    console.error("[sendAbandonedCartRecovery]", error);
-
-    res.status(500).json({
-      success: false,
-      message: "Failed to send recovery email.",
-      error: error.message,
-    });
-  }
-};

@@ -1,9 +1,4 @@
 import * as cartService from "../services/cart.service.js";
-import {
-  markCartAsAbandoned,
-  handleUserActivity,
-  handleOrderCompletion,
-} from "../services/abandonedCart.service.js";
 import successResponse from "../utils/successResponse.js";
 
 export const getCart = async (req, res, next) => {
@@ -71,39 +66,3 @@ export const mergeGuestCart = async (req, res, next) => {
   }
 };
 
-export const abandonCart = async (req, res, next) => {
-  try {
-    const result = await markCartAsAbandoned({
-      userId: req.user._id,
-      reason: "checkout_exit",
-      source: "checkout_exit",
-    });
-
-    return successResponse(
-      res,
-      200,
-      result,
-      result ? "Cart marked as abandoned" : "No active cart to abandon",
-    );
-  } catch (err) {
-    next(err);
-  }
-};
-
-export const resumeCheckout = async (req, res, next) => {
-  try {
-    const result = await handleUserActivity({ userId: req.user._id });
-    return successResponse(res, 200, result, "Checkout resumed and reminders canceled");
-  } catch (err) {
-    next(err);
-  }
-};
-
-export const completeCheckout = async (req, res, next) => {
-  try {
-    const result = await handleOrderCompletion({ userId: req.user._id });
-    return successResponse(res, 200, result, "Abandoned cart cycle closed permanently");
-  } catch (err) {
-    next(err);
-  }
-};

@@ -14,12 +14,10 @@ import TrafficSources from "@/components/admin/sales/TrafficSource";
 import {
   getBestSellingItems,
   getAbandonedCarts,
-  sendCartRecoveryEmail,
 } from "@/services/salesService";
 import { getOrderStats } from "@/services/orderService";
 import { useMostViewed } from "@/hooks/useMostViewed";
 import SalesTrendsChart from "@/components/admin/sales/SalesPageHeader";
-import toast from "react-hot-toast";
 
 const MOCK_TRAFFIC_SOURCES = [
   { label: "Direct", percentage: 45, color: "bg-primary" },
@@ -113,14 +111,6 @@ export default function SalesPage() {
   }, []);
 
   // ── Recovery email handler (passed to AbandonedCarts) ──────────
-  const handleSendRecovery = async (email) => {
-    const res = await sendCartRecoveryEmail(email);
-    if (res.success) {
-      toast.success(res.message);
-      setAbandonedCarts((prev) => prev.filter((c) => c.email !== email));
-    }
-  };
-
   const handleFiltersChange = (filter) => {
     console.log(filter);
     setFilters(filter);
@@ -146,10 +136,7 @@ export default function SalesPage() {
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
         <TrafficSources sources={MOCK_TRAFFIC_SOURCES} />
-        <AbandonedCarts
-          carts={abandonedCarts}
-          onSendRecovery={handleSendRecovery}
-        />
+        <AbandonedCarts carts={abandonedCarts} />
       </div>
     </main>
   );

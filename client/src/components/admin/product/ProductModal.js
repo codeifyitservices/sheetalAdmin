@@ -328,7 +328,7 @@ export default function ProductModal({
 
         let cleanedVideo = "";
         if (v.videoFile instanceof File) {
-          data.append("variantVideos", v.videoFile);
+          data.append("variantVideos", v.videoFile, v.videoFile.name);
         } else if (v.v_video?.url) {
           cleanedVideo = {
             url: v.v_video.url,

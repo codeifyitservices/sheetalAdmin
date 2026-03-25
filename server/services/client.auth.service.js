@@ -61,7 +61,10 @@ const sendEmailOtp = async (email) => {
 };
 
 const verifyEmailOtp = async (email, otp, currentUserId = null) => {
-  const otpRecord = await Otp.findOne({ email, otp }).sort({ createdAt: -1 });
+  const normalizedEmail = email?.trim().toLowerCase();
+  const otpRecord = await Otp.findOne({ email: normalizedEmail, otp }).sort({
+    createdAt: -1,
+  });
 
   if (!otpRecord) {
     throw new Error("Invalid or expired OTP.");
@@ -70,7 +73,7 @@ const verifyEmailOtp = async (email, otp, currentUserId = null) => {
   // Delete used OTP
   await Otp.deleteOne({ _id: otpRecord._id });
 
-  let userByEmail = await User.findOne({ email });
+  let userByEmail = await User.findOne({ email: normalizedEmail });
   let currentUser = null;
   let finalUser = null;
 
@@ -94,7 +97,7 @@ const verifyEmailOtp = async (email, otp, currentUserId = null) => {
         }
       }
     } else {
-      currentUser.email = email;
+      currentUser.email = normalizedEmail;
       currentUser.isVerified = true;
       await currentUser.save();
       finalUser = currentUser;
@@ -107,12 +110,17 @@ const verifyEmailOtp = async (email, otp, currentUserId = null) => {
         await finalUser.save();
       }
     } else {
-      finalUser = await User.create({ email, isVerified: true });
-    }
+    finalUser = await User.create({ email: normalizedEmail, isVerified: true });
+  }
   }
 
   if (!finalUser) {
     throw new Error("Authentication failed to resolve a user.");
+  }
+
+  if (normalizedEmail && finalUser.email !== normalizedEmail) {
+    finalUser.email = normalizedEmail;
+    await finalUser.save();
   }
 
   const token = signToken({ id: finalUser._id, role: finalUser.role });

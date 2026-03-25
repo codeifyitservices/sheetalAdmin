@@ -116,7 +116,7 @@ export default function BulkImportModal({ isOpen, onClose, onSuccess }) {
       formData.append("file", excelFile);
       imageFiles.forEach(({ file }) => formData.append("images", file));
       variantVideoFiles.forEach(({ file }) =>
-        formData.append("variantVideos", file),
+        formData.append("variantVideos", file, file.name),
       );
 
       const interval = setInterval(() => {
@@ -187,8 +187,10 @@ export default function BulkImportModal({ isOpen, onClose, onSuccess }) {
               Bulk Import Products
             </h2>
             <p className="text-sm text-slate-500">
-              Upload Excel rows grouped by product, plus matching images and
-              variant videos
+              First row per product should include Name and SKU. Add detail or
+              variant rows beneath it, plus matching main/hover image files
+              and one variant video per variant row. Variant gallery images are
+              uploaded separately.
             </p>
           </div>
           <button
@@ -301,7 +303,7 @@ export default function BulkImportModal({ isOpen, onClose, onSuccess }) {
                   <span className="bg-slate-900 text-white w-5 h-5 rounded-full flex items-center justify-center text-xs">
                     2
                   </span>
-                  Upload Product Images
+                  Upload Image Files
                 </p>
 
                 <input
@@ -322,7 +324,7 @@ export default function BulkImportModal({ isOpen, onClose, onSuccess }) {
                     >
                       <ImageIcon className="w-8 h-8 text-slate-300 mb-1" />
                       <span className="text-xs font-medium text-slate-500">
-                        Add Images
+                        Add Image Files
                       </span>
                     </label>
 
@@ -454,8 +456,9 @@ export default function BulkImportModal({ isOpen, onClose, onSuccess }) {
                 </div>
 
                 <p className="text-xs text-slate-400 italic">
-                  Note: Variant video filenames must match the VariantVideo
-                  column in the Excel sheet.
+                  Note: Add one video filename per variant row in the
+                  VariantVideo column. Filenames must match the uploaded video
+                  files exactly.
                 </p>
               </div>
             </div>

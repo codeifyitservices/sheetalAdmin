@@ -76,9 +76,9 @@ export default function InventoryParams({
   };
 
   const getVideoPreview = (video) => {
-    if (!video) return "";
-    if (video instanceof File) return filePreviews.get(video) || "";
-    return video.url || video;
+    if (!video) return null;
+    if (video instanceof File) return filePreviews.get(video) || null;
+    return video.url || video || null;
   };
 
   return (
@@ -339,37 +339,53 @@ export default function InventoryParams({
                   Variant Video
                 </label>
                 {(v.v_video || v.videoFile) && (
-                  <div className="mb-3 relative group overflow-hidden rounded-xl border border-slate-300 bg-black">
-                    <video
-                      key={
-                        v.videoFile
+                  <div className="mb-3 flex items-center gap-3">
+                    <div className="relative group h-12 w-12 sm:h-14 sm:w-14 overflow-hidden rounded-lg border border-slate-300 bg-black flex-shrink-0">
+                      <video
+                        key={
+                          v.videoFile
+                            ? v.videoFile.name
+                            : v.v_video?.url || v.v_video
+                        }
+                        autoPlay
+                        loop
+                        muted
+                        playsInline
+                        className="h-full w-full object-cover bg-black"
+                      >
+                        {getVideoPreview(v.videoFile || v.v_video) ? (
+                          <source
+                            src={getVideoPreview(v.videoFile || v.v_video)}
+                            type="video/mp4"
+                          />
+                        ) : null}
+                      </video>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const up = [...formData.variants];
+                          up[i].videoFile = null;
+                          up[i].v_video = "";
+                          setFormData({
+                            ...formData,
+                            variants: up,
+                          });
+                        }}
+                        className="absolute inset-0 flex items-center justify-center bg-black/40 text-white opacity-0 transition group-hover:opacity-100"
+                      >
+                        <X size={12} />
+                      </button>
+                    </div>
+                    <div className="min-w-0">
+                      <p className="text-xs font-medium text-slate-700 truncate max-w-[220px]">
+                        {v.videoFile
                           ? v.videoFile.name
-                          : v.v_video?.url || v.v_video
-                      }
-                      controls
-                      className="h-52 w-full object-contain bg-black"
-                    >
-                      <source
-                        src={getVideoPreview(v.videoFile || v.v_video)}
-                        type="video/mp4"
-                      />
-                      Your browser does not support the video tag.
-                    </video>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        const up = [...formData.variants];
-                        up[i].videoFile = null;
-                        up[i].v_video = "";
-                        setFormData({
-                          ...formData,
-                          variants: up,
-                        });
-                      }}
-                      className="absolute right-2 top-2 rounded-full bg-black/60 p-2 text-white opacity-0 transition group-hover:opacity-100"
-                    >
-                      <X size={12} />
-                    </button>
+                          : v.v_video?.url?.split("/").pop() || "Variant video"}
+                      </p>
+                      <p className="text-[10px] text-slate-400">
+                        Small preview thumbnail
+                      </p>
+                    </div>
                   </div>
                 )}
                 <label className="inline-flex cursor-pointer items-center gap-2 rounded-lg border border-slate-300 bg-white px-3 py-2 text-xs font-bold text-slate-700 hover:bg-slate-50">
