@@ -2,13 +2,13 @@
  * @fileoverview N-Gram Search Service
  *
  * A self-contained, in-process search engine that replaces Algolia.
- * Uses a prefix-oriented inverted index for fast prefix + initial matching,
- * suitable for large product datasets without any external dependency.
+ * Uses a prefix-oriented inverted index plus word-level infix expansion for
+ * fast prefix, substring, and initial matching without any external dependency.
  *
  * Architecture:
  *  - In-memory index: Map<ngram, Set<docId>>
  *  - Word index:      Map<word,  Set<docId>>  — separate word-only index for O(W) fuzzy expansion
- *  - Document store:  Map<docId, { doc, grams }> — grams cached to avoid recomputation on removal
+ *  - Document store:  Map<docId, { doc, grams, words }> — cached sets avoid recomputation on removal
  *  - Scoring:        TF-style — ranked by how many unique prefix grams of the
  *                    query match a document (intersection count / query prefix grams).
  *  - Hydration:      On first search or explicit rebuild, loads all active
@@ -48,6 +48,15 @@ const INDEX_TTL_MS = 15 * 60 * 1000; // 15 minutes — auto-rebuild stale index
 const invertedIndex = new Map();
 
 /**
+ * Primary-field word index used for stricter infix matching.
+ * Only name / slug / subCategory / category are included here so substring
+ * searches do not get pulled in from long descriptions or tags.
+ *
+ * @type {Map<string, Set<string>>} word -> Set of document IDs
+ */
+const primaryWordIndex = new Map();
+
+/**
  * FIX #1 (Critical): Separate word-level index used exclusively for fuzzy
  * expansion. Fuzzy expansion previously iterated the full invertedIndex
  * (tens of thousands of character substring grams) and called levenshteinDistance on
@@ -65,7 +74,7 @@ const wordIndex = new Map();
  * recomputed grams from the stored doc — if the doc and index ever drifted
  * out of sync the removal would silently no-op or clean wrong buckets.
  *
- * @type {Map<string, { doc: Object, grams: Set<string>, words: Set<string> }>}
+ * @type {Map<string, { doc: Object, grams: Set<string>, words: Set<string>, primaryWords: Set<string> }>}
  */
 const documentStore = new Map();
 
@@ -91,11 +100,8 @@ const normalise = (text) => {
 };
 
 /**
- * Generates prefix-only grams from a string.
+ * Generates prefix grams from a string.
  * Returns { grams, words } so callers can populate both indexes separately.
- *
- * IMPORTANT: We intentionally avoid infix grams here so searches only reward
- * prefixes of each word, not arbitrary substring matches.
  */
 const generateNgrams = (text) => {
   const normalised = normalise(text);
@@ -153,6 +159,17 @@ const documentNgrams = (doc) => {
     ...(doc.sizes || []),
     ...(doc.colors || []),
   ]
+    .filter(Boolean)
+    .join(" ");
+
+  return generateNgrams(fields);
+};
+
+/**
+ * Extracts only the primary searchable text from a document.
+ */
+const documentPrimaryNgrams = (doc) => {
+  const fields = [doc.name, doc.slug, doc.subCategory, doc.category]
     .filter(Boolean)
     .join(" ");
 
@@ -379,6 +396,35 @@ const getPrefixPositionBonus = (normalisedQuery, normalisedName) => {
   return maxBonus;
 };
 
+/**
+ * Extra ranking for infix matches inside a token.
+ * This gives substring hits a smaller boost than prefix hits, so a result like
+ * "madhuram" still ranks below an exact or starting prefix match for "ram".
+ */
+const getInfixPositionBonus = (normalisedQuery, normalisedName) => {
+  if (!normalisedQuery || !normalisedName || normalisedQuery.length < 3) {
+    return 0;
+  }
+
+  const nameWords = normalisedName.split(" ").filter(Boolean);
+  const queryLen = normalisedQuery.length;
+  let maxBonus = 0;
+
+  nameWords.forEach((word, index) => {
+    const matchIndex = word.indexOf(normalisedQuery);
+    if (matchIndex > 0) {
+      const baseBonus = queryLen >= 5 ? 240 : 180;
+      const positionalPenalty = Math.min(matchIndex, 6) * 10;
+      maxBonus = Math.max(
+        maxBonus,
+        baseBonus - index * 40 - positionalPenalty,
+      );
+    }
+  });
+
+  return maxBonus;
+};
+
 // ---------------------------------------------------------------------------
 // Index Mutation Helpers
 // ---------------------------------------------------------------------------
@@ -394,6 +440,7 @@ const upsertDocumentIntoIndex = (doc) => {
   }
 
   const { grams, words } = documentNgrams(doc);
+  const { words: primaryWords } = documentPrimaryNgrams(doc);
 
   // Populate inverted prefix index
   grams.forEach((gram) => {
@@ -407,8 +454,13 @@ const upsertDocumentIntoIndex = (doc) => {
     wordIndex.get(word).add(doc.id);
   });
 
+  primaryWords.forEach((word) => {
+    if (!primaryWordIndex.has(word)) primaryWordIndex.set(word, new Set());
+    primaryWordIndex.get(word).add(doc.id);
+  });
+
   // FIX #6: Cache gram + word sets alongside the doc to avoid recomputation on removal
-  documentStore.set(doc.id, { doc, grams, words });
+  documentStore.set(doc.id, { doc, grams, words, primaryWords });
 };
 
 /**
@@ -434,6 +486,14 @@ const removeDocumentFromIndex = (docId) => {
     if (bucket) {
       bucket.delete(docId);
       if (bucket.size === 0) wordIndex.delete(word);
+    }
+  });
+
+  entry.primaryWords.forEach((word) => {
+    const bucket = primaryWordIndex.get(word);
+    if (bucket) {
+      bucket.delete(docId);
+      if (bucket.size === 0) primaryWordIndex.delete(word);
     }
   });
 
@@ -570,10 +630,12 @@ const hydrateIndex = async () => {
     // Stage into temporary maps so a failure doesn't wipe the live index
     const stagingIndex = new Map();
     const stagingWordIndex = new Map();
+    const stagingPrimaryWordIndex = new Map();
     const stagingStore = new Map();
 
     const stageDoc = (doc) => {
       const { grams, words } = documentNgrams(doc);
+      const { words: primaryWords } = documentPrimaryNgrams(doc);
 
       grams.forEach((gram) => {
         if (!stagingIndex.has(gram)) stagingIndex.set(gram, new Set());
@@ -585,7 +647,12 @@ const hydrateIndex = async () => {
         stagingWordIndex.get(word).add(doc.id);
       });
 
-      stagingStore.set(doc.id, { doc, grams, words });
+      primaryWords.forEach((word) => {
+        if (!stagingPrimaryWordIndex.has(word)) stagingPrimaryWordIndex.set(word, new Set());
+        stagingPrimaryWordIndex.get(word).add(doc.id);
+      });
+
+      stagingStore.set(doc.id, { doc, grams, words, primaryWords });
     };
 
     // Both queries must succeed before we touch the live index
@@ -603,6 +670,9 @@ const hydrateIndex = async () => {
 
     wordIndex.clear();
     stagingWordIndex.forEach((v, k) => wordIndex.set(k, v));
+
+    primaryWordIndex.clear();
+    stagingPrimaryWordIndex.forEach((v, k) => primaryWordIndex.set(k, v));
 
     documentStore.clear();
     stagingStore.forEach((v, k) => documentStore.set(k, v));
@@ -674,7 +744,8 @@ export const deleteFromIndex = async (objectId) => {
  *
  * Scoring strategy:
  *  1. Base score      — number of query prefix grams that match a document
- *  2. Fuzzy expand    — typo'd query words matched against word index (+1.5 / +0.75 per hit)
+ *  2. Fuzzy expand    — typo'd query words matched against the primary-field
+ *                       word index (+1.5 / +0.75 per hit)
  *                       O(Q×W) — NOT O(Q×I). No event-loop blocking.
  *                       FIX #7: fuzzy-boosted docs are tracked in fuzzyBoostedDocs
  *                       and exempted from minBaseScore pruning so pure-typo queries
@@ -703,11 +774,15 @@ export const searchNgram = async (query, options = {}) => {
 
   const { grams: queryGrams } = generateNgrams(query);
   const normalisedQuery = normalise(query);
+  const baseQueryGrams =
+    normalisedQuery.includes(" ") || normalisedQuery.length !== 3
+      ? queryGrams
+      : new Set([normalisedQuery]);
 
   // --- Step 1: Base scoring via inverted index ---
   const scores = new Map();
 
-  queryGrams.forEach((gram) => {
+  baseQueryGrams.forEach((gram) => {
     const bucket = invertedIndex.get(gram);
     if (!bucket) return;
     bucket.forEach((docId) => {
@@ -720,7 +795,7 @@ export const searchNgram = async (query, options = {}) => {
   // Previously iterated the full invertedIndex (all character substring grams), calling
   // levenshteinDistance on every entry — catastrophically slow on large catalogs.
   //
-  // FIX #7: Track every docId that receives a fuzzy boost in fuzzyBoostedDocs.
+  // Track every docId that receives a fuzzy boost or primary-field infix boost.
   // These docs are exempted from the minBaseScore pruning below.
   //
   // Root cause of the "saarees" → no results bug:
@@ -731,12 +806,29 @@ export const searchNgram = async (query, options = {}) => {
   //   and the doc was silently pruned before ranking.
   //   Exempting fuzzy-boosted docs fixes this without loosening the threshold
   //   for genuinely low-signal n-gram matches.
-  const fuzzyBoostedDocs = new Set();
+  const expandedDocs = new Set();
 
   const queryWords = normalisedQuery.split(" ").filter((w) => w.length >= 1);
   queryWords.forEach((qWord) => {
     const qConsonantKey = consonantKey(qWord);
-    wordIndex.forEach((bucket, word) => {
+    primaryWordIndex.forEach((bucket, word) => {
+      if (
+        qWord.length >= 3 &&
+        word.length > qWord.length &&
+        word.includes(qWord) &&
+        !word.startsWith(qWord)
+      ) {
+        const bonus = qWord.length >= 5 ? 1 : 0.85;
+        bucket.forEach((docId) => {
+          scores.set(docId, (scores.get(docId) || 0) + bonus);
+          expandedDocs.add(docId);
+        });
+      }
+    });
+
+    if (qWord.length < 4) return;
+
+    primaryWordIndex.forEach((bucket, word) => {
       const wordConsonantKey = consonantKey(word);
       const consonantMatch =
         qConsonantKey.length >= 3 &&
@@ -762,7 +854,7 @@ export const searchNgram = async (query, options = {}) => {
       if (bonus > 0) {
         bucket.forEach((docId) => {
           scores.set(docId, (scores.get(docId) || 0) + bonus);
-          fuzzyBoostedDocs.add(docId); // FIX #7: mark for pruning exemption
+          expandedDocs.add(docId); // mark for pruning exemption
         });
       }
     });
@@ -771,13 +863,13 @@ export const searchNgram = async (query, options = {}) => {
   // FIX #2 (Medium): Do NOT mutate scores during forEach — collect deletions first.
   // Deleting map entries mid-forEach is undefined behaviour and can silently skip entries.
   //
-  // FIX #7: Exempt fuzzy-boosted docs from the threshold so typo-only queries
-  // (e.g. "saarees") are never pruned just because their n-gram overlap is low.
-  // The ranking step still applies name/fuzzy/phonetic boosts, so irrelevant
-  // fuzzy-expanded docs won't bubble to the top.
-  const minBaseScore = Math.max(1, queryGrams.size * 0.1);
+  // Exempt expanded docs from the threshold so typo-only or substring-only
+  // queries (e.g. "saarees" or "ram") are never pruned just because their
+  // n-gram overlap is low. The ranking step still applies name/fuzzy/phonetic
+  // boosts, so irrelevant matches won't bubble to the top.
+  const minBaseScore = Math.max(1, baseQueryGrams.size * 0.1);
   for (const [docId, score] of scores) {
-    if (score < minBaseScore && !fuzzyBoostedDocs.has(docId)) {
+    if (score < minBaseScore && !expandedDocs.has(docId)) {
       scores.delete(docId);
     }
   }
@@ -797,6 +889,7 @@ export const searchNgram = async (query, options = {}) => {
       let boostedScore = score;
       const normalisedName = normalise(doc.name);
       const partialNameBonus = getPrefixPositionBonus(normalisedQuery, normalisedName);
+      const infixNameBonus = getInfixPositionBonus(normalisedQuery, normalisedName);
 
       // FIX #3 (Medium): Removed the ×50 category score multiply.
       // The sort comparator below already hard-sorts categories above products.
@@ -819,6 +912,7 @@ export const searchNgram = async (query, options = {}) => {
       }
 
       boostedScore += partialNameBonus;
+      boostedScore += infixNameBonus;
 
       // Attribute / Tags boost
       const structuredFields = [
