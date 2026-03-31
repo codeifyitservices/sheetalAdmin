@@ -1322,9 +1322,76 @@ const bulkImportRowBasedService = async (files, userId) => {
   try {
     let currentDraft = null;
 
-    for (let i = 0; i < rawData.length; i++) {
-      const item = rawData[i];
+    for (let i = 0; i < rawRows.length - 1; i++) {
+      const rowValues = rawRows[i + 1] || [];
       const rowIndex = i + 2;
+      const item = {
+        Name: getRowValue(rowValues, "Name"),
+        SKU: getRowValue(rowValues, "SKU"),
+        Description: spreadsheetCellToHtml(
+          getCellByHeader(
+            rowIndex,
+            "Description",
+            "FullDescription",
+            "Full Description",
+          ),
+        ),
+        ShortDescription: getRowValue(
+          rowValues,
+          "ShortDescription",
+          "Short Description",
+        ),
+        MaterialCare: spreadsheetCellToHtml(
+          getCellByHeader(
+            rowIndex,
+            "MaterialCare",
+            "Material Care",
+            "Material & Care",
+          ),
+        ),
+        Category: getRowValue(rowValues, "Category"),
+        SubCategory: getRowValue(rowValues, "SubCategory", "Sub Category"),
+        Status: getRowValue(rowValues, "Status"),
+        Tags: getRowValue(rowValues, "Tags"),
+        WearType: getRowValue(rowValues, "WearType", "Wear Type"),
+        Occasion: getRowValue(rowValues, "Occasion"),
+        Style: getRowValue(rowValues, "Style"),
+        Work: getRowValue(rowValues, "Work"),
+        Fabric: getRowValue(rowValues, "Fabric"),
+        Type: getRowValue(rowValues, "Type"),
+        ByPrice: getRowValue(rowValues, "ByPrice", "By Price"),
+        MainImage: getRowValue(rowValues, "MainImage", "Main Image"),
+        HoverImage: getRowValue(rowValues, "HoverImage", "Hover Image"),
+        Variants: getRowValue(rowValues, "Variants"),
+        DetailKey: getRowValue(rowValues, "DetailKey"),
+        DetailValue: getRowValue(rowValues, "DetailValue"),
+        VariantSKU: getRowValue(rowValues, "VariantSKU", "VSKU", "VariantSku"),
+        Color: getRowValue(rowValues, "Color", "ColorName"),
+        ColorName: getRowValue(rowValues, "ColorName"),
+        ColorCode: getRowValue(rowValues, "ColorCode", "HexCode"),
+        Size: getRowValue(rowValues, "Size"),
+        Price: getRowValue(rowValues, "Price", "MRP"),
+        MRP: getRowValue(rowValues, "MRP"),
+        DiscountPrice: getRowValue(rowValues, "DiscountPrice", "SellingPrice"),
+        SellingPrice: getRowValue(rowValues, "SellingPrice"),
+        Stock: getRowValue(rowValues, "Stock"),
+        VariantImages: getRowValue(
+          rowValues,
+          "VariantImages",
+          "VariantImage",
+          "VariantImageName",
+        ),
+        VariantImage: getRowValue(rowValues, "VariantImage"),
+        VariantImageName: getRowValue(rowValues, "VariantImageName"),
+        VariantVideos: getRowValue(
+          rowValues,
+          "VariantVideos",
+          "VariantVideo",
+          "VariantVideoName",
+        ),
+        VariantVideo: getRowValue(rowValues, "VariantVideo"),
+        VariantVideoName: getRowValue(rowValues, "VariantVideoName"),
+      };
 
       try {
         const hasAnyValue = Object.values(item).some(

@@ -3,12 +3,14 @@ import { useState, useEffect } from "react";
 import { usePathname } from "next/navigation";
 import Sidebar from "@/components/admin/layout/Sidebar";
 import TopNav from "@/components/admin/layout/TopNav";
+import useLogoutModal from "@/hooks/useLogoutModal";
 
 export default function AdminLayout({ children }) {
   const pathname = usePathname();
   const isLoginPage = pathname === "/admin/login";
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [mounted, setMounted] = useState(false);
+  const { openModal, LogoutModal } = useLogoutModal();
 
   useEffect(() => setMounted(true), []);
 
@@ -33,7 +35,11 @@ export default function AdminLayout({ children }) {
       <div className="flex-1 flex flex-col min-w-0">
         {/* TopNav */}
         <div className="sticky top-0 z-30">
-          <TopNav storeName="Admin" setIsOpen={setIsSidebarOpen} />
+          <TopNav
+            storeName="Admin"
+            setIsOpen={setIsSidebarOpen}
+            openLogoutModal={openModal}
+          />
         </div>
 
         {/* Scrollable Content */}
@@ -41,6 +47,7 @@ export default function AdminLayout({ children }) {
           <div className="w-full max-w-[1600px] mx-auto">{children}</div>
         </main>
       </div>
+      <LogoutModal />
     </div>
   );
 }

@@ -1,4 +1,5 @@
 "use client";
+import { useState } from "react";
 import { X, AlertTriangle } from "lucide-react";
 
 export default function DeleteConfirmModal({
@@ -8,6 +9,8 @@ export default function DeleteConfirmModal({
   entityName,
   itemName,
 }) {
+  const [isDeleting, setIsDeleting] = useState(false);
+
   if (!isOpen) return null;
 
   const displayEntityName =
@@ -16,13 +19,26 @@ export default function DeleteConfirmModal({
     ? `Are you sure you want to delete ${itemName}?`
     : `Are you sure you want to delete this ${entityName}?`;
 
+  const handleConfirm = async () => {
+    if (isDeleting) return;
+
+    setIsDeleting(true);
+    try {
+      await Promise.resolve(onConfirm?.());
+    } finally {
+      setIsDeleting(false);
+    }
+  };
+
   return (
     <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50">
       <div className="bg-white rounded-xl shadow-xl w-full max-w-sm p-6 relative">
         {/* Close */}
         <button
+          type="button"
           onClick={onClose}
-          className="absolute cursor-pointer top-4 right-4 text-slate-400 hover:text-slate-700"
+          disabled={isDeleting}
+          className="absolute cursor-pointer top-4 right-4 text-slate-400 hover:text-slate-700 disabled:opacity-50 disabled:cursor-pointer"
         >
           <X size={18} />
         </button>
@@ -45,16 +61,20 @@ export default function DeleteConfirmModal({
         {/* Actions */}
         <div className="flex gap-3 mt-6">
           <button
+            type="button"
             onClick={onClose}
-            className="flex-1 border cursor-pointer border-slate-300 text-slate-700 py-2 rounded hover:bg-slate-50"
+            disabled={isDeleting}
+            className="flex-1 border cursor-pointer border-slate-300 text-slate-700 py-2 rounded hover:bg-slate-50 disabled:opacity-50 disabled:cursor-pointer"
           >
             Cancel
           </button>
           <button
-            onClick={onConfirm}
-            className="flex-1 cursor-pointer bg-rose-600 text-white py-2 rounded hover:bg-rose-700"
+            type="button"
+            onClick={handleConfirm}
+            disabled={isDeleting}
+            className="flex-1 cursor-pointer bg-rose-600 text-white py-2 rounded hover:bg-rose-700 disabled:opacity-70 disabled:cursor-pointer"
           >
-            Yes, Delete
+            {isDeleting ? "Deleting..." : "Yes, Delete"}
           </button>
         </div>
       </div>

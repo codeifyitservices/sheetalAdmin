@@ -191,15 +191,14 @@ export default function BulkImportModal({ isOpen, onClose, onSuccess }) {
                 <li className="flex gap-2">
                   <span className="mt-1 h-1.5 w-1.5 rounded-full bg-slate-900 shrink-0" />
                   <span>
-                    Use <span className="font-semibold">-</span> at the start of
-                    a line in <span className="font-semibold">Description</span>
-                    , <span className="font-semibold">Material & Care</span>,
-                    and
-                    <span className="font-semibold">
-                      {" "}
-                      Full Description
-                    </span>{" "}
-                    cells to create unordered list items.
+                    Use markdown-style markers in <span className="font-semibold">Description</span>,
+                    <span className="font-semibold">Material & Care</span>, and
+                    <span className="font-semibold">Full Description</span> cells:
+                    <span className="font-semibold"> **text** </span> for bold,
+                    <span className="font-semibold"> *text* </span> for italics,
+                    <span className="font-semibold"> # / ## / ### </span> for
+                    headings, and <span className="font-semibold">-</span> for
+                    bullet points.
                   </span>
                 </li>
                 <li className="flex gap-2">

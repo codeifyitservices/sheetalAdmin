@@ -75,6 +75,90 @@ const FontSize = Extension.create({
   },
 });
 
+const escapeHtml = (value = "") =>
+  String(value ?? "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+
+const normalizeMarkdownInline = (text = "") => {
+  let output = String(text);
+  output = output.replace(/(^|[^*])\*\*([\s\S]+?)\*\*(?!\*)/g, "$1<strong>$2</strong>");
+  output = output.replace(/(^|[^_])__([\s\S]+?)__(?!_)/g, "$1<strong>$2</strong>");
+  output = output.replace(/(^|[^*])\*([^\n*][\s\S]*?[^\n*])\*(?!\*)/g, "$1<em>$2</em>");
+  output = output.replace(/(^|[^_])_([^\n_][\s\S]*?[^\n_])_(?!_)/g, "$1<em>$2</em>");
+  return output;
+};
+
+const normalizeImportedContent = (value = "") => {
+  if (typeof value !== "string") return "";
+
+  const input = value.trim();
+  if (!input) return "";
+
+  if (/<[a-z][\s\S]*>/i.test(input)) {
+    let html = input
+      .replace(/<(?:b|strong)\b[^>]*>([\s\S]*?)<\/(?:b|strong)>/gi, "<strong>$1</strong>")
+      .replace(/<(?:i|em)\b[^>]*>([\s\S]*?)<\/(?:i|em)>/gi, "<em>$1</em>")
+      .replace(/<p[^>]*>\s*([-\u2022\u00B7\u2013\u2014])\s*([\s\S]*?)<\/p>/gi, "<ul><li>$2</li></ul>")
+      .replace(/<div[^>]*>\s*([-\u2022\u00B7\u2013\u2014])\s*([\s\S]*?)<\/div>/gi, "<ul><li>$2</li></ul>");
+
+    if (/^\s*<(?:p|div|h[1-6]|blockquote|ul|ol|li|table|thead|tbody|tfoot|tr|th|td|pre|hr)\b/i.test(html)) {
+      return html;
+    }
+    return `<p>${html}</p>`;
+  }
+
+  const lines = input.replace(/\r\n?/g, "\n").split("\n");
+  const blocks = [];
+  let bullets = [];
+
+  const flushBullets = () => {
+    if (!bullets.length) return;
+    blocks.push(`<ul>${bullets.map((item) => `<li>${item}</li>`).join("")}</ul>`);
+    bullets = [];
+  };
+
+  const isBullet = (line = "") => /^\s*(?:-|\u2022|\u00B7|\u2013|\u2014)(?:\s+|(?=\S))/.test(line);
+  const stripBullet = (line = "") =>
+    line.replace(/^\s*(?:-|\u2022|\u00B7|\u2013|\u2014)\s*/, "");
+  const heading = (line = "") => {
+    const match = String(line).trim().match(/^(#{1,3})\s+([\s\S]+)$/);
+    if (!match) return null;
+    const level = match[1].length;
+    return `<h${level}>${normalizeMarkdownInline(escapeHtml(match[2].trim()))}</h${level}>`;
+  };
+
+  lines.forEach((line) => {
+    const trimmed = line.trim();
+    if (!trimmed) {
+      flushBullets();
+      blocks.push("<p><br></p>");
+      return;
+    }
+
+    const headingHtml = heading(trimmed);
+    if (headingHtml) {
+      flushBullets();
+      blocks.push(headingHtml);
+      return;
+    }
+
+    if (isBullet(trimmed)) {
+      bullets.push(normalizeMarkdownInline(escapeHtml(stripBullet(trimmed))));
+      return;
+    }
+
+    flushBullets();
+    blocks.push(`<p>${normalizeMarkdownInline(escapeHtml(trimmed))}</p>`);
+  });
+
+  flushBullets();
+  return blocks.join("");
+};
+
 const ToolbarGroup = ({ children }) => (
   <div className="flex items-center gap-0.5 border-r border-slate-300 pr-2 mr-2 last:border-r-0 last:mr-0 last:pr-0">
     {children}
@@ -158,7 +242,7 @@ const TiptapEditor = ({ value, onChange }) => {
         },
       }),
     ],
-    content: value || "",
+    content: normalizeImportedContent(value || ""),
     immediatelyRender: false,
     editorProps: {
       attributes: {
@@ -190,9 +274,10 @@ const TiptapEditor = ({ value, onChange }) => {
     if (!editor) return;
     if (value === null || value === undefined) return;
 
+    const normalizedValue = normalizeImportedContent(value);
     const current = editor.getHTML();
-    if (value !== current) {
-      editor.commands.setContent(value, false);
+    if (normalizedValue !== current) {
+      editor.commands.setContent(normalizedValue, false);
     }
   }, [value, editor]);
 

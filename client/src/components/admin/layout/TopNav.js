@@ -10,11 +10,14 @@ import {
   CheckCircle2,
   X,
 } from "lucide-react";
-import useLogoutModal from "@/hooks/useLogoutModal";
 import ChangePasswordModal from "@/components/admin/common/ChangePasswordModal";
 import LowStockNotification from "../product/LowStockNotification";
 
-export default function TopNav({ storeName = "Admin", setIsOpen }) {
+export default function TopNav({
+  storeName = "Admin",
+  setIsOpen,
+  openLogoutModal,
+}) {
   const [searchQuery, setSearchQuery] = useState("");
   const [showSearchDrop, setShowSearchDrop] = useState(false);
   const [showUserDrop, setShowUserDrop] = useState(false);
@@ -22,8 +25,6 @@ export default function TopNav({ storeName = "Admin", setIsOpen }) {
   const [isPasswordModalOpen, setIsPasswordModalOpen] = useState(false);
 
   const navRef = useRef(null);
-  const { openModal, LogoutModal } = useLogoutModal();
-
   useEffect(() => {
     const handleClickOutside = (event) => {
       if (navRef.current && !navRef.current.contains(event.target)) {
@@ -152,7 +153,7 @@ export default function TopNav({ storeName = "Admin", setIsOpen }) {
                 </button>
                 <div className="h-px bg-slate-100 my-1.5 mx-2"></div>
                 <button
-                  onClick={openModal}
+                  onClick={openLogoutModal}
                   className="w-full flex cursor-pointer items-center gap-3 px-4 py-2.5 text-red-500 hover:bg-red-50 rounded-xl text-sm font-bold transition-all"
                 >
                   <LogOut size={16} /> Logout System
@@ -163,7 +164,6 @@ export default function TopNav({ storeName = "Admin", setIsOpen }) {
         </div>
       </header>
 
-      <LogoutModal />
       <ChangePasswordModal isOpen={isPasswordModalOpen} onClose={() => setIsPasswordModalOpen(false)} />
     </>
   );

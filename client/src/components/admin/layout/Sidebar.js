@@ -31,11 +31,13 @@ import {
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useState, useRef } from "react";
-import useLogoutModal from "@/hooks/useLogoutModal";
 
-export default function Sidebar({ storeName = "Admin", isOpen, setIsOpen }) {
+export default function Sidebar({
+  storeName = "Admin",
+  isOpen,
+  setIsOpen,
+}) {
   const pathname = usePathname();
-  const { openModal, LogoutModal } = useLogoutModal();
 
   const menuItems = [
     { icon: LayoutDashboard, label: "Overview", href: "/admin" },
@@ -161,8 +163,6 @@ export default function Sidebar({ storeName = "Admin", isOpen, setIsOpen }) {
           </nav>
         </div>
       </aside>
-
-      <LogoutModal />
 
       <style jsx global>{`
         .custom-scrollbar::-webkit-scrollbar {
