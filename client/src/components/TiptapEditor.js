@@ -267,20 +267,6 @@ const normalizeHtmlString = (input = "") => {
       .replace(/<p[^>]*>\s*([-\u2022\u00B7\u2013\u2014])\s*([\s\S]*?)<\/p>/gi, "<ul><li>$2</li></ul>")
       .replace(/<div[^>]*>\s*([-\u2022\u00B7\u2013\u2014])\s*([\s\S]*?)<\/div>/gi, "<ul><li>$2</li></ul>");
 
-    html = html
-      .replace(/<p([^>]*)>([\s\S]*?)<\/p>/gi, (match, attrs, inner) => {
-        if (/<[a-z][\s\S]*>/i.test(inner)) return match;
-        return `<p${attrs}>${normalizeMarkdownInline(inner)}</p>`;
-      })
-      .replace(/<div([^>]*)>([\s\S]*?)<\/div>/gi, (match, attrs, inner) => {
-        if (/<[a-z][\s\S]*>/i.test(inner)) return match;
-        return `<div${attrs}>${normalizeMarkdownInline(inner)}</div>`;
-      })
-      .replace(/<h([1-6])([^>]*)>([\s\S]*?)<\/h\1>/gi, (match, level, attrs, inner) => {
-        if (/<[a-z][\s\S]*>/i.test(inner)) return match;
-        return `<h${level}${attrs}>${normalizeMarkdownInline(inner)}</h${level}>`;
-      });
-
     html = applyMarkdownToHtml(html);
 
     if (/^\s*<(?:p|div|h[1-6]|blockquote|ul|ol|li|table|thead|tbody|tfoot|tr|th|td|pre|hr)\b/i.test(html)) {
@@ -391,7 +377,7 @@ const TiptapEditor = ({ value, onChange }) => {
     onUpdate: ({ editor }) => {
       // Always emit HTML string upward so the parent/DB gets a consistent format
       const html = editor.getHTML();
-      lastSetKeyRef.current = html; // mark what we just produced
+      lastSetKeyRef.current = contentKey(html); // mark canonical form to stop sync echoes
       onChange(html);
     },
   });

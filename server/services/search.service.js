@@ -39,10 +39,7 @@ export const searchService = async ({ query, limit, page }) => {
       return productNameHasPartialMatch(hit.data, normalisedQuery);
     }
 
-    return (
-      productMatchesStructuredFields(hit.data, normalisedQuery) ||
-      hitMatchesPrimaryIntent(hit, normalisedQuery)
-    );
+    return productMatchesSearchIntent(hit.data, normalisedQuery);
   });
   if (intentOrFieldMatchedProducts.length > 0) return intentOrFieldMatchedProducts;
 
@@ -179,7 +176,7 @@ const wordsMatch = (qWord, pWord) => {
 
   for (const qv of qVariants) {
     for (const pv of pVariants) {
-      if (soundex(qv) === soundex(pv)) return true;
+      if (soundex(qv) === soundex(pv) && isSafePhoneticMatch(qv, pv)) return true;
       const maxLen = Math.max(qv.length, pv.length);
       // Require stricter match: max 1 typo per 4 letters instead of 1 per 3
       if (maxLen > 0 && levenshteinDistance(qv, pv) / maxLen <= 0.25) return true;
@@ -187,6 +184,27 @@ const wordsMatch = (qWord, pWord) => {
   }
 
   return false;
+};
+
+const isSafePhoneticMatch = (leftWord, rightWord) => {
+  if (!leftWord || !rightWord) return false;
+
+  const minLen = Math.min(leftWord.length, rightWord.length);
+  const distance = levenshteinDistance(leftWord, rightWord);
+
+  // Short Soundex matches are noisy: "suit" and "set" both collapse to S300.
+  // Require either a tighter edit distance or the same leading bigram.
+  if (minLen <= 4) {
+    return (
+      distance <= 1 ||
+      leftWord.slice(0, 2) === rightWord.slice(0, 2)
+    );
+  }
+
+  return (
+    leftWord[0] === rightWord[0] &&
+    Math.abs(leftWord.length - rightWord.length) <= 2
+  );
 };
 
 /**
@@ -199,26 +217,19 @@ const wordsMatch = (qWord, pWord) => {
  * cause the saree to appear for query "shrt").
  */
 const productHasFuzzyWordMatch = (product, normalisedQuery) => {
-  const queryWords = normalisedQuery.split(" ").filter((w) => w.length >= 2);
+  const queryWords = getQueryWords(normalisedQuery);
   if (queryWords.length === 0) return false;
 
-  const productText = normalise(
-    [
-      product.name,
-      product.subCategory,
-      getProductCategoryName(product),
-    ]
-      .filter(Boolean)
-      .join(" "),
-  );
-  const productWords = productText.split(" ").filter((w) => w.length >= 2);
+  const productWords = getSearchableWords([
+    product.name,
+    product.subCategory,
+    getProductCategoryName(product),
+    ...getProductColorValues(product),
+  ]);
 
-  for (const qWord of queryWords) {
-    for (const pWord of productWords) {
-      if (wordsMatch(qWord, pWord)) return true;
-    }
-  }
-  return false;
+  return queryWords.every((qWord) =>
+    productWords.some((pWord) => wordsMatch(qWord, pWord)),
+  );
 };
 
 // ---------------------------------------------------------------------------
@@ -263,9 +274,13 @@ const isCategoryFuzzyMatch = (normalisedQuery, normalisedCategoryName) => {
 };
 
 const findTargetedCategoryHit = (hits, normalisedQuery) => {
+  const queryWords = getQueryWords(normalisedQuery, 3);
+
   return hits.find(
     (hit) =>
       hit.type === "category" &&
+      (queryWords.length <= 1 ||
+        valueMatchesAllQueryWords(normalise(hit.data.name), queryWords)) &&
       isCategoryFuzzyMatch(normalisedQuery, normalise(hit.data.name)),
   );
 };
@@ -289,6 +304,7 @@ const buildCategoryWithProductsResults = async (category) => {
 // ---------------------------------------------------------------------------
 
 const STRUCTURED_SEARCH_FIELDS = [
+  "colors",
   "wearType",
   "occasion",
   "tags",
@@ -299,12 +315,32 @@ const STRUCTURED_SEARCH_FIELDS = [
   "byPrice",
 ];
 
+const productMatchesSearchIntent = (product, normalisedQuery) => {
+  const queryWords = getQueryWords(normalisedQuery);
+  if (queryWords.length <= 1) {
+    return (
+      productMatchesStructuredFields(product, normalisedQuery) ||
+      primaryTextMatchesProduct(product, normalisedQuery)
+    );
+  }
+
+  const searchableWords = getProductIntentWords(product);
+  return queryWords.every((qWord) =>
+    searchableWords.some((candidate) => wordsMatch(qWord, candidate)),
+  );
+};
+
 const productMatchesStructuredFields = (product, normalisedQuery) => {
   if (!normalisedQuery) return false;
-  const queryWords = normalisedQuery.split(" ").filter((w) => w.length >= 2);
+  const queryWords = getQueryWords(normalisedQuery);
 
   return STRUCTURED_SEARCH_FIELDS.some((field) => {
-    const values = Array.isArray(product[field]) ? product[field] : [];
+    const values =
+      field === "colors"
+        ? getProductColorValues(product)
+        : Array.isArray(product[field])
+          ? product[field]
+          : [];
     return values.some((value) => {
       if (!value) return false;
       const normVal = normalise(value);
@@ -324,6 +360,15 @@ const productMatchesStructuredFields = (product, normalisedQuery) => {
       return false;
     });
   });
+};
+
+const primaryTextMatchesProduct = (product, normalisedQuery) => {
+  return (
+    primaryTextMatches(product.name, normalisedQuery) ||
+    primaryTextMatches(product.slug, normalisedQuery) ||
+    primaryTextMatches(product.subCategory, normalisedQuery) ||
+    primaryTextMatches(getProductCategoryName(product), normalisedQuery)
+  );
 };
 
 const hitMatchesPrimaryIntent = (hit, normalisedQuery) => {
@@ -362,6 +407,40 @@ const productNameHasPartialMatch = (product, normalisedQuery) => {
   if (!normalisedName || !normalisedQuery) return false;
   return normalisedName.includes(normalisedQuery);
 };
+
+const getQueryWords = (normalisedQuery, minLength = 2) =>
+  normalisedQuery.split(" ").filter((w) => w.length >= minLength);
+
+const getSearchableWords = (values, minLength = 2) =>
+  values
+    .flatMap((value) => normalise(value).split(" "))
+    .filter((word) => word.length >= minLength);
+
+const valueMatchesAllQueryWords = (value, queryWords) => {
+  const valueWords = getSearchableWords([value], 3);
+  if (valueWords.length === 0) return false;
+
+  return queryWords.every((qWord) =>
+    valueWords.some((valueWord) => wordsMatch(qWord, valueWord)),
+  );
+};
+
+const getProductColorValues = (product) =>
+  Array.isArray(product?.variants)
+    ? [...new Set(product.variants.map((variant) => variant.color?.name).filter(Boolean))]
+    : [];
+
+const getProductIntentWords = (product) =>
+  getSearchableWords([
+    product.name,
+    product.slug,
+    product.subCategory,
+    getProductCategoryName(product),
+    ...getProductColorValues(product),
+    ...STRUCTURED_SEARCH_FIELDS.flatMap((field) =>
+      field === "colors" ? [] : Array.isArray(product[field]) ? product[field] : [],
+    ),
+  ]);
 
 // ---------------------------------------------------------------------------
 // Hit hydration

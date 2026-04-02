@@ -19,13 +19,11 @@ const SORT_OPTIONS = [
   {
     value: "units",
     label: "By Units Sold",
-    helper: "Primary sort",
     icon: PackageCheck,
   },
   {
     value: "revenue",
     label: "By Revenue",
-    helper: "Secondary sort",
     icon: IndianRupee,
   },
 ];
@@ -199,15 +197,7 @@ export default function BestSellingPage() {
               >
                 <Icon size={14} />
                 <span>{option.label}</span>
-                <span
-                  className={`cursor-pointer rounded-full px-2 py-0.5 text-[10px] uppercase tracking-[0.12em] ${
-                    active
-                      ? "bg-white/15 text-white"
-                      : "bg-slate-100 text-slate-500"
-                  }`}
-                >
-                  {option.helper}
-                </span>
+                
               </button>
             );
           })}

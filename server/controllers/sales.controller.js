@@ -433,8 +433,8 @@ export const getBestSellingProducts = async (req, res) => {
       },
       {
         $sort: {
-          totalRevenue: -1,
           unitsSold: -1,
+          totalRevenue: -1,
         },
       },
       {
