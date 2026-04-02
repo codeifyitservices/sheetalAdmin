@@ -2,6 +2,7 @@ import Coupon from "../models/coupon.model.js";
 
 export const createCouponService = async (data) => {
   try {
+    data.isAutomatic = data.couponType === "FestiveSale";
     const code = data.code?.toUpperCase();
 
     if (code) {
@@ -42,6 +43,10 @@ export const createCouponService = async (data) => {
 
 export const updateCouponService = async (id, updateData) => {
   try {
+    if (updateData.couponType) {
+      updateData.isAutomatic = updateData.couponType === "FestiveSale";
+    }
+
     if (updateData.code) {
       updateData.code = updateData.code.toUpperCase();
     }
@@ -116,6 +121,69 @@ const distributeDiscount = (items, applicableTotal, totalDiscount) => {
   }
 
   return itemWiseDiscount;
+};
+
+const recordCouponUsage = async (couponId, userId) => {
+  if (!couponId || !userId) return;
+
+  const coupon = await Coupon.findById(couponId);
+  if (!coupon) return;
+
+  const userObjectId = userId.toString();
+  const userIndex = coupon.usedBy.findIndex(
+    (entry) => entry.userId && entry.userId.toString() === userObjectId,
+  );
+
+  if (userIndex >= 0) {
+    coupon.usedBy[userIndex].count = (coupon.usedBy[userIndex].count || 0) + 1;
+    coupon.usedBy[userIndex].lastUsed = new Date();
+  } else {
+    coupon.usedBy.push({
+      userId,
+      count: 1,
+      lastUsed: new Date(),
+    });
+  }
+
+  coupon.usedCount = (coupon.usedCount || 0) + 1;
+  await coupon.save();
+};
+
+const resolveCouponForOrder = async (order) => {
+  if (order?.couponId) {
+    return await Coupon.findById(order.couponId);
+  }
+
+  if (order?.couponCode) {
+    return await Coupon.findOne({ code: order.couponCode.toUpperCase() });
+  }
+
+  return null;
+};
+
+export const confirmCouponUsageForOrder = async (order) => {
+  if (
+    !order ||
+    order.couponUsageConfirmed ||
+    (!order.couponId && !order.couponCode) ||
+    !order.user
+  ) {
+    return order;
+  }
+
+  const coupon = await resolveCouponForOrder(order);
+  if (!coupon) {
+    return order;
+  }
+
+  await recordCouponUsage(coupon._id, order.user);
+
+  order.couponId = order.couponId || coupon._id;
+  order.couponCode = order.couponCode || coupon.code;
+  order.couponUsageConfirmed = true;
+  await order.save();
+
+  return order;
 };
 
 export const applyCouponService = async (
@@ -303,8 +371,12 @@ export const applyCouponService = async (
     return {
       success: true,
       data: {
+        couponId: coupon._id,
         discount,
         couponCode: coupon.code,
+        couponType: coupon.couponType,
+        isAutomatic: coupon.isAutomatic,
+        description: coupon.description,
         offerType: coupon.offerType,
         isMaxApplied: coupon.maxDiscountAmount
           ? discount >= coupon.maxDiscountAmount

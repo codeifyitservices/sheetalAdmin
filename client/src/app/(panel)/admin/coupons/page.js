@@ -43,7 +43,7 @@ export default function CouponsPage() {
         subtitle="Manage discount codes, BOGO offers, and festive sales"
       />
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4 mb-8">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
         <StatCard
           title="Total"
           count={stats.total}
@@ -56,7 +56,7 @@ export default function CouponsPage() {
           icon={<Zap size={18} />}
           color="emerald"
         />
-        <StatCard
+        {/* <StatCard
           title="Festive/Auto"
           count={stats.festiveSales}
           icon={<Percent size={18} />}
@@ -74,7 +74,7 @@ export default function CouponsPage() {
           icon={<Gift size={18} />}
           color="amber"
           isCurrency={true}
-        />
+        /> */}
       </div>
 
       <div className="bg-white border border-slate-200 rounded-xl shadow-sm overflow-hidden">

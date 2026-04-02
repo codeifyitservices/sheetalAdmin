@@ -19,6 +19,7 @@ import Order from "../models/order.model.js";
 import User from "../models/user.model.js";
 import Cart from "../models/cart.model.js";
 import { createShiprocketOrder } from "../services/shiprocket.service.js";
+import { confirmCouponUsageForOrder } from "../services/coupon.service.js";
 
 // ---------------------------------------------------------------------------
 // Signature Verification
@@ -95,6 +96,8 @@ const handlePaymentLinkPaid = async (payload) => {
     order.paymentInfo.status = "Paid";
     order.paidAt = new Date();
     await order.save();
+
+    await confirmCouponUsageForOrder(order);
 
     // --- Clear the customer's cart ---
     try {

@@ -49,23 +49,12 @@ export default function BlogsPage() {
           color="indigo"
         />
         <StatCard
-          title="Published"
-          count={stats.published}
-          icon={<CheckCircle2 size={20} />}
-          color="emerald"
-        />
-        <StatCard
           title="Active Status"
           count={stats.active}
           icon={<FileEdit size={20} />}
           color="amber"
         />
-        <StatCard
-          title="Total Views"
-          count={stats.totalViews}
-          icon={<Eye size={20} />}
-          color="rose"
-        />
+        
       </div>
 
       <div className="bg-white border border-slate-200 rounded-xl shadow-sm overflow-hidden">

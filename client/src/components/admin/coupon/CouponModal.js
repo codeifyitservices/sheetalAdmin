@@ -379,10 +379,10 @@ export default function CouponModal({
           </div>
 
           {/* Coupon Code */}
-          {formData.couponType === "CouponCode" ? (
+          
             <div className="space-y-1.5 animate-in fade-in slide-in-from-top-1 duration-300">
               <label htmlFor="coupon-code" className="text-xs font-bold text-slate-900 uppercase tracking-wider">
-                Coupon Code
+                Coupon {formData.couponType === "CouponCode" ? "Code" : "Name"}
               </label>
               <input
                 id="coupon-code"
@@ -393,7 +393,7 @@ export default function CouponModal({
                 required={formData.couponType === "CouponCode"}
               />
             </div>
-          ) : (
+          {formData.couponType !== "CouponCode" && (
             <div className="p-3 bg-orange-50 border border-orange-200 rounded-lg flex items-start gap-3 animate-in fade-in slide-in-from-top-1 duration-300">
               <Info size={18} className="text-orange-600 mt-0.5" aria-hidden="true" />
               <p className="text-xs text-orange-800 leading-relaxed">

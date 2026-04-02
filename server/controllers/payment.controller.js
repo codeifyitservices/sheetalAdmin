@@ -4,7 +4,18 @@ import ErrorResponse from "../utils/ErrorResponse.js";
 
 export const createPaymentLink = async (req, res, next) => {
     try {
-        const { addressId, callbackUrl, items, shippingAddress, billingAddress } = req.body;
+        const {
+            addressId,
+        callbackUrl,
+        items,
+        shippingAddress,
+        billingAddress,
+        buyNowItems,
+        cartItems,
+        couponId,
+        couponCode,
+        discountPrice,
+        } = req.body;
 
         // Validate inputs
         if (!shippingAddress) {
@@ -62,7 +73,14 @@ export const createPaymentLink = async (req, res, next) => {
             req.user._id,
             formattedAddress,
             validatedMergedBillingAddress,
-            callbackUrl
+            callbackUrl,
+            buyNowItems,
+            cartItems,
+            {
+                couponId,
+                couponCode,
+                discountPrice,
+            }
         );
 
         return successResponse(

@@ -44,10 +44,23 @@ const orderSchema = new mongoose.Schema(
       status: { type: String, default: "Pending" },
       method: { type: String, enum: ["COD", "Online"], required: true },
     },
+    couponId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "Coupon",
+      default: null,
+    },
+    couponCode: { type: String, default: "" },
+    discountPrice: { type: Number, default: 0 },
+    couponUsageConfirmed: { type: Boolean, default: false },
     itemsPrice: { type: Number, default: 0 },
     taxPrice: { type: Number, default: 0 },
     shippingPrice: { type: Number, default: 0 },
     totalPrice: { type: Number, default: 0 },
+    purchaseSource: {
+      type: String,
+      enum: ["cart", "buyNow"],
+      default: "cart",
+    },
     orderStatus: {
       type: String,
       required: true,

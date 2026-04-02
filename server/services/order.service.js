@@ -6,11 +6,20 @@ import ErrorResponse from "../utils/ErrorResponse.js";
 import { createShiprocketOrder } from "./shiprocket.service.js";
 import { sendOrderConfirmationEmail } from "./order.email.service.js";
 import { completeAbandonedCartFlow } from "./abandonedCart.service.js";
+import { confirmCouponUsageForOrder } from "./coupon.service.js";
 
 // --- CREATE NEW ORDER ---
 export const createOrderService = async (data, userId) => {
-  const { orderItems, shippingAddress, billingAddress, paymentInfo } = data;
+  const {
+    orderItems,
+    shippingAddress,
+    billingAddress,
+    paymentInfo,
+    buyNowItems = [],
+    cartItems = [],
+  } = data;
   const user = await User.findById(userId).lean();
+  const isBuyNow = Array.isArray(buyNowItems) && buyNowItems.length > 0;
 
   // 1. Stock Check aur Update Logic
   // Hum har item par loop chalayenge taaki inventory update ho sake
@@ -68,10 +77,14 @@ export const createOrderService = async (data, userId) => {
       status: paymentInfo?.status || "Pending",
       method: paymentInfo?.method || "COD",
     },
+    couponId: data.couponId || null,
+    couponCode: data.couponCode || "",
+    discountPrice: Number(data.discountPrice) || 0,
     itemsPrice: data.itemsPrice || 0,
     taxPrice: data.taxPrice || 0,
     shippingPrice: data.shippingPrice || 0,
     totalPrice: data.totalPrice || 0,
+    purchaseSource: isBuyNow ? "buyNow" : "cart",
     orderStatus: "Processing", // Default status as per your schema
     paidAt: paymentInfo?.method === "Online" ? Date.now() : null,
   };
@@ -92,14 +105,18 @@ export const createOrderService = async (data, userId) => {
   // 5. COD: Push to Shiprocket immediately + clear cart
   //    Online orders are pushed via the Razorpay webhook AFTER payment is confirmed.
   if (order.paymentInfo?.method === "COD") {
+    await confirmCouponUsageForOrder(order);
+
     // Clear cart
-    try {
-      await Cart.findOneAndUpdate({ user: userId }, { $set: { items: [] } });
-    } catch (cartErr) {
-      console.error(
-        `[COD] Failed to clear cart for user ${userId}:`,
-        cartErr.message,
-      );
+    if (!isBuyNow) {
+      try {
+        await Cart.findOneAndUpdate({ user: userId }, { $set: { items: [] } });
+      } catch (cartErr) {
+        console.error(
+          `[COD] Failed to clear cart for user ${userId}:`,
+          cartErr.message,
+        );
+      }
     }
 
     // Push to Shiprocket

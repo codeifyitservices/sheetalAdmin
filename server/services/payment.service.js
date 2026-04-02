@@ -8,31 +8,44 @@ import Settings from "../models/settings.model.js";
 import { createShiprocketOrder } from "./shiprocket.service.js";
 import { sendOrderConfirmationEmail } from "./order.email.service.js";
 import { completeAbandonedCartFlow } from "./abandonedCart.service.js";
+import { confirmCouponUsageForOrder } from "./coupon.service.js";
 
 export const createPaymentLinkService = async (
   userId,
   shippingAddress,
   billingAddress,
   frontendCallbackUrl,
+  buyNowItems = [],
+  cartItems = [],
+  couponData = {},
 ) => {
-  // 1. Fetch Cart and User
-  const cart = await Cart.findOne({ user: userId }).populate("items.product");
   const user = await User.findById(userId);
-
-  if (!cart || cart.items.length === 0) {
-    throw ErrorResponse("Cart is empty", 400);
-  }
 
   if (!user) {
     throw ErrorResponse("User not found", 404);
+  }
+
+  const isBuyNow = Array.isArray(buyNowItems) && buyNowItems.length > 0;
+  const cart = isBuyNow
+    ? null
+    : await Cart.findOne({ user: userId }).populate("items.product");
+  const sourceItems = isBuyNow
+    ? buyNowItems
+    : Array.isArray(cartItems) && cartItems.length > 0
+      ? cartItems
+      : cart?.items || [];
+
+  if (!sourceItems || sourceItems.length === 0) {
+    throw ErrorResponse(isBuyNow ? "No buy now item found" : "Cart is empty", 400);
   }
 
   // 2. Calculate Total Amount
   let totalPrice = 0;
   const orderItems = [];
 
-  for (const item of cart.items) {
-    if (!item.product) continue;
+  for (const item of sourceItems) {
+    const product = item.product || item;
+    if (!product) continue;
 
     let productPrice = 0;
 
@@ -40,6 +53,10 @@ export const createPaymentLinkService = async (
       productPrice = item.discountPrice;
     } else if (item.price && item.price > 0) {
       productPrice = item.price;
+    } else if (product.discountPrice && product.discountPrice > 0) {
+      productPrice = product.discountPrice;
+    } else if (product.price && product.price > 0) {
+      productPrice = product.price;
     } else {
       productPrice = 0;
     }
@@ -53,11 +70,11 @@ export const createPaymentLinkService = async (
     totalPrice += productPrice * item.quantity;
 
     orderItems.push({
-      product: item.product._id,
-      name: item.product.name,
-      image: item.product.mainImage?.url || "",
+      product: product._id,
+      name: product.name,
+      image: product.mainImage?.url || item.variantImage || "",
       price: productPrice,
-      quantity: item.quantity,
+      quantity: item.quantity || 1,
       variant: {
         size: item.size,
         color: item.color,
@@ -102,11 +119,15 @@ export const createPaymentLinkService = async (
       status: "Pending",
       method: "Online",
     },
+    couponId: couponData.couponId || null,
+    couponCode: couponData.couponCode || "",
+    discountPrice: Number(couponData.discountPrice) || 0,
     itemsPrice: totalPrice,
     shippingPrice: shippingPrice,
     taxPrice: platformFee, // Using taxPrice field for platformFee if no specific field exists, or add to schema
     totalPrice: finalAmount,
     orderStatus: "Processing",
+    purchaseSource: isBuyNow ? "buyNow" : "cart",
   });
 
   // Ensure minimum amount for Razorpay (100 paise = 1 INR)
@@ -274,11 +295,15 @@ export const verifyOnlinePaymentService = async (params) => {
   order.paidAt = new Date();
   await order.save();
 
-  // 8. Clear the cart
-  try {
-    await Cart.findOneAndUpdate({ user: order.user }, { $set: { items: [] } });
-  } catch (cartErr) {
-    console.error("[PaymentVerify] Cart clear failed:", cartErr.message);
+  await confirmCouponUsageForOrder(order);
+
+  // 8. Clear the cart only for cart-based orders.
+  if (order.purchaseSource !== "buyNow") {
+    try {
+      await Cart.findOneAndUpdate({ user: order.user }, { $set: { items: [] } });
+    } catch (cartErr) {
+      console.error("[PaymentVerify] Cart clear failed:", cartErr.message);
+    }
   }
 
   try {

@@ -2745,3 +2745,25 @@
 {"level":"info","message":"File successfully delete hui: uploads\\temp\\bulk\\temp-bulk-1775028902960-541003979.webp","timestamp":"2026-04-01T07:35:04.098Z"}
 {"level":"info","message":"File successfully delete hui: uploads\\temp\\bulk\\temp-bulk-1775028902962-671154607.webp","timestamp":"2026-04-01T07:35:04.099Z"}
 {"level":"info","message":"File successfully delete hui: uploads\\temp\\bulk\\temp-bulk-1775028902963-197052607.webp","timestamp":"2026-04-01T07:35:04.100Z"}
+{"cartId":"69c4e97f53f31976a6aebd2c","level":"info","message":"[AbandonedCart] Flow completed and reminders cancelled","timestamp":"2026-04-01T08:01:10.429Z","userId":"69c4ddf053f31976a6aeb57b"}
+{"cartId":"69c4e97f53f31976a6aebd2c","level":"info","message":"[AbandonedCart] Flow completed and reminders cancelled","timestamp":"2026-04-01T08:14:14.060Z","userId":"69c4ddf053f31976a6aeb57b"}
+{"cartId":"69c4e97f53f31976a6aebd2c","level":"info","message":"[AbandonedCart] Flow completed and reminders cancelled","timestamp":"2026-04-01T08:20:40.975Z","userId":"69c4ddf053f31976a6aeb57b"}
+{"cartId":"69c4e97f53f31976a6aebd2c","level":"info","message":"[AbandonedCart] Flow completed and reminders cancelled","timestamp":"2026-04-02T07:15:53.268Z","userId":"69c4ddf053f31976a6aeb57b"}
+{"cartId":"69c4e97f53f31976a6aebd2c","level":"info","message":"[AbandonedCart] Flow completed and reminders cancelled","timestamp":"2026-04-02T07:22:45.473Z","userId":"69c4ddf053f31976a6aeb57b"}
+{"cartId":"69c4e97f53f31976a6aebd2c","level":"info","message":"[AbandonedCart] Flow completed and reminders cancelled","timestamp":"2026-04-02T07:23:40.659Z","userId":"69c4ddf053f31976a6aeb57b"}
+{"cartId":"69c4e97f53f31976a6aebd2c","level":"info","message":"[AbandonedCart] Flow completed and reminders cancelled","timestamp":"2026-04-02T07:39:37.858Z","userId":"69c4ddf053f31976a6aeb57b"}
+{"cartId":"69c4e97f53f31976a6aebd2c","level":"info","message":"[AbandonedCart] Flow completed and reminders cancelled","timestamp":"2026-04-02T07:46:51.591Z","userId":"69c4ddf053f31976a6aeb57b"}
+{"level":"info","message":"S3 Object successfully deleted: products/1775021371071-186693330-temp-bulk-1775021368353-215166756.webp","timestamp":"2026-04-02T07:57:19.367Z"}
+{"level":"info","message":"S3 Object successfully deleted: products/1775021371132-778065288-temp-bulk-1775021368351-747952602.webp","timestamp":"2026-04-02T07:57:19.421Z"}
+{"level":"info","message":"S3 Object successfully deleted: products/1775021370910-361277022-temp-bulk-1775021368373-47812026.webp","timestamp":"2026-04-02T07:57:19.461Z"}
+{"level":"info","message":"S3 Object successfully deleted: products/1775021370969-352379322-temp-bulk-1775021368370-502949594.webp","timestamp":"2026-04-02T07:57:19.559Z"}
+{"level":"info","message":"S3 Object successfully deleted: products/1775028903501-955442367-temp-bulk-1775028902945-655791887.webp","timestamp":"2026-04-02T07:57:24.506Z"}
+{"level":"info","message":"S3 Object successfully deleted: products/1775028903554-293579560-temp-bulk-1775028902944-26175415.webp","timestamp":"2026-04-02T07:57:24.548Z"}
+{"level":"info","message":"S3 Object successfully deleted: products/1775028903062-281422832-temp-bulk-1775028902963-197052607.webp","timestamp":"2026-04-02T07:57:24.588Z"}
+{"level":"info","message":"S3 Object successfully deleted: products/1775028903355-905547098-temp-bulk-1775028902962-671154607.webp","timestamp":"2026-04-02T07:57:24.629Z"}
+{"level":"info","message":"S3 Object successfully deleted: products/1775028903405-406634236-temp-bulk-1775028902960-541003979.webp","timestamp":"2026-04-02T07:57:24.669Z"}
+{"level":"info","message":"S3 Object successfully deleted: products/1775021370775-954356713-temp-bulk-1775021368356-967378428.webp","timestamp":"2026-04-02T07:57:26.468Z"}
+{"level":"info","message":"S3 Object successfully deleted: products/1775021370843-972920892-temp-bulk-1775021368354-664941923.webp","timestamp":"2026-04-02T07:57:26.509Z"}
+{"level":"info","message":"S3 Object successfully deleted: products/1775021370648-343987672-temp-bulk-1775021368379-542615164.webp","timestamp":"2026-04-02T07:57:26.553Z"}
+{"level":"info","message":"S3 Object successfully deleted: products/1775021370713-966463847-temp-bulk-1775021368377-975512244.webp","timestamp":"2026-04-02T07:57:26.595Z"}
+{"cartId":"69be2cb4fed8e71499667ad6","cycleId":"71083919-b06c-4da9-9428-f89a8e2d46a0","level":"warn","message":"[AbandonedCart] Redis unavailable; abandonment timer skipped","source":"cart_remove","timestamp":"2026-04-02T09:45:03.894Z"}
