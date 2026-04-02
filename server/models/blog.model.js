@@ -37,6 +37,11 @@ const blogSchema = new mongoose.Schema(
       },
     },
     metaDescription: { type: String, trim: true, maxlength: 160 },
+    metaKeywords: { type: String, trim: true },
+    ogImage: {
+      url: { type: String },
+      public_id: { type: String },
+    },
     canonicalUrl: { type: String },
     status: { type: String, enum: ["Active", "Inactive"], default: "Active" },
     isPublished: { type: Boolean, default: false, index: true },

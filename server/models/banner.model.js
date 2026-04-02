@@ -25,6 +25,10 @@ const bannerSchema = new mongoose.Schema(
       default: 0,
     },
     isActive: { type: Boolean, default: true },
+    startsAt: {
+      type: Date,
+      default: null,
+    },
     expiresAt: {
       type: Date,
       default: null,

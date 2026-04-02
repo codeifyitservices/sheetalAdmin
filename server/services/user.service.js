@@ -2,6 +2,7 @@ import User from "../models/user.model.js";
 import Order from "../models/order.model.js";
 import bcrypt from "bcryptjs";
 import mongoose from "mongoose";
+import crypto from "crypto";
 import { deleteFile, deleteS3File } from "../utils/fileHelper.js"; // Import deleteFile and deleteS3File
 
 export const getWishlistService = async (userId) => {
@@ -147,7 +148,16 @@ export const updateUserService = async (id, updateData) => {
 };
 
 export const createUserService = async (data) => {
-  const existingUser = await User.findOne({ email: data.email });
+  const email =
+    typeof data.email === "string" ? data.email.trim().toLowerCase() : "";
+  const phoneNumber =
+    typeof data.phoneNumber === "string" ? data.phoneNumber.trim() : "";
+  const password =
+    typeof data.password === "string" && data.password.trim() !== ""
+      ? data.password.trim()
+      : `temp_${crypto.randomBytes(12).toString("hex")}Aa1!`;
+
+  const existingUser = await User.findOne({ email });
   if (existingUser)
     return {
       success: false,
@@ -155,12 +165,23 @@ export const createUserService = async (data) => {
       message: "Email already registered",
     };
 
-  const hashedPassword = await bcrypt.hash(data.password, 10);
+  if (phoneNumber) {
+    const existingPhoneUser = await User.findOne({ phoneNumber });
+    if (existingPhoneUser) {
+      return {
+        success: false,
+        statusCode: 400,
+        message: "Phone number already registered",
+      };
+    }
+  }
+
+  const hashedPassword = await bcrypt.hash(password, 10);
   const newUser = await User.create({
-    name: data.name,
-    email: data.email,
+    name: data.name?.trim(),
+    email,
     password: hashedPassword,
-    phoneNumber: data.phoneNumber,
+    ...(phoneNumber ? { phoneNumber } : {}),
     role: data.role || "user",
     status: data.status || "Active",
   });

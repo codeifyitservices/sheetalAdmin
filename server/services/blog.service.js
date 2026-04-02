@@ -76,6 +76,13 @@ export const createBlogService = async (data, files, userId) => {
       };
     }
 
+    if (files?.ogImage?.[0]) {
+      blogData.ogImage = {
+        url: files.ogImage[0].location || files.ogImage[0].path,
+        public_id: files.ogImage[0].key || files.ogImage[0].filename,
+      };
+    }
+
     const blog = await Blog.create(blogData);
 
     return { success: true, data: blog };
@@ -143,6 +150,21 @@ export const updateBlogService = async (id, data, files) => {
       };
     }
 
+    if (files?.ogImage?.[0]) {
+      const file = files.ogImage[0];
+      if (existingBlog.ogImage?.public_id) {
+        if (existingBlog.ogImage.url?.startsWith("http")) {
+          await deleteS3File(existingBlog.ogImage.public_id);
+        } else {
+          await deleteFile(existingBlog.ogImage.url);
+        }
+      }
+      updateData.ogImage = {
+        url: file.location || file.path,
+        public_id: file.key || file.filename,
+      };
+    }
+
     if (data.isPublished !== undefined) {
       updateData.isPublished =
         data.isPublished === "true" || data.isPublished === true;
@@ -172,6 +194,7 @@ export const getAllBlogsService = async (query) => {
   let filter = {};
   if (!isAdmin) {
     filter.status = "Active";
+    filter.isPublished = true;
   } else {
     if (status && status !== "All") filter.status = status;
     if (isPublished !== undefined) filter.isPublished = isPublished === "true";
@@ -233,6 +256,13 @@ export const deleteBlogService = async (id) => {
         await deleteFile(blog.contentImage.url);
       }
     }
+    if (blog.ogImage?.public_id) {
+      if (blog.ogImage.url?.startsWith("http")) {
+        await deleteS3File(blog.ogImage.public_id);
+      } else {
+        await deleteFile(blog.ogImage.url);
+      }
+    }
 
     await blog.deleteOne();
     return { success: true, message: "Blog post deleted successfully" };
@@ -257,13 +287,14 @@ export const getBlogStatsService = async () => {
   }
 };
 
-export const getBlogBySlugService = async (slug) => {
+export const getBlogBySlugService = async (slug, incrementViews = true) => {
   try {
-    const blog = await Blog.findOneAndUpdate(
-      { slug, status: "Active" },
-      { $inc: { views: 1 } },
-      { new: true },
-    )
+    const query = { slug, status: "Active", isPublished: true };
+    const blogQuery = incrementViews
+      ? Blog.findOneAndUpdate(query, { $inc: { views: 1 } }, { new: true })
+      : Blog.findOne(query);
+
+    const blog = await blogQuery
       .populate("author", "name")
       .populate("relatedProducts");
     if (!blog) return { success: false, message: "Blog post not found" };

@@ -3,7 +3,7 @@ import { ImageIcon } from "lucide-react";
 import InputField from "./InputField";
 import {
     getRatioLabel,
-    validateImageAspectRatio,
+    getImageAspectRatioWarning,
 } from "@/utils/imageAspectRatio";
 import toast from "react-hot-toast";
 
@@ -98,13 +98,16 @@ export default function SeoParams({ formData, handleChange, setFormData }) {
                                     const file = e.target.files?.[0];
                                     if (!file) return;
                                     try {
-                                        await validateImageAspectRatio(file, OG_RATIO, {
+                                        const warning = await getImageAspectRatioWarning(file, OG_RATIO, {
                                             label: "OG image",
                                         });
                                         setFormData({
                                             ...formData,
                                             ogImage: file,
                                         });
+                                        if (warning) {
+                                            toast.error(warning);
+                                        }
                                     } catch (err) {
                                         toast.error(err.message || "Invalid OG image");
                                         e.target.value = "";

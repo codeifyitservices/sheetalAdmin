@@ -45,6 +45,7 @@ export default function BannerModal({
   const [formData, setFormData] = useState({
     title: "",
     status: "Active",
+    startsAt: null,
     expiresAt: null,
   });
 
@@ -105,6 +106,9 @@ export default function BannerModal({
         setFormData({
           title: initialData.title || "",
           status: initialData.status || "Active",
+          startsAt: initialData.startsAt
+            ? new Date(initialData.startsAt).toISOString().split("T")[0]
+            : "",
           expiresAt: initialData.expiresAt
             ? new Date(initialData.expiresAt).toISOString().split("T")[0]
             : "",
@@ -147,6 +151,7 @@ export default function BannerModal({
         setFormData({
           title: "",
           status: "Active",
+          startsAt: null,
         });
         setDesktopPreview("");
         setMobilePreview("");
@@ -157,7 +162,7 @@ export default function BannerModal({
         setSelectedCategorySlug("");
         setSelectedProductSlug("");
         setStaticPage("");
-        setFormData((prev) => ({ ...prev, expiresAt: null }));
+        setFormData((prev) => ({ ...prev, startsAt: null, expiresAt: null }));
       }
     }
   }, [initialData, isOpen]);
@@ -237,6 +242,9 @@ export default function BannerModal({
     data.append("title", formData.title);
     data.append("link", finalLink); // Use the constructed link
     data.append("status", formData.status);
+    if (formData.startsAt) {
+      data.append("startsAt", new Date(formData.startsAt).toISOString());
+    }
     if (formData.expiresAt) {
       data.append("expiresAt", new Date(formData.expiresAt).toISOString());
     }
@@ -365,7 +373,7 @@ export default function BannerModal({
                 />
               </div>
 
-              <div className="grid grid-cols-2 gap-5">
+              <div className="grid grid-cols-3 gap-5">
                 <div className="space-y-1.5">
                   <label className="text-xs font-bold text-slate-900 uppercase tracking-wider">Status</label>
                   <select
@@ -376,6 +384,15 @@ export default function BannerModal({
                     <option value="Active">Active</option>
                     <option value="Inactive">Inactive</option>
                   </select>
+                </div>
+                <div className="space-y-1.5">
+                  <label className="text-xs font-bold text-slate-900 uppercase tracking-wider">Start Date</label>
+                  <input
+                    type="date"
+                    value={formData.startsAt || ""}
+                    onChange={(e) => setFormData({ ...formData, startsAt: e.target.value })}
+                    className="w-full bg-white border border-slate-400 px-4 py-2.5 rounded-lg text-sm text-slate-900 focus:border-slate-900 focus:ring-1 focus:ring-slate-900 outline-none transition"
+                  />
                 </div>
                 <div className="space-y-1.5">
                   <label className="text-xs font-bold text-slate-900 uppercase tracking-wider">Expiration Date</label>

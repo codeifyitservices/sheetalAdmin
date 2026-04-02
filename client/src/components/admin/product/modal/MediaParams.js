@@ -9,7 +9,7 @@ import {
 import toast from "react-hot-toast";
 import {
     getRatioLabel,
-    validateImageAspectRatio,
+    getImageAspectRatioWarning,
 } from "@/utils/imageAspectRatio";
 
 const PRODUCT_IMAGE_RATIO = { width: 3, height: 4 };
@@ -23,15 +23,18 @@ const handleProductImageChange = async (e, setFormData, fieldName) => {
     if (!file) return;
 
     try {
-        await validateImageAspectRatio(file, PRODUCT_IMAGE_RATIO, {
+        const warning = await getImageAspectRatioWarning(file, PRODUCT_IMAGE_RATIO, {
             label: fieldName === "mainImageFile" ? "Main image" : "Hover image",
         });
         setFormData((prev) => ({
             ...prev,
             [fieldName]: file,
         }));
+        if (warning) {
+            toast.error(warning);
+        }
     } catch (err) {
-        toast.error(err.message || "Invalid image aspect ratio");
+        toast.error(err.message || "Invalid image file");
         e.target.value = "";
     }
 };

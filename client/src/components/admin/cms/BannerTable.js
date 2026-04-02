@@ -80,6 +80,15 @@ function SortableBannerRow({ banner, onEdit, onDelete }) {
           <span>{banner.title}</span>
           <span className="text-[10px] text-slate-400 font-normal truncate max-w-[200px]">{banner.link}</span>
         </div>
+      </td><td className="px-4 py-4 text-xs text-slate-600">
+        <div className="flex flex-col gap-1">
+          <span>
+            Start: {banner.startsAt ? new Date(banner.startsAt).toLocaleDateString() : "Immediate"}
+          </span>
+          <span>
+            End: {banner.expiresAt ? new Date(banner.expiresAt).toLocaleDateString() : "No expiry"}
+          </span>
+        </div>
       </td><td className="px-4 py-4">
         <span
           className={`px-2.5 py-1 rounded-full text-[10px] font-black uppercase tracking-wider ${banner.status === "Active" ? "bg-emerald-100 text-emerald-800" : "bg-slate-100 text-slate-600"
@@ -240,7 +249,7 @@ export default function BannerTable({ refreshStats }) {
         <div className="overflow-x-auto min-h-[300px]">
           <table className="w-full text-sm text-left">
             <thead className="bg-slate-50 text-slate-900 font-bold border-b border-slate-200 uppercase text-[11px] tracking-wider">
-              <tr><th className="px-4 py-4 w-12 text-center"></th><th className="px-4 py-4 w-40 text-center">Images</th><th className="px-4 py-4">Banner Title</th><th className="px-4 py-4">Status</th><th className="px-4 py-4 text-right">Actions</th></tr>
+              <tr><th className="px-4 py-4 w-12 text-center"></th><th className="px-4 py-4 w-40 text-center">Images</th><th className="px-4 py-4">Banner Title</th><th className="px-4 py-4">Schedule</th><th className="px-4 py-4">Status</th><th className="px-4 py-4 text-right">Actions</th></tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
               <SortableContext items={banners.map((b) => b._id)} strategy={verticalListSortingStrategy}>
@@ -261,7 +270,7 @@ export default function BannerTable({ refreshStats }) {
                     />
                   ))
                 ) : (
-                  <tr><td colSpan="5" className="px-4 py-20 text-center text-slate-500 font-medium italic">
+                  <tr><td colSpan="6" className="px-4 py-20 text-center text-slate-500 font-medium italic">
                     {loading ? "Syncing data..." : "No banners found."}
                   </td></tr>
                 )}

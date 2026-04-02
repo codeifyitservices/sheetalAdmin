@@ -25,6 +25,7 @@ router.post(
   uploadTo("blogs").fields([
     { name: "bannerImage", maxCount: 1 },
     { name: "contentImage", maxCount: 1 },
+    { name: "ogImage", maxCount: 1 },
   ]),
   createBlog,
 );
@@ -37,6 +38,7 @@ router
     uploadTo("blogs").fields([
       { name: "bannerImage", maxCount: 1 },
       { name: "contentImage", maxCount: 1 },
+      { name: "ogImage", maxCount: 1 },
     ]),
     updateBlog,
   )

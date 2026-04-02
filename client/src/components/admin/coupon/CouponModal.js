@@ -14,6 +14,7 @@ import {
 import { addCoupon, updateCoupon } from "@/services/couponService";
 import { getCategories } from "@/services/categoryService";
 import { getProducts } from "@/services/productService";
+import { API_BASE_URL } from "@/services/api";
 import { toast } from "react-hot-toast";
 
 export default function CouponModal({
@@ -23,9 +24,21 @@ export default function CouponModal({
   initialData = null,
   allCoupons = [],
 }) {
+  const getCategoryImageUrl = (category) => {
+    const imageUrl = category?.mainImage?.url || category?.bannerImage?.url;
+    if (!imageUrl) return null;
+    return imageUrl.startsWith("http")
+      ? imageUrl
+      : `${API_BASE_URL.replace("/api/v1", "")}/${imageUrl.replace(/\\/g, "/")}`.replace(
+          /([^:]\/)\/+/g,
+          "$1",
+        );
+  };
+
   const [loading, setLoading] = useState(false);
   const [categories, setCategories] = useState([]);
   const [selectedItems, setSelectedItems] = useState([]);
+  const [categorySearch, setCategorySearch] = useState("");
 
   const [formData, setFormData] = useState({
     code: "",
@@ -51,6 +64,10 @@ export default function CouponModal({
   const [products, setProducts] = useState([]);
   const [productSearch, setProductSearch] = useState("");
   const [isSearchingProducts, setIsSearchingProducts] = useState(false);
+
+  const filteredCategories = categories.filter((cat) =>
+    cat.name?.toLowerCase().includes(categorySearch.toLowerCase()),
+  );
 
   useEffect(() => {
     const delayDebounceFn = setTimeout(async () => {
@@ -119,6 +136,7 @@ export default function CouponModal({
         setSelectedItems(items);
       } else {
         setSelectedItems([]);
+        setCategorySearch("");
       }
     }
   }, [isOpen, initialData]);
@@ -397,7 +415,7 @@ export default function CouponModal({
             <div className="p-3 bg-orange-50 border border-orange-200 rounded-lg flex items-start gap-3 animate-in fade-in slide-in-from-top-1 duration-300">
               <Info size={18} className="text-orange-600 mt-0.5" aria-hidden="true" />
               <p className="text-xs text-orange-800 leading-relaxed">
-                <strong>Auto-Apply Mode:</strong> Customers don't need to enter
+                <strong>Auto-Apply Mode:</strong> Customers do not need to enter
                 a code. This discount will be automatically applied based on the
                 rules below.
               </p>
@@ -426,25 +444,111 @@ export default function CouponModal({
             </div>
 
             {formData.scope === "Category" && (
-              <div className="space-y-1.5 animate-in fade-in slide-in-from-top-1 duration-300">
-                <label htmlFor="category-select" className="text-xs font-bold text-slate-900 uppercase tracking-wider">
-                  Select Category
+              <div className="space-y-1.5 animate-in fade-in slide-in-from-top-1 duration-300 col-span-2">
+                <label htmlFor="category-search" className="text-xs font-bold text-slate-900 uppercase tracking-wider">
+                  Select Categories
                 </label>
-                <select
-                  id="category-select"
-                  value={selectedItems[0]?._id || ""}
-                  onChange={(e) => {
-                    const cat = categories.find((c) => c._id === e.target.value);
-                    if (cat) setSelectedItems([cat]);
-                  }}
-                  className="w-full bg-white border border-slate-400 px-4 py-2.5 rounded-lg text-sm text-slate-900 font-medium focus:border-slate-900 outline-none transition"
-                  required
-                >
-                  <option value="" disabled>-- Select a category --</option>
-                  {categories.map((cat) => (
-                    <option key={cat._id} value={cat._id}>{cat.name}</option>
-                  ))}
-                </select>
+                <div className="relative">
+                  <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" aria-hidden="true" />
+                  <input
+                    id="category-search"
+                    type="text"
+                    placeholder="Search categories..."
+                    value={categorySearch}
+                    onChange={(e) => setCategorySearch(e.target.value)}
+                    className="w-full pl-10 pr-4 py-2.5 bg-white border border-slate-400 rounded-lg text-sm text-slate-900 outline-none focus:border-slate-900"
+                  />
+                </div>
+
+                {filteredCategories.length > 0 && (
+                  <ul
+                    className="mt-2 max-h-40 overflow-y-auto border border-slate-200 rounded-lg bg-slate-50 p-2 space-y-1"
+                    aria-label="Category search results"
+                  >
+                    {filteredCategories.map((cat) => {
+                      const isSelected = selectedItems.some(
+                        (item) => item._id === cat._id,
+                      );
+                      return (
+                        <li key={cat._id}>
+                          <button
+                            type="button"
+                            role="option"
+                            aria-selected={isSelected}
+                            onClick={() => {
+                              if (isSelected) {
+                                setSelectedItems((prev) =>
+                                  prev.filter((item) => item._id !== cat._id),
+                                );
+                              } else {
+                                setSelectedItems((prev) => [...prev, cat]);
+                              }
+                            }}
+                            className={`w-full flex items-center justify-between p-2 rounded cursor-pointer text-left ${isSelected ? "bg-slate-200" : "hover:bg-white"}`}
+                          >
+                            <div className="flex items-center gap-2">
+                              {getCategoryImageUrl(cat) ? (
+                                <img
+                                  src={getCategoryImageUrl(cat)}
+                                  alt=""
+                                  className="w-8 h-8 rounded object-cover"
+                                />
+                              ) : (
+                                <div className="w-8 h-8 rounded bg-slate-200 flex items-center justify-center">
+                                  <Gift size={14} className="text-slate-400" />
+                                </div>
+                              )}
+                              <span className="text-sm font-medium">
+                                {cat.name}
+                              </span>
+                            </div>
+                            {isSelected && (
+                              <span className="text-xs bg-black text-white px-2 py-0.5 rounded">
+                                Selected
+                              </span>
+                            )}
+                          </button>
+                        </li>
+                      );
+                    })}
+                  </ul>
+                )}
+
+                {selectedItems.length > 0 && (
+                  <div className="flex flex-wrap gap-2 mt-2" aria-label="Selected categories">
+                    {selectedItems.map((item) => (
+                      <div
+                        key={item._id}
+                        className="bg-slate-100 border border-slate-300 rounded px-2 py-1 text-xs flex items-center gap-2"
+                      >
+                        {getCategoryImageUrl(item) ? (
+                          <img
+                            src={getCategoryImageUrl(item)}
+                            alt=""
+                            className="w-6 h-6 rounded object-cover"
+                          />
+                        ) : (
+                          <div className="w-6 h-6 rounded bg-slate-200 flex items-center justify-center">
+                            <Gift size={12} className="text-slate-400" />
+                          </div>
+                        )}
+                        <span>{item.name || "Unknown Category"}</span>
+                        <button
+                          type="button"
+                          aria-label={`Remove ${item.name || "category"}`}
+                          onClick={() =>
+                            setSelectedItems((prev) =>
+                              prev.filter((i) => i._id !== item._id),
+                            )
+                          }
+                          className="text-slate-400 hover:text-red-500"
+                        >
+                          <X size={12} aria-hidden="true" />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
             )}
 

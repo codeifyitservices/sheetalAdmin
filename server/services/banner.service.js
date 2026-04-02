@@ -6,7 +6,7 @@ const normalizeBannerStatus = (status) =>
 
 export const createBannerService = async (data, files) => {
   try {
-    const { title, link, status, expiresAt } = data;
+    const { title, link, status, startsAt, expiresAt } = data;
 
     if (!title) return { success: false, message: "Banner title is required" };
 
@@ -44,6 +44,7 @@ export const createBannerService = async (data, files) => {
       status: normalizeBannerStatus(status),
       image,
       order: newOrder,
+      startsAt: startsAt || null,
       expiresAt: expiresAt || null,
     });
 
@@ -67,7 +68,10 @@ export const getAllBannersService = async () => {
 
   const banners = await Banner.find({
     status: "Active",
-    $or: [{ expiresAt: null }, { expiresAt: { $gte: currentDate } }],
+    $and: [
+      { $or: [{ startsAt: null }, { startsAt: { $lte: currentDate } }] },
+      { $or: [{ expiresAt: null }, { expiresAt: { $gte: currentDate } }] },
+    ],
   }).sort({ order: 1 });
   return { success: true, data: banners };
 };
@@ -111,6 +115,7 @@ export const updateBannerService = async (id, data, files) => {
       link: data.link,
       status: normalizeBannerStatus(data.status),
       image: banner.image || {}, // Ensure image object exists
+      startsAt: data.startsAt || null,
       expiresAt: data.expiresAt || null,
       isActive: normalizeBannerStatus(data.status) === "Active", // Explicitly sync isActive with status
     };

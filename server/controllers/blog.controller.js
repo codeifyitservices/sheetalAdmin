@@ -48,7 +48,11 @@ export const getBlogs = async (req, res, next) => {
 
 export const getSingleBlog = async (req, res, next) => {
   try {
-    const result = await blogService.getBlogBySlugService(req.params.slug);
+    const incrementViews = req.query.incrementView !== "false";
+    const result = await blogService.getBlogBySlugService(
+      req.params.slug,
+      incrementViews,
+    );
     if (!result.success) return res.status(404).json(result);
     successResponse(res, 200, result.data, "Blog post retrieved successfully");
   } catch (error) {

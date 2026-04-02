@@ -1,5 +1,3 @@
-const DEFAULT_TOLERANCE = 0.02;
-
 const gcd = (a, b) => {
   let x = Math.abs(a);
   let y = Math.abs(b);
@@ -66,82 +64,27 @@ export const getVideoDimensions = (file) =>
     video.src = objectUrl;
   });
 
+// Aspect-ratio validation is intentionally disabled globally.
+// Keep the helpers so existing callers can still verify files are readable.
 export const validateImageAspectRatio = async (
   file,
-  expectedDimensions,
-  { label = "Image", tolerance = DEFAULT_TOLERANCE } = {},
+  _expectedDimensions,
+  _options = {},
+) => getImageDimensions(file);
+
+export const getImageAspectRatioWarning = async (
+  file,
+  _expectedDimensions,
+  _options = {},
 ) => {
-  const { width, height } = await getImageDimensions(file);
-  if (!width || !height) {
-    throw new Error(`Could not determine dimensions for "${file.name}".`);
-  }
-
-  const expectedWidth =
-    typeof expectedDimensions === "object"
-      ? expectedDimensions.width
-      : undefined;
-  const expectedHeight =
-    typeof expectedDimensions === "object"
-      ? expectedDimensions.height
-      : undefined;
-
-  if (!expectedWidth || !expectedHeight) {
-    throw new Error("Expected image dimensions are required.");
-  }
-
-  const expectedRatio = expectedWidth / expectedHeight;
-  const actualRatio = width / height;
-  const diff = Math.abs(actualRatio - expectedRatio) / expectedRatio;
-
-  if (diff > tolerance) {
-    const expectedLabel = formatAspectRatio(expectedWidth, expectedHeight);
-    const actualLabel = formatAspectRatio(width, height);
-    throw new Error(
-      `${label} must be in ${expectedLabel} ratio. Uploaded image is ${width}×${height}px (${actualLabel}).`,
-    );
-  }
-
-  return { width, height };
+  await getImageDimensions(file);
+  return null;
 };
 
 export const getRatioLabel = (width, height) => formatAspectRatio(width, height);
 
 export const validateVideoAspectRatio = async (
   file,
-  expectedDimensions,
-  options = {},
-) => {
-  const { width, height } = await getVideoDimensions(file);
-  if (!width || !height) {
-    throw new Error(`Could not determine dimensions for "${file.name}".`);
-  }
-
-  const expectedWidth =
-    typeof expectedDimensions === "object"
-      ? expectedDimensions.width
-      : undefined;
-  const expectedHeight =
-    typeof expectedDimensions === "object"
-      ? expectedDimensions.height
-      : undefined;
-
-  if (!expectedWidth || !expectedHeight) {
-    throw new Error("Expected video dimensions are required.");
-  }
-
-  const expectedRatio = expectedWidth / expectedHeight;
-  const actualRatio = width / height;
-  const diff = Math.abs(actualRatio - expectedRatio) / expectedRatio;
-  const tolerance =
-    typeof options.tolerance === "number" ? options.tolerance : DEFAULT_TOLERANCE;
-
-  if (diff > tolerance) {
-    const expectedLabel = formatAspectRatio(expectedWidth, expectedHeight);
-    const actualLabel = formatAspectRatio(width, height);
-    throw new Error(
-      `${options.label || "Video"} must be in ${expectedLabel} ratio. Uploaded video is ${width}×${height}px (${actualLabel}).`,
-    );
-  }
-
-  return { width, height };
-};
+  _expectedDimensions,
+  _options = {},
+) => getVideoDimensions(file);

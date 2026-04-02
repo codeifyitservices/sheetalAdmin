@@ -3,7 +3,7 @@ import { Plus, Trash2, Layers, Shirt, X, Video } from "lucide-react";
 import toast from "react-hot-toast";
 import {
   getRatioLabel,
-  validateImageAspectRatio,
+  getImageAspectRatioWarning,
   validateVideoAspectRatio,
 } from "@/utils/imageAspectRatio";
 
@@ -14,7 +14,7 @@ const VARIANT_MEDIA_RATIO_LABEL = getRatioLabel(
 );
 
 const validateVariantImage = async (file) => {
-  await validateImageAspectRatio(file, VARIANT_MEDIA_RATIO, {
+  return await getImageAspectRatioWarning(file, VARIANT_MEDIA_RATIO, {
     label: "Variant image",
   });
 };
@@ -256,13 +256,16 @@ export default function InventoryParams({
                             if (!file) return;
                             (async () => {
                               try {
-                                await validateVariantImage(file);
+                                const warning = await validateVariantImage(file);
                                 const up = [...formData.variants];
                                 up[i].v_image = file;
                                 setFormData({
                                   ...formData,
                                   variants: up,
                                 });
+                                if (warning) {
+                                  toast.error(warning);
+                                }
                               } catch (err) {
                                 toast.error(err.message || "Invalid variant image");
                                 e.target.value = "";
