@@ -3,17 +3,19 @@
 import React, { useState, useEffect, useCallback, useRef } from "react";
 import toast from "react-hot-toast";
 
+import ReportExportMenu from "@/components/admin/common/ReportExportMenu";
 import EnquiryStatsCards from "@/components/admin/enquiry/EnquiryStatsCards";
 import EnquiryFilters from "@/components/admin/enquiry/EnquiryFilters";
 import EnquiryTable from "@/components/admin/enquiry/EnquiryTable";
 import EnquiryModal from "@/components/admin/enquiry/EnquiryModal";
+import { downloadCsvReport, downloadPdfReport } from "@/utils/reportExport";
 
 import {
   fetchEnquiries,
   deleteEnquiry,
   updateEnquiryStatus,
-  sendAvailabilityEmail,
-  deriveEnquiryCounts
+  deriveEnquiryCounts,
+  formatEnquiryDate,
 } from "@/services/enquiryService";
 
 export default function EnquiriesPage() {
@@ -24,6 +26,7 @@ export default function EnquiriesPage() {
   const [selected, setSelected] = useState(null);
   const [pendingAction, setPendingAction] = useState(null);
   const [counts, setCounts] = useState({ total: 0, new: 0, read: 0, replied: 0 });
+  const [isExporting, setIsExporting] = useState(false);
 
   // Ref holds the AbortController for the in-flight fetch pair so we can
   // cancel it the moment a newer search/filter change comes in.
@@ -108,23 +111,72 @@ export default function EnquiriesPage() {
     }
   };
 
-  const handleSendAvailability = async (enquiry) => {
-    setPendingAction({ id: enquiry._id, action: "send" });
+  const exportColumns = [
+    { key: "name", label: "Name" },
+    { key: "email", label: "Email" },
+    { key: "productName", label: "Product" },
+    { key: "size", label: "Size" },
+    { key: "status", label: "Status" },
+    { key: "createdAt", label: "Created At" },
+  ];
+
+  const exportRows = enquiries.map((enquiry) => ({
+    name: enquiry.name || "-",
+    email: enquiry.email || "-",
+    productName: enquiry.productName || "-",
+    size: enquiry.size || "-",
+    status: enquiry.status || "-",
+    createdAt: formatEnquiryDate(enquiry.createdAt),
+  }));
+
+  const handleExport = async (format) => {
+    if (exportRows.length === 0) return;
+
+    setIsExporting(true);
     try {
-      await sendAvailabilityEmail(enquiry._id);
-      await handleStatusChange(enquiry._id, "replied", true);
-      toast.success("Availability email sent!");
-    } catch {
-      toast.error("Failed to send email");
+      const filename = `notify_enquiries_${new Date().toISOString().split("T")[0]}`;
+      const meta = [
+        `Generated on: ${new Date().toLocaleString()}`,
+        `Status filter: ${statusFilter}`,
+        `Search: ${search || "None"}`,
+        `Records: ${exportRows.length}`,
+      ];
+
+      if (format === "pdf") {
+        await downloadPdfReport({
+          filename,
+          title: "Notify Enquiries Report",
+          meta,
+          columns: exportColumns,
+          rows: exportRows,
+        });
+        return;
+      }
+
+      downloadCsvReport({
+        filename,
+        columns: exportColumns,
+        rows: exportRows,
+      });
     } finally {
-      setPendingAction(null);
+      setIsExporting(false);
     }
   };
+
+
 
   // ── Render ─────────────────────────────────────────────────────────────────
 
   return (
     <div className="space-y-6 animate-in fade-in slide-in-from-bottom-2 duration-500">
+      <div className="flex w-full justify-end">
+        <ReportExportMenu
+            disabled={enquiries.length === 0}
+            busy={isExporting}
+            onExportPdf={() => handleExport("pdf")}
+            onExportExcel={() => handleExport("excel")}
+          />
+      </div>
       <EnquiryStatsCards
         counts={counts}
         statusFilter={statusFilter}
@@ -158,7 +210,6 @@ export default function EnquiriesPage() {
           onClose={() => setSelected(null)}
           onStatusChange={handleStatusChange}
           onDelete={handleDelete}
-          onSendAvailability={handleSendAvailability}
           pendingAction={pendingAction}
         />
       )}

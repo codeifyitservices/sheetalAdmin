@@ -21,6 +21,8 @@ import {
 import toast from "react-hot-toast";
 import axios from "axios";
 import { API_BASE_URL } from "@/services/api";
+import ReportExportMenu from "@/components/admin/common/ReportExportMenu";
+import { downloadCsvReport, downloadPdfReport } from "@/utils/reportExport";
 
 const STATUS_STYLES = {
   pending: "bg-amber-100 text-amber-700 border border-amber-200",
@@ -67,6 +69,7 @@ export default function AppointmentsPage() {
   const [deletingId, setDeletingId] = useState(null);
   const [updatingId, setUpdatingId] = useState(null);
   const [savingNotesId, setSavingNotesId] = useState(null);
+  const [isExporting, setIsExporting] = useState(false);
   const [counts, setCounts] = useState({
     total: 0,
     pending: 0,
@@ -199,9 +202,73 @@ export default function AppointmentsPage() {
       minute: "2-digit",
     });
 
+  const exportColumns = [
+    { key: "name", label: "Name" },
+    { key: "email", label: "Email" },
+    { key: "contact", label: "Contact" },
+    { key: "city", label: "City" },
+    { key: "status", label: "Status" },
+    { key: "requirements", label: "Requirements" },
+    { key: "notes", label: "Notes" },
+    { key: "createdAt", label: "Created At" },
+  ];
+
+  const exportRows = appointments.map((appointment) => ({
+    name: appointment.name || "-",
+    email: appointment.email || "-",
+    contact: appointment.contact || "-",
+    city: appointment.city || "-",
+    status: appointment.status || "-",
+    requirements: appointment.requirements || "-",
+    notes: appointment.notes || "-",
+    createdAt: formatDate(appointment.createdAt),
+  }));
+
+  const handleExport = async (format) => {
+    if (exportRows.length === 0) return;
+
+    setIsExporting(true);
+    try {
+      const filename = `appointments_${new Date().toISOString().split("T")[0]}`;
+      const meta = [
+        `Generated on: ${new Date().toLocaleString()}`,
+        `Status filter: ${statusFilter}`,
+        `Search: ${search || "None"}`,
+        `Records: ${exportRows.length}`,
+      ];
+
+      if (format === "pdf") {
+        await downloadPdfReport({
+          filename,
+          title: "Appointments Report",
+          meta,
+          columns: exportColumns,
+          rows: exportRows,
+        });
+        return;
+      }
+
+      downloadCsvReport({
+        filename,
+        columns: exportColumns,
+        rows: exportRows,
+      });
+    } finally {
+      setIsExporting(false);
+    }
+  };
+
   return (
     <div className="space-y-6 animate-in fade-in slide-in-from-bottom-2 duration-500">
       {/* Stats Cards */}
+      <div className="w-full flex justify-end">
+        <ReportExportMenu
+            disabled={appointments.length === 0}
+            busy={isExporting}
+            onExportPdf={() => handleExport("pdf")}
+            onExportExcel={() => handleExport("excel")}
+          />
+      </div>
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         {[
           {
@@ -286,6 +353,7 @@ export default function AppointmentsPage() {
               {appointments.length !== 1 ? "s" : ""} found
             </p>
           </div>
+          
         </div>
 
         <div className="flex flex-col sm:flex-row gap-3">

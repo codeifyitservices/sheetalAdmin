@@ -255,12 +255,29 @@ export const getAllOrdersService = async (queryStr, userId = null) => {
   // Status filter (e.g., status=Processing)
   if (queryStr.status) filter.orderStatus = queryStr.status;
 
+  if (queryStr.startDate || queryStr.endDate) {
+    filter.createdAt = {};
+
+    if (queryStr.startDate) {
+      const start = new Date(queryStr.startDate);
+      start.setHours(0, 0, 0, 0);
+      filter.createdAt.$gte = start;
+    }
+
+    if (queryStr.endDate) {
+      const end = new Date(queryStr.endDate);
+      end.setHours(23, 59, 59, 999);
+      filter.createdAt.$lte = end;
+    }
+  }
+
   // 3. Query Execute
   const orders = await Order.find(filter)
     .populate("user", "name email")
     .sort("-createdAt") // Newest orders first
     .skip(skip)
-    .limit(limit);
+    .limit(limit)
+    .lean();
 
   // 4. Total Count for frontend logic
   const totalOrders = await Order.countDocuments(filter);

@@ -165,3 +165,54 @@ export const assignAwb = async (req, res, next) => {
     next(error);
   }
 };
+
+// --- 7. ADMIN: GET ORDER STATS (Server-side aggregation) ---
+export const adminGetOrderStats = async (req, res, next) => {
+  try {
+    const dateFilter = {};
+
+    if (req.query.startDate || req.query.endDate) {
+      if (req.query.startDate) {
+        const start = new Date(req.query.startDate);
+        start.setHours(0, 0, 0, 0);
+        dateFilter.$gte = start;
+      }
+
+      if (req.query.endDate) {
+        const end = new Date(req.query.endDate);
+        end.setHours(23, 59, 59, 999);
+        dateFilter.$lte = end;
+      }
+    }
+
+    const createdAtMatch =
+      Object.keys(dateFilter).length > 0 ? { createdAt: dateFilter } : {};
+
+    const [totalOrders, processing, shipped, delivered, revenueResult] =
+      await Promise.all([
+        Order.countDocuments(createdAtMatch),
+        Order.countDocuments({ ...createdAtMatch, orderStatus: "Processing" }),
+        Order.countDocuments({ ...createdAtMatch, orderStatus: "Shipped" }),
+        Order.countDocuments({ ...createdAtMatch, orderStatus: "Delivered" }),
+        Order.aggregate([
+          {
+            $match: {
+              ...createdAtMatch,
+              orderStatus: { $nin: ["Cancelled", "Returned"] },
+            },
+          },
+          { $group: { _id: null, total: { $sum: "$totalPrice" } } },
+        ]),
+      ]);
+
+    return successResponse(res, 200, {
+      totalOrders,
+      processing,
+      shipped,
+      delivered,
+      totalRevenue: revenueResult[0]?.total || 0,
+    }, "Order stats fetched");
+  } catch (error) {
+    next(error);
+  }
+};

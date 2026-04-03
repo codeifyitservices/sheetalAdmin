@@ -2,6 +2,9 @@ import { searchNgram } from "./ngram.search.service.js";
 import Product from "../models/product.model.js";
 import Category from "../models/category.model.js";
 
+const SINGLE_CHAR_SEARCH_LIMIT = 100;
+const MAX_MATCHING_PRODUCTS = 8;
+
 /**
  * Searches products and categories using the custom n-gram index.
  *
@@ -15,18 +18,32 @@ import Category from "../models/category.model.js";
  *  6. Fallback             — fuzzy word-matched products only (FIX #8 + #11 + #12)
  */
 export const searchService = async ({ query, limit, page }) => {
-  const result = await searchNgram(query, { limit, page });
+  const normalisedQuery = normalise(query);
+  const isSingleCharacterQuery = normalisedQuery.length === 1;
+
+  const result = await searchNgram(query, {
+    limit: isSingleCharacterQuery ? SINGLE_CHAR_SEARCH_LIMIT : limit,
+    page: isSingleCharacterQuery ? 1 : page,
+  });
   const hits = await hydrateSearchHits(result.hits);
 
   if (hits.length === 0) return hits;
 
-  const normalisedQuery = normalise(query);
   const shortPartialQuery = isShortPartialQuery(normalisedQuery);
+  const shortQueryCategoryHits = shortPartialQuery
+    ? hits.filter(
+        (hit) =>
+          hit.type === "category" &&
+          hitMatchesPrimaryIntent(hit, normalisedQuery),
+      )
+    : [];
 
   // --- Step 1: Category resolution ---
   const targetedCategory = findTargetedCategoryHit(hits, normalisedQuery);
   if (targetedCategory) {
-    return await buildCategoryWithProductsResults(targetedCategory.data);
+    return limitProductResults(
+      await buildCategoryWithProductsResults(targetedCategory.data),
+    );
   }
 
   // --- Step 2 & 3: Structured / attribute queries OR Primary intent ---
@@ -41,7 +58,13 @@ export const searchService = async ({ query, limit, page }) => {
 
     return productMatchesSearchIntent(hit.data, normalisedQuery);
   });
-  if (intentOrFieldMatchedProducts.length > 0) return intentOrFieldMatchedProducts;
+  if (intentOrFieldMatchedProducts.length > 0) {
+    return limitProductResults(
+      shortQueryCategoryHits.length > 0
+        ? [...shortQueryCategoryHits, ...intentOrFieldMatchedProducts]
+        : intentOrFieldMatchedProducts,
+    );
+  }
 
   // --- Step 4: Fallback — word-level fuzzy filter (FIX #8 + #11 + #12) ---
   //
@@ -71,7 +94,30 @@ export const searchService = async ({ query, limit, page }) => {
         productHasFuzzyWordMatch(hit.data, normalisedQuery),
       );
 
-  return fuzzyMatchedProducts;
+  return limitProductResults(
+    shortQueryCategoryHits.length > 0
+      ? [...shortQueryCategoryHits, ...fuzzyMatchedProducts]
+      : fuzzyMatchedProducts,
+  );
+};
+
+const limitProductResults = (results) => {
+  const limitedResults = [];
+  let productCount = 0;
+
+  for (const result of results) {
+    if (result.type !== "product") {
+      limitedResults.push(result);
+      continue;
+    }
+
+    if (productCount >= MAX_MATCHING_PRODUCTS) continue;
+
+    limitedResults.push(result);
+    productCount += 1;
+  }
+
+  return limitedResults;
 };
 
 // ---------------------------------------------------------------------------
@@ -104,11 +150,23 @@ const levenshteinDistance = (a, b) => {
 const soundex = (word) => {
   if (!word || word.length === 0) return "";
   const map = {
-    b: 1, f: 1, p: 1, v: 1,
-    c: 2, g: 2, j: 2, k: 2, q: 2, s: 2, x: 2, z: 2,
-    d: 3, t: 3,
+    b: 1,
+    f: 1,
+    p: 1,
+    v: 1,
+    c: 2,
+    g: 2,
+    j: 2,
+    k: 2,
+    q: 2,
+    s: 2,
+    x: 2,
+    z: 2,
+    d: 3,
+    t: 3,
     l: 4,
-    m: 5, n: 5,
+    m: 5,
+    n: 5,
     r: 6,
   };
   const w = word.toLowerCase();
@@ -138,8 +196,8 @@ const consonantKey = (word) =>
 const wordVariants = (word) => {
   const variants = new Set([word]);
   if (word.endsWith("es") && word.length > 4) variants.add(word.slice(0, -2));
-  if (word.endsWith("s")  && word.length > 3) variants.add(word.slice(0, -1));
-  if (!word.endsWith("s"))                    variants.add(word + "s");
+  if (word.endsWith("s") && word.length > 3) variants.add(word.slice(0, -1));
+  if (!word.endsWith("s")) variants.add(word + "s");
   return [...variants];
 };
 
@@ -176,10 +234,12 @@ const wordsMatch = (qWord, pWord) => {
 
   for (const qv of qVariants) {
     for (const pv of pVariants) {
-      if (soundex(qv) === soundex(pv) && isSafePhoneticMatch(qv, pv)) return true;
+      if (soundex(qv) === soundex(pv) && isSafePhoneticMatch(qv, pv))
+        return true;
       const maxLen = Math.max(qv.length, pv.length);
       // Require stricter match: max 1 typo per 4 letters instead of 1 per 3
-      if (maxLen > 0 && levenshteinDistance(qv, pv) / maxLen <= 0.25) return true;
+      if (maxLen > 0 && levenshteinDistance(qv, pv) / maxLen <= 0.25)
+        return true;
     }
   }
 
@@ -195,10 +255,7 @@ const isSafePhoneticMatch = (leftWord, rightWord) => {
   // Short Soundex matches are noisy: "suit" and "set" both collapse to S300.
   // Require either a tighter edit distance or the same leading bigram.
   if (minLen <= 4) {
-    return (
-      distance <= 1 ||
-      leftWord.slice(0, 2) === rightWord.slice(0, 2)
-    );
+    return distance <= 1 || leftWord.slice(0, 2) === rightWord.slice(0, 2);
   }
 
   return (
@@ -262,7 +319,9 @@ const isCategoryFuzzyMatch = (normalisedQuery, normalisedCategoryName) => {
   if (normalisedQuery.includes(normalisedCategoryName)) return true;
 
   const queryWords = normalisedQuery.split(" ").filter((w) => w.length >= 3);
-  const catWords   = normalisedCategoryName.split(" ").filter((w) => w.length >= 3);
+  const catWords = normalisedCategoryName
+    .split(" ")
+    .filter((w) => w.length >= 3);
 
   for (const qWord of queryWords) {
     for (const cWord of catWords) {
@@ -345,18 +404,22 @@ const productMatchesStructuredFields = (product, normalisedQuery) => {
       if (!value) return false;
       const normVal = normalise(value);
       if (!normVal) return false;
-      
-      if (normVal === normalisedQuery || normVal.includes(normalisedQuery) || normalisedQuery.includes(normVal)) {
-          return true;
+
+      if (
+        normVal === normalisedQuery ||
+        normVal.includes(normalisedQuery) ||
+        normalisedQuery.includes(normVal)
+      ) {
+        return true;
       }
-      
+
       const tagWords = normVal.split(" ").filter((w) => w.length >= 2);
       for (const qWord of queryWords) {
         for (const tWord of tagWords) {
-           if (wordsMatch(qWord, tWord)) return true;
+          if (wordsMatch(qWord, tWord)) return true;
         }
       }
-      
+
       return false;
     });
   });
@@ -427,7 +490,13 @@ const valueMatchesAllQueryWords = (value, queryWords) => {
 
 const getProductColorValues = (product) =>
   Array.isArray(product?.variants)
-    ? [...new Set(product.variants.map((variant) => variant.color?.name).filter(Boolean))]
+    ? [
+        ...new Set(
+          product.variants
+            .map((variant) => variant.color?.name)
+            .filter(Boolean),
+        ),
+      ]
     : [];
 
 const getProductIntentWords = (product) =>
@@ -438,7 +507,11 @@ const getProductIntentWords = (product) =>
     getProductCategoryName(product),
     ...getProductColorValues(product),
     ...STRUCTURED_SEARCH_FIELDS.flatMap((field) =>
-      field === "colors" ? [] : Array.isArray(product[field]) ? product[field] : [],
+      field === "colors"
+        ? []
+        : Array.isArray(product[field])
+          ? product[field]
+          : [],
     ),
   ]);
 
@@ -449,8 +522,12 @@ const getProductIntentWords = (product) =>
 const hydrateSearchHits = async (rawHits) => {
   if (!rawHits?.length) return [];
 
-  const productIds  = rawHits.filter((h) => h.type === "product").map((h) => h.id);
-  const categoryIds = rawHits.filter((h) => h.type === "category").map((h) => h.id);
+  const productIds = rawHits
+    .filter((h) => h.type === "product")
+    .map((h) => h.id);
+  const categoryIds = rawHits
+    .filter((h) => h.type === "category")
+    .map((h) => h.id);
 
   const [products, categories] = await Promise.all([
     productIds.length
@@ -463,7 +540,7 @@ const hydrateSearchHits = async (rawHits) => {
       : [],
   ]);
 
-  const productMap  = new Map(products.map((p) => [p._id.toString(), p]));
+  const productMap = new Map(products.map((p) => [p._id.toString(), p]));
   const categoryMap = new Map(categories.map((c) => [c._id.toString(), c]));
 
   return rawHits

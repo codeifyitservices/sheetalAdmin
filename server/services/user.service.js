@@ -101,7 +101,13 @@ export const updateProfileService = async (
   return { success: true, data: updatedUser };
 };
 
-export const getAllUsersService = async ({ page, limit, search }) => {
+export const getAllUsersService = async ({
+  page,
+  limit,
+  search,
+  startDate,
+  endDate,
+}) => {
   const query = {
     role: { $in: ["user", "guest"] },
     ...(search && {
@@ -112,6 +118,22 @@ export const getAllUsersService = async ({ page, limit, search }) => {
       ],
     }),
   };
+
+  if (startDate || endDate) {
+    query.createdAt = {};
+
+    if (startDate) {
+      const start = new Date(startDate);
+      start.setHours(0, 0, 0, 0);
+      query.createdAt.$gte = start;
+    }
+
+    if (endDate) {
+      const end = new Date(endDate);
+      end.setHours(23, 59, 59, 999);
+      query.createdAt.$lte = end;
+    }
+  }
 
   const total = await User.countDocuments(query);
   const users = await User.find(query)
@@ -149,22 +171,30 @@ export const updateUserService = async (id, updateData) => {
 
 export const createUserService = async (data) => {
   const email =
-    typeof data.email === "string" ? data.email.trim().toLowerCase() : "";
+    typeof data.email === "string" && data.email.trim() !== ""
+      ? data.email.trim().toLowerCase()
+      : null;
   const phoneNumber =
-    typeof data.phoneNumber === "string" ? data.phoneNumber.trim() : "";
+    typeof data.phoneNumber === "string" && data.phoneNumber.trim() !== ""
+      ? data.phoneNumber.trim()
+      : null;
   const password =
     typeof data.password === "string" && data.password.trim() !== ""
       ? data.password.trim()
       : `temp_${crypto.randomBytes(12).toString("hex")}Aa1!`;
 
-  const existingUser = await User.findOne({ email });
-  if (existingUser)
-    return {
-      success: false,
-      statusCode: 400,
-      message: "Email already registered",
-    };
+  // Only check for existing email if one was actually provided
+  if (email) {
+    const existingUser = await User.findOne({ email });
+    if (existingUser)
+      return {
+        success: false,
+        statusCode: 400,
+        message: "Email already registered",
+      };
+  }
 
+  // Only check for existing phone if one was actually provided
   if (phoneNumber) {
     const existingPhoneUser = await User.findOne({ phoneNumber });
     if (existingPhoneUser) {
@@ -179,7 +209,7 @@ export const createUserService = async (data) => {
   const hashedPassword = await bcrypt.hash(password, 10);
   const newUser = await User.create({
     name: data.name?.trim(),
-    email,
+    ...(email ? { email } : {}),
     password: hashedPassword,
     ...(phoneNumber ? { phoneNumber } : {}),
     role: data.role || "user",
@@ -200,24 +230,46 @@ export const deleteUserService = async (id) => {
   return { success: true, message: "User account deleted successfully" };
 };
 
-export const getUserStatsService = async () => {
+export const getUserStatsService = async ({ startDate, endDate } = {}) => {
   const roleQuery = { role: { $in: ["user", "guest"] } };
-  const total = await User.countDocuments(roleQuery);
-  const active = await User.countDocuments({ ...roleQuery, status: "Active" });
+  const createdAt = {};
+
+  if (startDate) {
+    const start = new Date(startDate);
+    start.setHours(0, 0, 0, 0);
+    createdAt.$gte = start;
+  }
+
+  if (endDate) {
+    const end = new Date(endDate);
+    end.setHours(23, 59, 59, 999);
+    createdAt.$lte = end;
+  }
+
+  const filteredRoleQuery =
+    Object.keys(createdAt).length > 0
+      ? { ...roleQuery, createdAt }
+      : roleQuery;
+
+  const total = await User.countDocuments(filteredRoleQuery);
+  const active = await User.countDocuments({
+    ...filteredRoleQuery,
+    status: "Active",
+  });
   const inactive = await User.countDocuments({
-    ...roleQuery,
+    ...filteredRoleQuery,
     status: "Inactive",
   });
 
-  const startOfToday = new Date();
-  startOfToday.setHours(0, 0, 0, 0);
-  const endOfToday = new Date();
-  endOfToday.setHours(23, 59, 59, 999);
-
-  const today = await User.countDocuments({
-    ...roleQuery,
-    createdAt: { $gte: startOfToday, $lte: endOfToday },
-  });
+  const today = Object.keys(createdAt).length
+    ? total
+    : await User.countDocuments({
+        ...roleQuery,
+        createdAt: {
+          $gte: new Date(new Date().setHours(0, 0, 0, 0)),
+          $lte: new Date(new Date().setHours(23, 59, 59, 999)),
+        },
+      });
 
   return { success: true, data: { total, active, inactive, today } };
 };

@@ -4,6 +4,7 @@ import {
   getMyOrders,
   getSingleOrder,
   adminGetAllOrders,
+  adminGetOrderStats,
   updateOrderStatus,
   pushToShiprocket,
   assignAwb,
@@ -23,6 +24,9 @@ router.get("/my-orders", isAuthenticated, getMyOrders);
 router.get("/:id", isAuthenticated, getSingleOrder);
 
 // --- ADMIN ROUTES ---
+// Admin: Server-side order stats (replaces client-side 1000-order fetch)
+router.get("/admin/stats", isAuthenticated, isAdmin, adminGetOrderStats);
+
 // 3. Admin ko poori website ke saare orders dikhane ke liye
 router.get("/admin/all", isAuthenticated, isAdmin, adminGetAllOrders);
 

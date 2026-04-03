@@ -1,12 +1,13 @@
 import Enquiry from "../models/enquiry.model.js";
 import { sendAvailabilityEmail } from "../services/enquiry.service.js";
+import mongoose from "mongoose";
 
 // @desc    Submit an enquiry
 // @route   POST /api/v1/enquiries
 // @access  Public
 export const createEnquiry = async (req, res, next) => {
   try {
-    const { productName, size, name, email, phone, message } = req.body;
+    const { product, productName, size, name, email, phone, message } = req.body;
 
     if (!productName?.trim())
       return res.status(400).json({ success: false, message: "Product name is required" });
@@ -20,6 +21,8 @@ export const createEnquiry = async (req, res, next) => {
       return res.status(400).json({ success: false, message: "Phone is required" });
 
     const enquiry = await Enquiry.create({
+      product:
+        product && mongoose.Types.ObjectId.isValid(product) ? product : null,
       productName: productName.trim(),
       size:        size.trim(),
       name:        name.trim(),

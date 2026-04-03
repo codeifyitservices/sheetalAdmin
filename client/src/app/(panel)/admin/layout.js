@@ -34,7 +34,7 @@ export default function AdminLayout({ children }) {
       {/* Right Side */}
       <div className="flex-1 flex flex-col min-w-0">
         {/* TopNav */}
-        <div className="sticky top-0 z-30">
+        <div className="sticky top-0 z-30 print:hidden">
           <TopNav
             storeName="Admin"
             setIsOpen={setIsSidebarOpen}

@@ -12,6 +12,7 @@ import {
   Clock,
 } from "lucide-react";
 import PageHeader from "@/components/admin/layout/PageHeader";
+import AbandonedCartDetailsModal from "@/components/admin/sales/AbandonedCartDetailsModal";
 import { getAbandonedCarts } from "@/services/salesService";
 import { getPaginationRange } from "@/utils/pagination";
 
@@ -24,11 +25,14 @@ export default function AbandonedCartsPage() {
   const limitFromUrl = parseInt(searchParams.get("limit")) || 10;
   const pageFromUrl = parseInt(searchParams.get("page")) || 1;
 
-  const [limit, setLimit] = useState(LIMIT_OPTIONS.includes(limitFromUrl) ? limitFromUrl : 10);
+  const [limit, setLimit] = useState(
+    LIMIT_OPTIONS.includes(limitFromUrl) ? limitFromUrl : 10,
+  );
   const [currentPage, setCurrentPage] = useState(pageFromUrl);
   const [allCarts, setAllCarts] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [selectedCart, setSelectedCart] = useState(null);
   const [stats, setStats] = useState({
     total: 0,
     totalValue: 0,
@@ -45,16 +49,25 @@ export default function AbandonedCartsPage() {
       const data = res.data || [];
       setAllCarts(data);
 
-      const totalValue = data.reduce((sum, cart) => sum + Number(cart.cartValue || 0), 0);
+      const totalValue = data.reduce(
+        (sum, cart) => sum + Number(cart.cartValue || 0),
+        0,
+      );
       const oldest = data.reduce((max, cart) => {
-        const days = Math.floor((Date.now() - new Date(cart.lastUpdated)) / 86_400_000);
+        const days = Math.floor(
+          (Date.now() -
+            new Date(cart.abandonedAt || cart.lastActivityAt || Date.now())) /
+            86_400_000,
+        );
         return days > max ? days : max;
       }, 0);
 
       setStats({
         total: data.length,
         totalValue: Math.round(totalValue * 100) / 100,
-        avgValue: data.length ? Math.round((totalValue / data.length) * 100) / 100 : 0,
+        avgValue: data.length
+          ? Math.round((totalValue / data.length) * 100) / 100
+          : 0,
         oldestDays: oldest,
       });
     } catch (err) {
@@ -68,7 +81,8 @@ export default function AbandonedCartsPage() {
     fetchData();
   }, [fetchData]);
 
-  const syncUrl = (l, p) => router.replace(`/admin/sales-report/abandoned-carts?limit=${l}&page=${p}`);
+  const syncUrl = (l, p) =>
+    router.replace(`/admin/sales-report/abandoned-carts?limit=${l}&page=${p}`);
   const handleLimitChange = (l) => {
     setLimit(l);
     setCurrentPage(1);
@@ -80,13 +94,16 @@ export default function AbandonedCartsPage() {
   };
 
   const totalPages = Math.ceil(allCarts.length / limit);
-  const paginatedCarts = allCarts.slice((currentPage - 1) * limit, currentPage * limit);
+  const paginatedCarts = allCarts.slice(
+    (currentPage - 1) * limit,
+    currentPage * limit,
+  );
 
   return (
     <div className="min-h-screen w-full animate-in fade-in duration-500">
       <PageHeader
         title="Abandoned Carts"
-        subtitle="Customers whose carts have not been updated in the last 3 days"
+        subtitle="Customers currently in the abandoned-cart recovery flow"
         action={
           <button
             onClick={fetchData}
@@ -100,10 +117,30 @@ export default function AbandonedCartsPage() {
       />
 
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
-        <StatCard title="Abandoned Carts" value={stats.total} icon={<ShoppingCart size={20} />} color="rose" />
-        <StatCard title="Total Cart Value" value={`₹${stats.totalValue.toLocaleString()}`} icon={<IndianRupee size={20} />} color="amber" />
-        <StatCard title="Avg Cart Value" value={`₹${stats.avgValue.toLocaleString()}`} icon={<Users size={20} />} color="indigo" />
-        <StatCard title="Oldest Cart" value={stats.oldestDays ? `${stats.oldestDays}d ago` : "—"} icon={<Clock size={20} />} color="slate" />
+        <StatCard
+          title="Abandoned Carts"
+          value={stats.total}
+          icon={<ShoppingCart size={20} />}
+          color="rose"
+        />
+        <StatCard
+          title="Total Cart Value"
+          value={`₹ ${stats.totalValue.toLocaleString()}`}
+          icon={<IndianRupee size={20} />}
+          color="amber"
+        />
+        <StatCard
+          title="Avg Cart Value"
+          value={`₹ ${stats.avgValue.toLocaleString()}`}
+          icon={<Users size={20} />}
+          color="indigo"
+        />
+        <StatCard
+          title="Oldest Cart"
+          value={stats.oldestDays ? `${stats.oldestDays}d ago` : "—"}
+          icon={<Clock size={20} />}
+          color="slate"
+        />
       </div>
 
       <div className="bg-white border border-slate-200 rounded-xl shadow-sm overflow-hidden">
@@ -132,7 +169,9 @@ export default function AbandonedCartsPage() {
         {loading ? (
           <div className="flex flex-col items-center justify-center py-20 gap-3">
             <Loader2 size={24} className="animate-spin text-indigo-500" />
-            <p className="text-sm font-semibold text-slate-400">Loading carts…</p>
+            <p className="text-sm font-semibold text-slate-400">
+              Loading carts…
+            </p>
           </div>
         ) : error ? (
           <div className="flex flex-col items-center justify-center py-20 gap-3">
@@ -150,16 +189,28 @@ export default function AbandonedCartsPage() {
             <div className="bg-slate-50 rounded-2xl p-4">
               <ShoppingCart size={28} className="text-slate-300" />
             </div>
-            <p className="text-sm font-semibold text-slate-400">No abandoned carts</p>
+            <p className="text-sm font-semibold text-slate-400">
+              No abandoned carts
+            </p>
           </div>
         ) : (
           <>
             <div className="grid grid-cols-12 px-6 py-3 bg-slate-50 border-b border-slate-100">
-              <div className="col-span-1 text-[10px] font-black text-slate-400 uppercase tracking-widest">#</div>
-              <div className="col-span-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">Customer</div>
-              <div className="col-span-2 text-[10px] font-black text-slate-400 uppercase tracking-widest">Items</div>
-              <div className="col-span-2 text-[10px] font-black text-slate-400 uppercase tracking-widest">Cart Value</div>
-              <div className="col-span-2 text-[10px] font-black text-slate-400 uppercase tracking-widest">Abandoned</div>
+              <div className="col-span-1 text-[10px] font-black text-slate-400 uppercase tracking-widest">
+                #
+              </div>
+              <div className="col-span-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">
+                Customer
+              </div>
+              <div className="col-span-2 text-[10px] font-black text-slate-400 uppercase tracking-widest">
+                Items
+              </div>
+              <div className="col-span-2 text-[10px] font-black text-slate-400 uppercase tracking-widest">
+                Cart Value
+              </div>
+              <div className="col-span-2 text-[10px] font-black text-slate-400 uppercase tracking-widest">
+                Abandoned
+              </div>
             </div>
 
             {paginatedCarts.map((cart, idx) => (
@@ -167,6 +218,7 @@ export default function AbandonedCartsPage() {
                 key={`${cart.email}-${cart.cartId}`}
                 cart={cart}
                 index={(currentPage - 1) * limit + idx + 1}
+                onOpen={() => setSelectedCart(cart)}
               />
             ))}
           </>
@@ -175,7 +227,9 @@ export default function AbandonedCartsPage() {
         {!loading && !error && allCarts.length > 0 && (
           <div className="p-6 bg-slate-50/50 border-t border-slate-100 flex flex-col sm:flex-row items-center justify-between gap-6">
             <div className="flex items-center gap-3 bg-white px-3 py-1.5 rounded-xl border border-slate-200">
-              <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Rows</span>
+              <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">
+                Rows
+              </span>
               <select
                 value={limit}
                 onChange={(e) => handleLimitChange(Number(e.target.value))}
@@ -190,13 +244,18 @@ export default function AbandonedCartsPage() {
             </div>
 
             <span className="text-xs font-bold text-slate-400">
-              {(currentPage - 1) * limit + 1}â€“{Math.min(currentPage * limit, allCarts.length)} of {allCarts.length}
+              {(currentPage - 1) * limit + 1}-
+              {Math.min(currentPage * limit, allCarts.length)} of{" "}
+              {allCarts.length}
             </span>
 
             <div className="flex items-center gap-1">
               {getPaginationRange(currentPage, totalPages).map((page, i) =>
                 page === "..." ? (
-                  <span key={`e-${i}`} className="h-9 min-w-9 flex items-center justify-center text-xs font-black text-slate-400">
+                  <span
+                    key={`e-${i}`}
+                    className="h-9 min-w-9 flex items-center justify-center text-xs font-black text-slate-400"
+                  >
                     ...
                   </span>
                 ) : (
@@ -217,15 +276,27 @@ export default function AbandonedCartsPage() {
           </div>
         )}
       </div>
+
+      <AbandonedCartDetailsModal
+        cart={selectedCart}
+        isOpen={Boolean(selectedCart)}
+        onClose={() => setSelectedCart(null)}
+      />
     </div>
   );
 }
 
-function CartRow({ cart, index }) {
+function CartRow({ cart, index, onOpen }) {
   return (
-    <div className="grid grid-cols-12 items-center px-6 py-4 border-b border-slate-50 hover:bg-slate-50/60 transition-colors">
+    <button
+      type="button"
+      onClick={onOpen}
+      className="grid w-full grid-cols-12 items-center border-b border-slate-50 px-6 py-4 text-left transition-colors hover:bg-slate-50/60"
+    >
       <div className="col-span-1">
-        <span className="text-xs font-black text-slate-300">{String(index).padStart(2, "0")}</span>
+        <span className="text-xs font-black text-slate-300">
+          {String(index).padStart(2, "0")}
+        </span>
       </div>
 
       <div className="col-span-4 flex items-center gap-3 min-w-0">
@@ -248,8 +319,12 @@ function CartRow({ cart, index }) {
           {cart.initials}
         </div>
         <div className="min-w-0">
-          <p className="text-sm font-bold text-slate-800 truncate">{cart.email}</p>
-          <p className="text-xs text-slate-400 font-medium truncate">{cart.name}</p>
+          <p className="text-sm font-bold text-slate-800 truncate">
+            {cart.email}
+          </p>
+          <p className="text-xs text-slate-400 font-medium truncate">
+            {cart.name}
+          </p>
         </div>
       </div>
 
@@ -273,14 +348,16 @@ function CartRow({ cart, index }) {
             whiteSpace: "nowrap",
           }}
         >
-          ₹{cart.cartValue.toFixed(2)}
+          Rs. {cart.cartValue.toFixed(2)}
         </span>
       </div>
 
       <div className="col-span-2">
-        <span className="text-xs font-semibold text-slate-400">{cart.date}</span>
+        <span className="text-xs font-semibold text-slate-400">
+          {cart.date}
+        </span>
       </div>
-    </div>
+    </button>
   );
 }
 
@@ -294,7 +371,9 @@ function StatCard({ title, value, icon, color }) {
 
   return (
     <div className="bg-white p-5 border border-slate-200 rounded-xl flex items-center gap-4 hover:shadow-md transition-shadow duration-300">
-      <div className={`p-3 rounded-lg border shrink-0 ${colors[color]}`}>{icon}</div>
+      <div className={`p-3 rounded-lg border shrink-0 ${colors[color]}`}>
+        {icon}
+      </div>
       <div className="min-w-0">
         <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest leading-none">
           {title}

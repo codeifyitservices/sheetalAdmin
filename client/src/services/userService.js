@@ -10,13 +10,24 @@ export const getUserById = async (id) => {
   return data;
 };
 
-export const getUsers = async (page = 1, limit = 10, search = "") => {
-  const res = await fetch(
-    `${API_BASE_URL}/users/admin/all?page=${page}&limit=${limit}&search=${search}`,
-    {
-      credentials: "include",
-    },
-  );
+export const getUsers = async (
+  page = 1,
+  limit = 10,
+  search = "",
+  startDate = "",
+  endDate = "",
+) => {
+  const query = new URLSearchParams({
+    page: String(page),
+    limit: String(limit),
+    search,
+  });
+  if (startDate) query.set("startDate", startDate);
+  if (endDate) query.set("endDate", endDate);
+
+  const res = await fetch(`${API_BASE_URL}/users/admin/all?${query}`, {
+    credentials: "include",
+  });
   if (!res.ok) {
     const err = await res.json();
     throw new Error(err.message || "Failed to fetch users");
@@ -61,8 +72,16 @@ export const deleteUser = async (id) => {
   return true;
 };
 
-export const getUserStats = async () => {
-  const res = await fetch(`${API_BASE_URL}/users/admin/stats`, {
+export const getUserStats = async (startDate = "", endDate = "") => {
+  const query = new URLSearchParams();
+  if (startDate) query.set("startDate", startDate);
+  if (endDate) query.set("endDate", endDate);
+
+  const url = query.toString()
+    ? `${API_BASE_URL}/users/admin/stats?${query}`
+    : `${API_BASE_URL}/users/admin/stats`;
+
+  const res = await fetch(url, {
     credentials: "include",
   });
   if (!res.ok) {

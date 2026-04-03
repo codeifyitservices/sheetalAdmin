@@ -9,6 +9,7 @@ import {
   Tooltip,
   ResponsiveContainer,
 } from "recharts";
+import { ChevronLeft, ChevronRight } from "lucide-react";
 import { getChartData } from "@/services/salesService";
 
 const LINES = {
@@ -65,8 +66,9 @@ function SkeletonChart() {
   );
 }
 
-export default function SalesRevenueChart({ onPeriodChange }) {
+export default function SalesRevenueChart({ onPeriodChange, onDataChange }) {
   const [period, setPeriod] = useState("weekly");
+  const [refDate, setRefDate] = useState(new Date());
   const [activeLine, setActiveLine] = useState("sales");
   const [chartData, setChartData] = useState([]);
   const [totals, setTotals] = useState({ sales: 0, revenue: 0 });
@@ -75,14 +77,54 @@ export default function SalesRevenueChart({ onPeriodChange }) {
 
   const handlePeriodChange = (p) => {
     setPeriod(p);
+    setRefDate(new Date());
     onPeriodChange?.(p);
+  };
+
+  const handlePrev = () => {
+    const d = new Date(refDate);
+    if (period === "weekly") d.setDate(d.getDate() - 1);
+    else if (period === "monthly") d.setDate(d.getDate() - 7);
+    else d.setMonth(d.getMonth() - 1);
+    setRefDate(d);
+  };
+
+  const handleNext = () => {
+    const d = new Date(refDate);
+    if (period === "weekly") d.setDate(d.getDate() + 1);
+    else if (period === "monthly") d.setDate(d.getDate() + 7);
+    else d.setMonth(d.getMonth() + 1);
+    
+    // Cap at current date
+    if (d > new Date()) setRefDate(new Date());
+    else setRefDate(d);
+  };
+
+  const isAtLatest = refDate.toDateString() === new Date().toDateString() || refDate > new Date();
+
+  const getDateRangeLabel = () => {
+    const d2 = new Date(refDate);
+    const d1 = new Date(refDate);
+    if (period === "weekly") {
+      d1.setDate(d1.getDate() - 6);
+    } else if (period === "monthly") {
+      d1.setDate(d1.getDate() - 27);
+    } else if (period === "yearly") {
+      d1.setMonth(d1.getMonth() - 11);
+      d1.setDate(1);
+    }
+    
+    if (period === "yearly") {
+      return `${d1.toLocaleDateString("en-US", { month: "short", year: "numeric" })} - ${d2.toLocaleDateString("en-US", { month: "short", year: "numeric" })}`;
+    }
+    return `${d1.toLocaleDateString("en-US", { month: "short", day: "numeric" })} - ${d2.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}`;
   };
 
   const fetchData = useCallback(async () => {
     setLoading(true);
     setError(null);
     try {
-      const res = await getChartData({ period });
+      const res = await getChartData({ period, refDate: refDate.toISOString() });
       if (res.success) {
         const raw = res.data || [];
         // Recharts needs ≥2 points to draw a line.
@@ -102,14 +144,25 @@ export default function SalesRevenueChart({ onPeriodChange }) {
     } finally {
       setLoading(false);
     }
-  }, [period]);
+  }, [period, refDate]);
 
   useEffect(() => {
     fetchData();
   }, [fetchData]);
 
+  useEffect(() => {
+    onDataChange?.({
+      period,
+      refDate: refDate.toISOString(),
+      data: chartData,
+      totals,
+      loading,
+      error,
+    });
+  }, [chartData, error, loading, onDataChange, period, refDate, totals]);
+
   return (
-    <div className="bg-white rounded-2xl border border-slate-200 p-6 shadow-sm h-full">
+    <div id="sales-revenue-chart-export" className="bg-white rounded-2xl border border-slate-200 p-6 shadow-sm h-full">
       {/* Header */}
       <div className="flex items-start justify-between mb-5">
         <div>
@@ -121,21 +174,35 @@ export default function SalesRevenueChart({ onPeriodChange }) {
           </p>
         </div>
 
-        {/* Period toggle */}
-        <div className="flex items-center bg-slate-100 rounded-lg p-0.5 gap-0.5">
-          {PERIODS.map((p) => (
-            <button
-              key={p.key}
-              onClick={() => handlePeriodChange(p.key)}
-              className={`px-3 cursor-pointer py-1.5 rounded-md text-xs font-semibold transition-all ${
-                period === p.key
-                  ? "bg-white text-indigo-600 shadow-sm"
-                  : "text-slate-500 hover:text-slate-700"
-              }`}
-            >
-              {p.label}
-            </button>
-          ))}
+        {/* Date Selector + Period toggle */}
+        <div className="flex items-center gap-3">
+          <div className="flex items-center gap-1 bg-white border border-slate-200 shadow-sm rounded-lg p-0.5">
+             <button onClick={handlePrev} className="p-1 cursor-pointer hover:bg-slate-50 rounded transition text-slate-400 hover:text-slate-700">
+                <ChevronLeft size={16} strokeWidth={2.5} />
+             </button>
+             <span className="text-[11px] font-bold text-slate-600 px-1 min-w-[125px] text-center">
+                {getDateRangeLabel()}
+             </span>
+             <button onClick={handleNext} disabled={isAtLatest} className="p-1 cursor-pointer hover:bg-slate-50 rounded transition text-slate-400 hover:text-slate-700 disabled:opacity-30 disabled:cursor-auto disabled:hover:bg-transparent">
+                <ChevronRight size={16} strokeWidth={2.5} />
+             </button>
+          </div>
+
+          <div className="flex items-center bg-slate-100 rounded-lg p-0.5 gap-0.5">
+            {PERIODS.map((p) => (
+              <button
+                key={p.key}
+                onClick={() => handlePeriodChange(p.key)}
+                className={`px-3 cursor-pointer py-1.5 rounded-md text-xs font-semibold transition-all ${
+                  period === p.key
+                    ? "bg-white text-indigo-600 shadow-sm"
+                    : "text-slate-500 hover:text-slate-700"
+                }`}
+              >
+                {p.label}
+              </button>
+            ))}
+          </div>
         </div>
       </div>
 
@@ -184,14 +251,14 @@ export default function SalesRevenueChart({ onPeriodChange }) {
             Retry
           </button>
         </div>
-      ) : loading ? (
+      ) : loading && chartData.length === 0 ? (
         <SkeletonChart />
       ) : chartData.length === 0 ? (
         <div className="h-[200px] flex items-center justify-center text-xs text-slate-400">
           No data for this period
         </div>
       ) : (
-        <div className="h-[200px] cursor-crosshair">
+        <div className={`h-[200px] cursor-crosshair transition-opacity duration-300 ${loading ? "opacity-50 pointer-events-none" : "opacity-100"}`}>
           <ResponsiveContainer width="100%" height="100%">
             <AreaChart
               data={chartData}
