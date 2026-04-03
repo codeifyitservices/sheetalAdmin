@@ -1,6 +1,7 @@
 import Review from "../models/review.model.js";
 import Product from "../models/product.model.js";
 import Order from "../models/order.model.js";
+import ProductView from "../models/productView.model.js";
 import slugify from "slugify";
 import Category from "../models/category.model.js";
 import { deleteFile, deleteS3File, uploadS3File } from "../utils/fileHelper.js";
@@ -18,6 +19,8 @@ import {
   sanitizeProductRecord,
 } from "../utils/productHtmlSanitizer.js";
 import { spreadsheetCellToHtml } from "../utils/spreadsheetRichText.js";
+import Enquiry from "../models/enquiry.model.js";
+import { sendAvailabilityEmail } from "./enquiry.service.js";
 
 const buildUploadedImage = (file, alt) => ({
   url: file.location || file.path,
@@ -273,7 +276,7 @@ export const getAllProductsService = async (queryStr) => {
                     in: {
                       $and: [
                         { $lte: ["$$size.stock", "$_threshold"] },
-                        { $gt: ["$$size.stock", 0] },
+                        { $gte: ["$$size.stock", 0] },
                       ],
                     },
                   },
@@ -780,6 +783,83 @@ export const updateProductService = async (id, data, files) => {
   // Sync to n-gram search index
   await syncToIndex(updatedProduct, "product");
 
+  // Handle back-in-stock notifications
+  try {
+    const previousSizes = new Map();
+    if (product.variants && Array.isArray(product.variants)) {
+      product.variants.forEach((v) => {
+        if (Array.isArray(v.sizes)) {
+          v.sizes.forEach((s) => {
+            if (s.name) {
+              previousSizes.set(
+                s.name,
+                (previousSizes.get(s.name) || 0) + (Number(s.stock) || 0),
+              );
+            }
+          });
+        }
+      });
+    }
+
+    const newSizes = new Map();
+    if (parsedData.variants && Array.isArray(parsedData.variants)) {
+      parsedData.variants.forEach((v) => {
+        if (Array.isArray(v.sizes)) {
+          v.sizes.forEach((s) => {
+            if (s.name) {
+              newSizes.set(
+                s.name,
+                (newSizes.get(s.name) || 0) + (Number(s.stock) || 0),
+              );
+            }
+          });
+        }
+      });
+    }
+
+    const backInStockSizeNames = [];
+    for (const [sizeName, newStock] of newSizes.entries()) {
+      const oldStock = previousSizes.get(sizeName) || 0;
+      if (oldStock <= 0 && newStock > 0) {
+        backInStockSizeNames.push(sizeName);
+      }
+    }
+
+      if (backInStockSizeNames.length > 0) {
+        const unrepliedEnquiries = await Enquiry.find({
+          $or: [
+            { product: updatedProduct._id },
+            { product: null, productName: updatedProduct.name },
+          ],
+          size: { $in: backInStockSizeNames },
+          status: { $ne: "replied" },
+        });
+
+      for (const enquiry of unrepliedEnquiries) {
+        try {
+          // Send email
+          await sendAvailabilityEmail({
+            name: enquiry.name,
+            email: enquiry.email,
+            productName: enquiry.productName,
+            size: enquiry.size,
+          });
+
+          // Only update if email actually succeeds
+          enquiry.status = "replied";
+          await enquiry.save();
+        } catch (err) {
+          console.error(
+            `Failed to send availability email to ${enquiry.email}:`,
+            err,
+          );
+        }
+      }
+    }
+  } catch (error) {
+    console.error("Error processing back in stock notifications:", error);
+  }
+
   return { success: true, product: sanitizeProductRecord(updatedProduct) };
 };
 
@@ -836,11 +916,11 @@ export const getLowStockProductsService = async () => {
     { $unwind: "$variants" },
     { $unwind: "$variants.sizes" },
     {
-      // Match sizes where stock is above 0 but at or below the product's own threshold
+      // Match sizes where stock is at or below the product's own threshold
       $match: {
         $expr: {
           $and: [
-            { $gt: ["$variants.sizes.stock", 0] },
+            { $gte: ["$variants.sizes.stock", 0] },
             { $lte: ["$variants.sizes.stock", "$threshold"] },
           ],
         },
@@ -2143,7 +2223,122 @@ export const incrementViewCountService = async (id) => {
   if (!product) {
     return { success: false, statusCode: 404 };
   }
+
+  await ProductView.create({ product: product._id });
+
   return { success: true };
+};
+
+const getPeriodDateRange = (period = "overall", refDateValue) => {
+  if (period === "overall") return null;
+
+  const end = refDateValue ? new Date(refDateValue) : new Date();
+  const start = new Date(end);
+
+  if (period === "monthly") {
+    start.setDate(start.getDate() - 27);
+  } else if (period === "yearly") {
+    start.setMonth(start.getMonth() - 11);
+    start.setDate(1);
+  } else {
+    start.setDate(start.getDate() - 6);
+  }
+
+  start.setHours(0, 0, 0, 0);
+  end.setHours(23, 59, 59, 999);
+
+  return { $gte: start, $lte: end };
+};
+
+export const getMostViewedProductsService = async ({
+  limit = 10,
+  period = "overall",
+  refDate,
+} = {}) => {
+  const normalizedLimit = Math.min(Math.max(Number(limit) || 10, 1), 50);
+
+  if (period === "overall") {
+    const products = await Product.find({ status: "Active" })
+      .sort({ viewCount: -1 })
+      .limit(normalizedLimit)
+      .select("name viewCount category slug mainImage status")
+      .populate("category", "name")
+      .lean();
+
+    return products.map((p, i) => ({
+      rank: i + 1,
+      name: p.name,
+      slug: p.slug,
+      category: p.category?.name || "Uncategorized",
+      views: p.viewCount || 0,
+      image: p.mainImage?.url || null,
+    }));
+  }
+
+  const viewedAt = getPeriodDateRange(period, refDate);
+  const items = await ProductView.aggregate([
+    {
+      $match: {
+        ...(viewedAt ? { viewedAt } : {}),
+      },
+    },
+    {
+      $group: {
+        _id: "$product",
+        views: { $sum: 1 },
+      },
+    },
+    { $sort: { views: -1, _id: 1 } },
+    { $limit: normalizedLimit },
+    {
+      $lookup: {
+        from: Product.collection.name,
+        localField: "_id",
+        foreignField: "_id",
+        as: "product",
+      },
+    },
+    {
+      $unwind: {
+        path: "$product",
+        preserveNullAndEmptyArrays: false,
+      },
+    },
+    {
+      $match: {
+        "product.status": "Active",
+      },
+    },
+    {
+      $lookup: {
+        from: "categories",
+        localField: "product.category",
+        foreignField: "_id",
+        as: "category",
+      },
+    },
+    {
+      $unwind: {
+        path: "$category",
+        preserveNullAndEmptyArrays: true,
+      },
+    },
+    {
+      $project: {
+        _id: 0,
+        name: "$product.name",
+        slug: "$product.slug",
+        category: { $ifNull: ["$category.name", "Uncategorized"] },
+        views: 1,
+        image: "$product.mainImage.url",
+      },
+    },
+  ]);
+
+  return items.map((item, index) => ({
+    rank: index + 1,
+    ...item,
+  }));
 };
 
 export const getTrendingProductsService = async () => {

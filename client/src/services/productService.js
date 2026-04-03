@@ -129,8 +129,15 @@ export const getProducts = async (
   };
 
   // Admin dashboard
-  export const getMostViewedProducts = async (limit = 5 ) => {
-    const res = await fetch(`${API_BASE_URL}/products/admin/most-viewed?limit=${limit}`, {
+  export const getMostViewedProducts = async (
+    limit = 5,
+    period = "overall",
+    refDate = "",
+  ) => {
+    const query = new URLSearchParams({ limit: String(limit), period });
+    if (refDate) query.set("refDate", refDate);
+
+    const res = await fetch(`${API_BASE_URL}/products/admin/most-viewed?${query}`, {
       credentials: "include",
     });
     const data = await res.json();

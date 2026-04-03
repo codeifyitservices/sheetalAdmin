@@ -33,6 +33,24 @@ export const changePassword = async (req, res, next) => {
 
 export const getAdminDashboardStats = async (req, res, next) => {
   try {
+    const { startDate, endDate } = req.query;
+
+    const dateMatchUser = { role: "user" };
+    const dateMatchOrder = {};
+    const hasDateRange = startDate || endDate;
+
+    if (hasDateRange) {
+      const createdAt = {};
+      if (startDate) createdAt.$gte = new Date(startDate);
+      if (endDate) {
+        const end = new Date(endDate);
+        end.setHours(23, 59, 59, 999);
+        createdAt.$lte = end;
+      }
+      dateMatchUser.createdAt = createdAt;
+      dateMatchOrder.createdAt = createdAt;
+    }
+
     const todayStart = new Date();
     todayStart.setHours(0, 0, 0, 0);
 
@@ -40,22 +58,20 @@ export const getAdminDashboardStats = async (req, res, next) => {
     todayEnd.setHours(23, 59, 59, 999);
 
     const [
-      totalUsers,
-      activeUsers,
+      newUsers,
       totalOrders,
       todayOrders,
       totalProducts,
       latestUsers,
       stockData,
     ] = await Promise.all([
-      User.countDocuments({ role: "user" }),
-      User.countDocuments({ role: "user", status: "Active" }),
-      Order.countDocuments(),
+      User.countDocuments(dateMatchUser),
+      Order.countDocuments(dateMatchOrder),
       Order.countDocuments({
         createdAt: { $gte: todayStart, $lte: todayEnd },
       }),
       Product.countDocuments(),
-      User.find({ role: "user" })
+      User.find(dateMatchUser)
         .sort({ createdAt: -1 })
         .limit(5)
         .select("name email createdAt"),
@@ -69,8 +85,7 @@ export const getAdminDashboardStats = async (req, res, next) => {
     return res.status(200).json({
       success: true,
       data: {
-        totalUsers,
-        activeUsers,
+        newUsers,
         totalOrders,
         todayOrders,
         totalProducts,

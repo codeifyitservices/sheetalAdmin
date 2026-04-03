@@ -1,7 +1,15 @@
 import { API_BASE_URL } from "./api";
 
-export const getDashboardStats = async () => {
-  const res = await fetch(`${API_BASE_URL}/admin/dashboard-stats`, {
+export const getDashboardStats = async (startDate, endDate) => {
+  const query = new URLSearchParams();
+  if (startDate) query.set("startDate", startDate);
+  if (endDate) query.set("endDate", endDate);
+
+  const url = query.toString()
+    ? `${API_BASE_URL}/admin/dashboard-stats?${query}`
+    : `${API_BASE_URL}/admin/dashboard-stats`;
+
+  const res = await fetch(url, {
     credentials: "include",
   });
 

@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useState, useMemo } from "react";
+import { useEffect, useState, useMemo, useCallback } from "react";
 import {
   Eye,
   Edit3,
@@ -22,7 +22,10 @@ import ViewOrderDrawer from "./ViewOrderDrawer";
 import CreateOrderModal from "./CreateOrderModal";
 import { getAllOrders, assignAwb } from "@/services/orderService";
 
-export default function OrderTable({ refreshStats }) {
+export default function OrderTable({
+  dateRange,
+  onDateRangeChange,
+}) {
   const [orders, setOrders] = useState([]);
   const [loading, setLoading] = useState(false);
   const [search, setSearch] = useState("");
@@ -41,14 +44,16 @@ export default function OrderTable({ refreshStats }) {
   const [showDrawer, setShowDrawer] = useState(false);
   const [awbLoading, setAwbLoading] = useState(null); // stores orderId currently being assigned
 
-  useEffect(() => {
-    fetchOrders();
-  }, []);
-
-  const fetchOrders = async (isRefresh = false) => {
+  const fetchOrders = useCallback(async (isRefresh = false) => {
     setLoading(true);
     try {
-      const res = await getAllOrders();
+      const res = await getAllOrders(
+        1,
+        1000,
+        "",
+        dateRange?.startDate || "",
+        dateRange?.endDate || "",
+      );
       if (res.success) {
         setOrders(res.data.orders);
         if (refreshStats) refreshStats();
@@ -59,7 +64,11 @@ export default function OrderTable({ refreshStats }) {
     } finally {
       setLoading(false);
     }
-  };
+  }, [dateRange?.endDate, dateRange?.startDate]);
+
+  useEffect(() => {
+    fetchOrders();
+  }, [fetchOrders]);
 
   const handleAssignAwb = async (orderId) => {
     setAwbLoading(orderId);
@@ -154,6 +163,43 @@ export default function OrderTable({ refreshStats }) {
             <option value="Delivered">Delivered</option>
             <option value="Cancelled">Cancelled</option>
           </select>
+
+          <input
+            type="date"
+            value={dateRange?.startDate || ""}
+            onChange={(e) =>
+              onDateRangeChange?.((prev) => ({
+                ...prev,
+                startDate: e.target.value,
+              }))
+            }
+            className="border border-slate-200 rounded-xl px-3 py-2.5 text-sm font-medium text-slate-600 bg-slate-50 outline-none hover:bg-white transition-all"
+          />
+
+          <input
+            type="date"
+            value={dateRange?.endDate || ""}
+            min={dateRange?.startDate || undefined}
+            onChange={(e) =>
+              onDateRangeChange?.((prev) => ({
+                ...prev,
+                endDate: e.target.value,
+              }))
+            }
+            className="border border-slate-200 rounded-xl px-3 py-2.5 text-sm font-medium text-slate-600 bg-slate-50 outline-none hover:bg-white transition-all"
+          />
+
+          {(dateRange?.startDate || dateRange?.endDate) && (
+            <button
+              type="button"
+              onClick={() =>
+                onDateRangeChange?.({ startDate: "", endDate: "" })
+              }
+              className="px-3 py-2.5 text-sm font-bold text-slate-500 hover:text-slate-900 hover:bg-slate-100 rounded-xl transition-all"
+            >
+              Clear Dates
+            </button>
+          )}
 
           <button
             onClick={() => fetchOrders(true)}

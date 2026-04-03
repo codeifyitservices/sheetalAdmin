@@ -18,7 +18,6 @@ export default function EnquiryModal({
   onClose,
   onStatusChange,
   onDelete,
-  onSendAvailability,
   pendingAction,
   type = "notify",
 }) {
@@ -103,18 +102,7 @@ export default function EnquiryModal({
             })}
           </div>
 
-          {type !== "contact" && (
-            <button
-              onClick={() => onSendAvailability(enquiry)}
-              disabled={isAreaLocked}
-              className="w-full cursor-pointer flex items-center justify-center gap-2 border border-emerald-200 text-emerald-600 hover:bg-emerald-500 hover:text-white py-2.5 rounded-xl text-xs font-bold transition-all disabled:opacity-50"
-            >
-              {isThisEnquiry && pendingAction.action === "send" ? (
-                <Loader2 size={13} className="animate-spin" />
-              ) : <Mail size={13} />}
-              Send Availability Email
-            </button>
-          )}
+
 
           <button
             onClick={() => onDelete(enquiry._id)}

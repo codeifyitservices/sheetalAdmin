@@ -14,13 +14,16 @@ export default function EnquiryFilters({
 }) {
   return (
     <div className="bg-white border border-slate-200 rounded-3xl p-6 shadow-sm">
-      <div className="mb-5">
-        <h3 className="text-sm font-black text-slate-900 uppercase">
-          {title}
-        </h3>
-        <p className="text-[10px] text-slate-500 mt-0.5">
-          {count} {count !== 1 ? pluralLabel : singularLabel} found
-        </p>
+      <div className="mb-5 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+        <div>
+          <h3 className="text-sm font-black text-slate-900 uppercase">
+            {title}
+          </h3>
+          <p className="text-[10px] text-slate-500 mt-0.5">
+            {count} {count !== 1 ? pluralLabel : singularLabel} found
+          </p>
+        </div>
+        
       </div>
       <div className="flex flex-col sm:flex-row gap-3">
         <div className="relative flex-1">

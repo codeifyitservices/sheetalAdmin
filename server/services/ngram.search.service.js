@@ -212,8 +212,8 @@ const levenshteinDistance = (a, b) => {
           ? matrix[i - 1][j - 1]
           : Math.min(
               matrix[i - 1][j - 1] + 1, // substitution
-              matrix[i][j - 1] + 1,      // insertion
-              matrix[i - 1][j] + 1,      // deletion
+              matrix[i][j - 1] + 1, // insertion
+              matrix[i - 1][j] + 1, // deletion
             );
     }
   }
@@ -274,11 +274,23 @@ const soundex = (word) => {
   if (!word || word.length === 0) return "";
 
   const map = {
-    b: 1, f: 1, p: 1, v: 1,
-    c: 2, g: 2, j: 2, k: 2, q: 2, s: 2, x: 2, z: 2,
-    d: 3, t: 3,
+    b: 1,
+    f: 1,
+    p: 1,
+    v: 1,
+    c: 2,
+    g: 2,
+    j: 2,
+    k: 2,
+    q: 2,
+    s: 2,
+    x: 2,
+    z: 2,
+    d: 3,
+    t: 3,
     l: 4,
-    m: 5, n: 5,
+    m: 5,
+    n: 5,
     r: 6,
   };
 
@@ -415,10 +427,7 @@ const getInfixPositionBonus = (normalisedQuery, normalisedName) => {
     if (matchIndex > 0) {
       const baseBonus = queryLen >= 5 ? 240 : 180;
       const positionalPenalty = Math.min(matchIndex, 6) * 10;
-      maxBonus = Math.max(
-        maxBonus,
-        baseBonus - index * 40 - positionalPenalty,
-      );
+      maxBonus = Math.max(maxBonus, baseBonus - index * 40 - positionalPenalty);
     }
   });
 
@@ -648,7 +657,8 @@ const hydrateIndex = async () => {
       });
 
       primaryWords.forEach((word) => {
-        if (!stagingPrimaryWordIndex.has(word)) stagingPrimaryWordIndex.set(word, new Set());
+        if (!stagingPrimaryWordIndex.has(word))
+          stagingPrimaryWordIndex.set(word, new Set());
         stagingPrimaryWordIndex.get(word).add(doc.id);
       });
 
@@ -888,8 +898,14 @@ export const searchNgram = async (query, options = {}) => {
       const { doc } = entry;
       let boostedScore = score;
       const normalisedName = normalise(doc.name);
-      const partialNameBonus = getPrefixPositionBonus(normalisedQuery, normalisedName);
-      const infixNameBonus = getInfixPositionBonus(normalisedQuery, normalisedName);
+      const partialNameBonus = getPrefixPositionBonus(
+        normalisedQuery,
+        normalisedName,
+      );
+      const infixNameBonus = getInfixPositionBonus(
+        normalisedQuery,
+        normalisedName,
+      );
 
       // FIX #3 (Medium): Removed the ×50 category score multiply.
       // The sort comparator below already hard-sorts categories above products.
@@ -907,7 +923,10 @@ export const searchNgram = async (query, options = {}) => {
         // Phonetic: "saris" → "sarees", "lahenga" → "lehenga"
         const phoneticBonus = getPhoneticBonus(normalisedQuery, normalisedName);
         // Consonant fallback: "cftn", "caftn", "caftan", "kft" → "kaftan"
-        const consonantBonus = getConsonantBonus(normalisedQuery, normalisedName);
+        const consonantBonus = getConsonantBonus(
+          normalisedQuery,
+          normalisedName,
+        );
         boostedScore += Math.max(fuzzyBonus, phoneticBonus, consonantBonus);
       }
 
@@ -916,7 +935,14 @@ export const searchNgram = async (query, options = {}) => {
 
       // Attribute / Tags boost
       const structuredFields = [
-        "tags", "productType", "fabric", "style", "work", "occasion", "wearType", "byPrice"
+        "tags",
+        "productType",
+        "fabric",
+        "style",
+        "work",
+        "occasion",
+        "wearType",
+        "byPrice",
       ];
       let hasAttributeMatch = false;
       let tagFuzzyBonus = 0;
@@ -929,17 +955,27 @@ export const searchNgram = async (query, options = {}) => {
           const normV = normalise(v);
           if (!normV) continue;
 
-          if (normV === normalisedQuery || normV.startsWith(normalisedQuery) || normalisedQuery.startsWith(normV)) {
+          if (
+            normV === normalisedQuery ||
+            normV.startsWith(normalisedQuery) ||
+            normalisedQuery.startsWith(normV)
+          ) {
             hasAttributeMatch = true;
             break;
           } else {
-            tagFuzzyBonus = Math.max(tagFuzzyBonus, getFuzzyBonus(normalisedQuery, normV));
-            tagPhoneticBonus = Math.max(tagPhoneticBonus, getPhoneticBonus(normalisedQuery, normV));
+            tagFuzzyBonus = Math.max(
+              tagFuzzyBonus,
+              getFuzzyBonus(normalisedQuery, normV),
+            );
+            tagPhoneticBonus = Math.max(
+              tagPhoneticBonus,
+              getPhoneticBonus(normalisedQuery, normV),
+            );
           }
         }
         if (hasAttributeMatch) break;
       }
-      
+
       if (hasAttributeMatch) {
         boostedScore += 800; // Almost as good as a direct name match
       } else {
@@ -965,7 +1001,7 @@ export const searchNgram = async (query, options = {}) => {
 
   const total = ranked.length;
   const totalPages = Math.ceil(total / limit);
-  
+
   const skip = (page - 1) * limit;
 
   const hits = ranked

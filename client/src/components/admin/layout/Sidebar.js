@@ -126,7 +126,7 @@ export default function Sidebar({
       )}
 
       <aside
-        className={`fixed inset-y-0 left-0 z-50 w-64 bg-white border-r border-slate-200 text-slate-600 transform transition-all duration-300 ease-in-out lg:translate-x-0 lg:static ${
+        className={`print:hidden fixed inset-y-0 left-0 z-50 w-64 bg-white border-r border-slate-200 text-slate-600 transform transition-all duration-300 ease-in-out lg:translate-x-0 lg:static ${
           isOpen ? "translate-x-0" : "-translate-x-full"
         }`}
       >

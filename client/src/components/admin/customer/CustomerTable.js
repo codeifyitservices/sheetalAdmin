@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useMemo } from "react";
+import { useEffect, useState, useMemo, useCallback } from "react";
 import Link from "next/link";
 import {
   Eye,
@@ -26,7 +26,10 @@ import {
   updateUser,
 } from "@/services/userService";
 
-export default function CustomerTable({ refreshStats }) {
+export default function CustomerTable({
+  dateRange,
+  onDateRangeChange,
+}) {
   const [users, setUsers] = useState([]);
   const [loading, setLoading] = useState(false);
   const [search, setSearch] = useState("");
@@ -36,8 +39,8 @@ export default function CustomerTable({ refreshStats }) {
   const [currentPage, setCurrentPage] = useState(1);
 
   const [sortConfig, setSortConfig] = useState({
-    key: "name",
-    direction: "asc",
+    key: "createdAt",
+    direction: "desc",
   });
 
   const [showModal, setShowModal] = useState(false);
@@ -48,14 +51,16 @@ export default function CustomerTable({ refreshStats }) {
   const [selectedUserName, setSelectedUserName] = useState(null); // New state for selected user name
   const [showDeleteModal, setShowDeleteModal] = useState(false);
 
-  useEffect(() => {
-    fetchUsers();
-  }, []);
-
-  const fetchUsers = async (isRefresh = false) => {
+  const fetchUsers = useCallback(async (isRefresh = false) => {
     setLoading(true);
     try {
-      const res = await getUsers();
+      const res = await getUsers(
+        1,
+        1000,
+        "",
+        dateRange?.startDate || "",
+        dateRange?.endDate || "",
+      );
       if (res.success) {
         setUsers(res.data);
         if (refreshStats) refreshStats();
@@ -66,7 +71,11 @@ export default function CustomerTable({ refreshStats }) {
     } finally {
       setLoading(false);
     }
-  };
+  }, [dateRange?.endDate, dateRange?.startDate]);
+
+  useEffect(() => {
+    fetchUsers();
+  }, [fetchUsers]);
 
   const handleAddUser = async (payload) => {
     const loadingToast = toast.loading(
@@ -171,6 +180,43 @@ export default function CustomerTable({ refreshStats }) {
             <option value="Inactive">Inactive</option>
           </select>
 
+          <input
+            type="date"
+            value={dateRange?.startDate || ""}
+            onChange={(e) =>
+              onDateRangeChange?.((prev) => ({
+                ...prev,
+                startDate: e.target.value,
+              }))
+            }
+            className="border border-slate-300 rounded px-3 py-2 text-sm font-medium text-slate-700 bg-white outline-none cursor-pointer hover:border-slate-400 transition-colors"
+          />
+
+          <input
+            type="date"
+            value={dateRange?.endDate || ""}
+            min={dateRange?.startDate || undefined}
+            onChange={(e) =>
+              onDateRangeChange?.((prev) => ({
+                ...prev,
+                endDate: e.target.value,
+              }))
+            }
+            className="border border-slate-300 rounded px-3 py-2 text-sm font-medium text-slate-700 bg-white outline-none cursor-pointer hover:border-slate-400 transition-colors"
+          />
+
+          {(dateRange?.startDate || dateRange?.endDate) && (
+            <button
+              type="button"
+              onClick={() =>
+                onDateRangeChange?.({ startDate: "", endDate: "" })
+              }
+              className="px-3 py-2 text-sm font-bold text-slate-500 hover:text-slate-900 hover:bg-slate-100 rounded transition-colors"
+            >
+              Clear Dates
+            </button>
+          )}
+
           <button
             onClick={() => fetchUsers(true)}
             disabled={loading}
@@ -196,21 +242,11 @@ export default function CustomerTable({ refreshStats }) {
           <thead className="bg-slate-50 text-slate-900 font-bold border-b border-slate-200 uppercase text-[11px] tracking-wider">
             <tr>
               <th className="px-4 py-4">#</th>
-              <th
-                className="px-4 py-4 cursor-pointer group"
-                onClick={() => handleSort("name")}
-              >
-                <div className="flex items-center gap-1">
-                  Name{" "}
-                  <ArrowUpDown
-                    size={14}
-                    className="opacity-50 group-hover:opacity-100"
-                  />
-                </div>
-              </th>
+              <th className="px-4 py-4">Name</th>
               <th className="px-4 py-4">Email</th>
               <th className="px-4 py-4">Phone</th>
               <th className="px-4 py-4">Status</th>
+              <th className="px-4 py-4">Joined At</th>
               <th className="px-4 py-4 text-right">Actions</th>
             </tr>
           </thead>
@@ -243,6 +279,15 @@ export default function CustomerTable({ refreshStats }) {
                     >
                       {u.status}
                     </span>
+                  </td>
+                  <td className="px-4 py-4 text-slate-500 font-medium">
+                    {u.createdAt
+                      ? new Date(u.createdAt).toLocaleDateString("en-US", {
+                          year: "numeric",
+                          month: "short",
+                          day: "numeric",
+                        })
+                      : "N/A"}
                   </td>
                   <td className="px-4 py-4 text-right">
                     <div className="flex justify-end gap-4 text-slate-400">

@@ -1,7 +1,13 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { CreditCard, ShoppingBag, BarChart2, ShoppingCart } from "lucide-react";
+import {
+  CreditCard,
+  ShoppingBag,
+  BarChart2,
+  ShoppingCart,
+} from "lucide-react";
+import ReportExportMenu from "@/components/admin/common/ReportExportMenu";
 import SalesPageHeader from "@/components/admin/sales/SalesPageHeader";
 import AbandonedCarts from "@/components/admin/sales/AbandonedCarts";
 import BestSellingProducts from "@/components/admin/sales/BestSellingProducts";
@@ -18,6 +24,7 @@ import {
 import { getOrderStats } from "@/services/orderService";
 import { useMostViewed } from "@/hooks/useMostViewed";
 import SalesTrendsChart from "@/components/admin/sales/SalesPageHeader";
+import { downloadCsvReport, downloadPdfReport } from "@/utils/reportExport";
 
 const MOCK_TRAFFIC_SOURCES = [
   { label: "Direct", percentage: 45, color: "bg-primary" },
@@ -38,16 +45,53 @@ export default function SalesPage() {
   const [stats, setStats] = useState([]);
   const [abandonedCarts, setAbandonedCarts] = useState([]);
   const [period, setPeriod] = useState("weekly");
+  const [chartExportData, setChartExportData] = useState({
+    period: "weekly",
+    refDate: null,
+    data: [],
+    totals: { sales: 0, revenue: 0 },
+    loading: true,
+    error: null,
+  });
   const [fetchError, setFetchError] = useState(null);
-  const { items, loading: mostViewedLoading } = useMostViewed(10);
+  const [isExporting, setIsExporting] = useState(false);
+  const selectedPeriod = chartExportData.period || period;
+  const selectedRefDate = chartExportData.refDate;
+  const { items, loading: mostViewedLoading } = useMostViewed(
+    5,
+    selectedPeriod,
+    selectedRefDate,
+  );
   const [filters, setFilters] = useState([]);
 
-  // ── Best-selling products ──────────────────────────────────────
+  const getPeriodRange = (selectedPeriodValue, refDateValue) => {
+    const end = refDateValue ? new Date(refDateValue) : new Date();
+    const start = new Date(end);
+
+    if (selectedPeriodValue === "monthly") {
+      start.setDate(start.getDate() - 27);
+    } else if (selectedPeriodValue === "yearly") {
+      start.setMonth(start.getMonth() - 11);
+      start.setDate(1);
+    } else {
+      start.setDate(start.getDate() - 6);
+    }
+
+    start.setHours(0, 0, 0, 0);
+    end.setHours(23, 59, 59, 999);
+
+    return { startDate: start, endDate: end };
+  };
+
   useEffect(() => {
-    getBestSellingItems({ limit: 5 })
+    getBestSellingItems({
+      limit: 5,
+      period: selectedPeriod,
+      refDate: selectedRefDate,
+    })
       .then((res) => setBestSellingProducts(res.data || []))
       .catch((err) => setFetchError(err.message));
-  }, []);
+  }, [selectedPeriod, selectedRefDate]);
 
   const bestSellingByUnits = useMemo(
     () =>
@@ -60,16 +104,19 @@ export default function SalesPage() {
             product.totalRevenue != null,
         )
         .sort(
-        (a, b) =>
-          (b.unitsSold || 0) - (a.unitsSold || 0) ||
-          (b.totalRevenue || 0) - (a.totalRevenue || 0),
+          (a, b) =>
+            (b.unitsSold || 0) - (a.unitsSold || 0) ||
+            (b.totalRevenue || 0) - (a.totalRevenue || 0),
         ),
     [bestSellingProducts],
   );
 
-  // ── Order stats → StatsRow ─────────────────────────────────────
   useEffect(() => {
-    getOrderStats().then((order) => {
+    const range = getPeriodRange(selectedPeriod, selectedRefDate);
+    getOrderStats(
+      range.startDate.toISOString().split("T")[0],
+      range.endDate.toISOString().split("T")[0],
+    ).then((order) => {
       if (!order.success) return;
       const { totalRevenue, totalOrders } = order.data;
       setStats([
@@ -91,15 +138,17 @@ export default function SalesPage() {
         },
         {
           label: "Average Order Value",
-          value: formatCurrency(totalRevenue > 0 ? totalRevenue / totalOrders : 0),
+          value: formatCurrency(
+            totalRevenue > 0 ? totalRevenue / totalOrders : 0,
+          ),
           change: "10%",
           trend: "up",
           icon: BarChart2,
           accentColor: "bg-amber-500/10 text-amber-600",
         },
         {
-          label: "Abandoned Cart Rate",
-          value: "—", // populated after abandonedCarts loads
+          label: "Open Abandoned Carts",
+          value: abandonedCarts.length,
           change: "",
           trend: "down",
           icon: ShoppingCart,
@@ -107,38 +156,142 @@ export default function SalesPage() {
         },
       ]);
     });
-  }, []);
+  }, [selectedPeriod, selectedRefDate, abandonedCarts.length]);
 
-  // ── Abandoned carts ────────────────────────────────────────────
   useEffect(() => {
     getAbandonedCarts(20)
       .then((res) => {
         if (res.success) setAbandonedCarts(res.data);
       })
-      .catch(() => {}); // non-fatal; component shows empty state
+      .catch(() => {});
   }, []);
 
-  // ── Recovery email handler (passed to AbandonedCarts) ──────────
   const handleFiltersChange = (filter) => {
     console.log(filter);
     setFilters(filter);
   };
 
+  const getDateRangeLabel = () => {
+    const { startDate, endDate } = getPeriodRange(
+      selectedPeriod,
+      selectedRefDate,
+    );
+    const formatOptions =
+      selectedPeriod === "yearly"
+        ? { month: "short", year: "numeric" }
+        : { month: "short", day: "numeric", year: "numeric" };
+
+    return `${startDate.toLocaleDateString("en-US", formatOptions)} - ${endDate.toLocaleDateString("en-US", formatOptions)}`;
+  };
+
+  const handleDownloadPdf = async () => {
+    setIsExporting(true);
+    try {
+      const columns = [
+        { key: "section", label: "Section" },
+        { key: "name", label: "Name" },
+        { key: "value1", label: "Value 1" },
+        { key: "value2", label: "Value 2" },
+      ];
+      const rows = [
+        ...stats.map((stat) => ({
+          section: "Overview",
+          name: stat.label,
+          value1: String(stat.value ?? "-"),
+          value2: stat.change || "-",
+        })),
+        ...bestSellingByUnits.map((product) => ({
+          section: "Best Selling",
+          name: product.name || "-",
+          value1: (product.unitsSold || 0).toLocaleString("en-IN"),
+          value2: `Rs. ${(product.totalRevenue || 0).toLocaleString("en-IN")}`,
+        })),
+        ...items.map((item) => ({
+          section: "Most Viewed",
+          name: item.name || "-",
+          value1: item.category || "-",
+          value2: (item.views || 0).toLocaleString("en-IN"),
+        })),
+      ];
+
+      await downloadPdfReport({
+        filename: `sales_report_${selectedPeriod}_${new Date().toISOString().split("T")[0]}`,
+        title: "Sales Report",
+        meta: [
+          `Period: ${selectedPeriod}`,
+          `Date Range: ${getDateRangeLabel()}`,
+          `Generated on: ${new Date().toLocaleString()}`,
+        ],
+        columns,
+        rows,
+      });
+    } finally {
+      setIsExporting(false);
+    }
+  };
+
+  const handleDownloadExcel = async () => {
+    setIsExporting(true);
+    try {
+      const rows = [
+        ...stats.map((stat) => ({
+          Section: "Overview",
+          Name: stat.label,
+          "Value 1": String(stat.value ?? "-"),
+          "Value 2": stat.change || "-",
+        })),
+        ...bestSellingByUnits.map((product) => ({
+          Section: "Best Selling",
+          Name: product.name || "-",
+          "Value 1": product.unitsSold || 0,
+          "Value 2": product.totalRevenue || 0,
+        })),
+        ...items.map((item) => ({
+          Section: "Most Viewed",
+          Name: item.name || "-",
+          "Value 1": item.category || "-",
+          "Value 2": item.views || 0,
+        })),
+      ];
+
+      downloadCsvReport({
+        filename: `sales_report_${selectedPeriod}_${new Date().toISOString().split("T")[0]}`,
+        columns: [
+          { key: "Section", label: "Section" },
+          { key: "Name", label: "Name" },
+          { key: "Value 1", label: "Value 1" },
+          { key: "Value 2", label: "Value 2" },
+        ],
+        rows,
+      });
+    } finally {
+      setIsExporting(false);
+    }
+  };
+
   return (
     <main className="flex-1 px-4 lg:px-10 max-w-350 mx-auto w-full">
+      <div className="mb-6 flex items-center justify-end">
+        <ReportExportMenu
+          busy={isExporting}
+          onExportPdf={handleDownloadPdf}
+          onExportExcel={handleDownloadExcel}
+        />
+      </div>
+
       <StatsRow stats={stats} />
 
       {/* <FiltersBar period={period} onApply={handleFiltersChange} onPeriodChange={setPeriod} /> */}
 
-      <SalesRevenueChart period={period} />
+      <SalesRevenueChart
+        onPeriodChange={setPeriod}
+        onDataChange={setChartExportData}
+      />
 
       <br />
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-8">
-        <BestSellingProducts
-          products={bestSellingByUnits}
-          error={fetchError}
-        />
+        <BestSellingProducts products={bestSellingByUnits} error={fetchError} />
         <MostViewedItems items={mostViewedLoading ? [] : items} />
       </div>
 

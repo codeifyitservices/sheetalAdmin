@@ -66,11 +66,13 @@ export const updateProfile = async (req, res, next) => {
 
 export const getAllUsers = async (req, res, next) => {
   try {
-    const { page = 1, limit = 10, search = "" } = req.query;
+    const { page = 1, limit = 10, search = "", startDate = "", endDate = "" } = req.query;
     const result = await userService.getAllUsersService({
       page: Number(page),
       limit: Number(limit),
       search,
+      startDate,
+      endDate,
     });
     return res.status(200).json(result);
   } catch (err) {
@@ -115,7 +117,10 @@ export const deleteUser = async (req, res, next) => {
 
 export const getUserStats = async (req, res, next) => {
   try {
-    const result = await userService.getUserStatsService();
+    const result = await userService.getUserStatsService({
+      startDate: req.query.startDate,
+      endDate: req.query.endDate,
+    });
     return successResponse(
       res,
       200,

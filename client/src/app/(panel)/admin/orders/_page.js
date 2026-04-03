@@ -1,21 +1,18 @@
 "use client";
+import { useState } from "react";
 import {
   Search,
   Filter,
-  Download,
   Eye,
   MoreHorizontal,
-  ArrowRight,
-  Package,
-  Clock,
-  CheckCircle2,
-  Truck,
 } from "lucide-react";
+import ReportExportMenu from "@/components/admin/common/ReportExportMenu";
 import PageHeader from "@/components/admin/layout/PageHeader.js";
-import Link from "next/link";
+import { downloadCsvReport, downloadPdfReport } from "@/utils/reportExport";
 
 export default function OrdersPage() {
   const scrollStyle = "overflow-x-auto custom-scrollbar";
+  const [isExporting, setIsExporting] = useState(false);
 
   // Dummy Orders Data
   const orders = [
@@ -66,12 +63,53 @@ export default function OrdersPage() {
     }
   };
 
+  const exportColumns = [
+    { key: "id", label: "Order ID" },
+    { key: "customer", label: "Customer" },
+    { key: "date", label: "Date" },
+    { key: "status", label: "Status" },
+    { key: "total", label: "Total" },
+    { key: "method", label: "Method" },
+  ];
+
+  const handleExport = async (format) => {
+    setIsExporting(true);
+    try {
+      const filename = `orders_mock_${new Date().toISOString().split("T")[0]}`;
+      if (format === "pdf") {
+        await downloadPdfReport({
+          filename,
+          title: "Orders Report",
+          meta: [`Generated on: ${new Date().toLocaleString()}`],
+          columns: exportColumns,
+          rows: orders,
+        });
+        return;
+      }
+
+      downloadCsvReport({
+        filename,
+        columns: exportColumns,
+        rows: orders,
+      });
+    } finally {
+      setIsExporting(false);
+    }
+  };
+
   return (
     <div className="w-full animate-in fade-in duration-500 pb-10">
       <PageHeader
         title="Orders Management"
         subtitle="Track and manage customer shipments"
-        actionLabel="Export Report"
+        action={
+          <ReportExportMenu
+            busy={isExporting}
+            onExportPdf={() => handleExport("pdf")}
+            onExportExcel={() => handleExport("excel")}
+            label="Export Report"
+          />
+        }
       />
 
       {/* --- Filters & Search Bar --- */}
@@ -92,9 +130,12 @@ export default function OrdersPage() {
             <button className="flex-1 md:flex-none flex items-center justify-center gap-2 px-4 py-2.5 bg-white border border-slate-200 rounded-xl text-xs font-bold text-slate-600 hover:bg-slate-50 transition-all">
               <Filter size={16} /> Filters
             </button>
-            <button className="flex-1 md:flex-none flex items-center justify-center gap-2 px-4 py-2.5 bg-white border border-slate-200 rounded-xl text-xs font-bold text-slate-600 hover:bg-slate-50 transition-all">
-              <Download size={16} /> Download
-            </button>
+            <ReportExportMenu
+              busy={isExporting}
+              onExportPdf={() => handleExport("pdf")}
+              onExportExcel={() => handleExport("excel")}
+              label="Download"
+            />
           </div>
         </div>
       </div>

@@ -1,6 +1,7 @@
 "use client";
 
-import { Eye, Loader2 } from "lucide-react";
+import { Eye, Loader2, ArrowRight } from "lucide-react";
+import Link from "next/link";
 
 function formatViews(views) {
   if (views >= 1000) return `${(views / 1000).toFixed(1)}k`;
@@ -53,16 +54,12 @@ export default function MostViewedItems({
             Most Viewed Items
           </h3>
         </div>
-        <span
-          style={{
-            fontSize: 11,
-            fontWeight: 700,
-            color: "#94a3b8",
-            letterSpacing: "0.05em",
-          }}
+        <Link
+          href="/admin/sales-report/most-viewed"
+          className="text-sm font-semibold text-indigo-500 hover:text-indigo-700 flex items-center gap-1 transition-colors"
         >
-          {loading ? "—" : `${items.length} items`}
-        </span>
+          See all Products <ArrowRight size={14} />
+        </Link>
       </div>
 
       {/* Loading */}
@@ -85,7 +82,9 @@ export default function MostViewedItems({
       {/* Empty */}
       {!loading && !error && items.length === 0 && (
         <div className="flex items-center justify-center py-12 text-slate-400">
-          <p style={{ fontSize: 13, fontWeight: 500 }}>No data available yet.</p>
+          <p style={{ fontSize: 13, fontWeight: 500 }}>
+            No data available yet.
+          </p>
         </div>
       )}
 

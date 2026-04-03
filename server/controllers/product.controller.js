@@ -2,7 +2,6 @@ import * as productService from "../services/product.service.js";
 import successResponse from "../utils/successResponse.js";
 import ErrorResponse from "../utils/ErrorResponse.js";
 import { deleteFile, deleteS3File } from "../utils/fileHelper.js";
-import Product from "../models/product.model.js";
 import fs from "fs/promises";
 
 const clearFiles = async (files) => {
@@ -323,21 +322,11 @@ export const getCollectionProducts = async (req, res) => {
 // GET most viewed products (admin dashboard)
 export const getMostViewedProducts = async (req, res, next) => {
   try {
-    const limit = parseInt(req.query.limit) || 10;
-    const products = await Product.find({ status: "Active" })
-      .sort({ viewCount: -1 })
-      .limit(limit)
-      .select("name viewCount category slug mainImage status")
-      .populate("category", "name");
-
-    const items = products.map((p, i) => ({
-      rank: i + 1,
-      name: p.name,
-      slug: p.slug,
-      category: p.category?.name || "Uncategorized",
-      views: p.viewCount,
-      image: p.mainImage?.url || null,
-    }));
+    const items = await productService.getMostViewedProductsService({
+      limit: req.query.limit,
+      period: req.query.period || "overall",
+      refDate: req.query.refDate,
+    });
 
     res.json({ success: true, items });
   } catch (err) {

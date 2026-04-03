@@ -6,9 +6,17 @@ const handleResponse = async (res) => {
   return data;
 };
 
-export const getAllOrders = async (page = 1, limit = 10, status = "") => {
+export const getAllOrders = async (
+  page = 1,
+  limit = 10,
+  status = "",
+  startDate = "",
+  endDate = "",
+) => {
   let url = `${API_BASE_URL}/orders/admin/all?page=${page}&limit=${limit}`;
   if (status) url += `&status=${status}`;
+  if (startDate) url += `&startDate=${encodeURIComponent(startDate)}`;
+  if (endDate) url += `&endDate=${encodeURIComponent(endDate)}`;
 
   const res = await fetch(url, {
     method: "GET",
@@ -30,26 +38,20 @@ export const updateOrderStatus = async (orderId, updateData) => {
   return handleResponse(res);
 };
 
-export const getOrderStats = async () => {
-  const res = await fetch(`${API_BASE_URL}/orders/admin/all?limit=1000`, {
+export const getOrderStats = async (startDate = "", endDate = "") => {
+  const query = new URLSearchParams();
+  if (startDate) query.set("startDate", startDate);
+  if (endDate) query.set("endDate", endDate);
+
+  const url = query.toString()
+    ? `${API_BASE_URL}/orders/admin/stats?${query}`
+    : `${API_BASE_URL}/orders/admin/stats`;
+
+  const res = await fetch(url, {
     method: "GET",
     credentials: "include",
   });
-
-  const result = await handleResponse(res);
-
-  if (result.success) {
-    const orders = result.data.orders;
-    const stats = {
-      totalOrders: result.data.totalOrders,
-      processing: orders.filter((o) => o.orderStatus === "Processing").length,
-      shipped: orders.filter((o) => o.orderStatus === "Shipped").length,
-      delivered: orders.filter((o) => o.orderStatus === "Delivered").length,
-      totalRevenue: orders.reduce((sum, order) => sum + order.totalPrice, 0),
-    };
-    return { success: true, data: stats };
-  }
-  return result;
+  return handleResponse(res);
 };
 
 export const createOrder = async (orderData) => {

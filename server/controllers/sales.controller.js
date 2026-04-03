@@ -3,6 +3,76 @@ import Cart from "../models/cart.model.js";
 import User from "../models/user.model.js";
 import Product from "../models/product.model.js";
 
+const ABANDONED_CART_STEPS = [
+  { stage: "first", label: "Step 1", title: "30 min reminder", delayMinutes: 30 },
+  { stage: "second", label: "Step 2", title: "6 hour reminder", delayMinutes: 6 * 60 },
+  { stage: "third", label: "Step 3", title: "24 hour reminder", delayMinutes: 24 * 60 },
+  { stage: "final", label: "Step 4", title: "48 hour final reminder", delayMinutes: 48 * 60 },
+];
+
+const formatRelativeAbandonedDate = (value) => {
+  const diffDays = Math.floor((Date.now() - new Date(value)) / 86_400_000);
+
+  if (diffDays === 0) return "Today";
+  if (diffDays === 1) return "Yesterday";
+  if (diffDays < 7) return `${diffDays}d ago`;
+  if (diffDays < 30) return `${Math.floor(diffDays / 7)}w ago`;
+
+  return new Date(value).toLocaleDateString("en-IN", {
+    day: "numeric",
+    month: "short",
+  });
+};
+
+const summarizeAttemptChannels = (attempt = {}) => {
+  const channelEntries = Array.isArray(attempt?.metadata?.channels)
+    ? attempt.metadata.channels
+    : [];
+
+  if (channelEntries.length > 0) {
+    return channelEntries.map((entry) => ({
+      channel: entry.channel,
+      status: entry.failed ? "failed" : entry.skipped ? "skipped" : "sent",
+      error: entry.error || entry.reason || null,
+    }));
+  }
+
+  return (attempt.channels || []).map((channel) => ({
+    channel,
+    status:
+      attempt.status === "success"
+        ? "sent"
+        : attempt.status === "failure"
+          ? "failed"
+          : "skipped",
+    error: attempt.error || null,
+  }));
+};
+
+const buildReminderCheckpoints = (cart) => {
+  const attempts = Array.isArray(cart.abandonmentReminderAttempts)
+    ? cart.abandonmentReminderAttempts
+    : [];
+  const abandonedAt = cart.abandonedAt || cart.updatedAt || new Date();
+
+  return ABANDONED_CART_STEPS.map((step) => {
+    const attempt = attempts.find((entry) => entry.stage === step.stage);
+    const scheduledFor = new Date(
+      new Date(abandonedAt).getTime() + step.delayMinutes * 60 * 1000,
+    );
+
+    return {
+      ...step,
+      status: attempt?.status || "pending",
+      scheduledFor,
+      attemptedAt: attempt?.attemptedAt || null,
+      completedAt: attempt?.completedAt || null,
+      channels: summarizeAttemptChannels(attempt),
+      error: attempt?.error || null,
+    };
+  });
+};
+
 /**
  * Helper — builds a $match stage from query params.
  * Accepts:  ?period=weekly|monthly|yearly  OR  ?startDate=YYYY-MM-DD&endDate=YYYY-MM-DD
@@ -13,53 +83,49 @@ import Product from "../models/product.model.js";
 
 function buildGrouping(period) {
   switch (period) {
-    case "monthly":
-      return {
-        format: "%Y-%U", // week number
-        label: "Week %U",
-      };
-
     case "yearly":
-      return {
-        format: "%Y-%m", // month
-        label: "%b",
-      };
-
+      return { format: "%Y-%m", label: "%b" };
+    case "monthly":
+    case "weekly":
     default:
-      return {
-        format: "%Y-%m-%d", // day
-        label: "%d %b",
-      };
+      return { format: "%Y-%m-%d", label: "%d %b" };
   }
 }
 
 // FIX 1: Added missing `getGrouping` function used by `getChartData`
-function getDateRange(period) {
-  const now = new Date();
-  let from;
+function getDateRange(period, refDateStr) {
+  const refDate = refDateStr ? new Date(refDateStr) : new Date();
+  let from = new Date(refDate);
 
   switch (period) {
     case "monthly":
-      from = new Date(now.getFullYear(), now.getMonth(), 1);
+      from.setDate(from.getDate() - 27); // 28 days
       break;
 
     case "yearly":
-      from = new Date(now.getFullYear(), 0, 1);
+      from = new Date(from.getFullYear(), from.getMonth() - 11, 1);
       break;
 
     case "weekly":
     default:
-      from = new Date();
-      from.setDate(now.getDate() - 6);
+      from.setDate(from.getDate() - 6);
       break;
   }
 
   from.setHours(0, 0, 0, 0);
-  return { $gte: from };
+
+  let to = new Date(refDate);
+  // for yearly, extend to the end of the month
+  if (period === "yearly") {
+    to = new Date(to.getFullYear(), to.getMonth() + 1, 0);
+  }
+  to.setHours(23, 59, 59, 999);
+
+  return { $gte: from, $lte: to };
 }
 
 function buildDateMatch(query = {}, period = "weekly") {
-  const { startDate, endDate } = query;
+  const { startDate, endDate, refDate } = query;
 
   if (startDate || endDate) {
     const match = {};
@@ -72,19 +138,27 @@ function buildDateMatch(query = {}, period = "weekly") {
     return { createdAt: match };
   }
 
-  return { createdAt: getDateRange(period) };
+  return { createdAt: getDateRange(period, refDate) };
+}
+
+function getReportDateMatch(query = {}, defaultPeriod = "overall") {
+  const { startDate, endDate, period = defaultPeriod } = query;
+
+  if (period === "overall" && !startDate && !endDate) {
+    return {};
+  }
+
+  return buildDateMatch(query, period === "overall" ? "weekly" : period);
 }
 
 /* ---------------- GROUPING ---------------- */
 
 function getGrouping(period) {
   switch (period) {
-    case "monthly":
-      return "%Y-%U"; // week number
-
     case "yearly":
       return "%Y-%m"; // month
-
+    case "monthly":
+    case "weekly":
     default:
       return "%Y-%m-%d"; // day
   }
@@ -92,13 +166,13 @@ function getGrouping(period) {
 
 /* ---------------- WEEKLY FILL ---------------- */
 
-function fillWeeklyData(results) {
+function fillWeeklyData(results, refDateStr) {
   const days = [];
-  const today = new Date();
+  const baseDate = refDateStr ? new Date(refDateStr) : new Date();
 
   for (let i = 6; i >= 0; i--) {
-    const d = new Date();
-    d.setDate(today.getDate() - i);
+    const d = new Date(baseDate);
+    d.setDate(baseDate.getDate() - i);
 
     const key = d.toISOString().slice(0, 10);
     const label = d.toLocaleDateString("en-US", {
@@ -124,56 +198,53 @@ function fillWeeklyData(results) {
 
 /* ---------------- MONTHLY FILL ---------------- */
 
-function fillMonthlyData(results) {
-  const weeks = ["Week 1", "Week 2", "Week 3", "Week 4"];
+function fillMonthlyData(results, refDateStr) {
   const data = [];
+  const end = refDateStr ? new Date(refDateStr) : new Date();
 
-  weeks.forEach((week, i) => {
-    const found = results[i];
+  for (let i = 27; i >= 0; i--) {
+    const d = new Date(end);
+    d.setDate(end.getDate() - i);
+
+    const key = d.toISOString().slice(0, 10);
+    const label = d.toLocaleDateString("en-US", {
+      day: "2-digit",
+      month: "short",
+    });
+
+    const found = results.find((r) => r.date === key);
 
     data.push(
       found || {
-        name: week,
+        date: key,
+        name: label,
         sales: 0,
         revenue: 0,
         unitsSold: 0,
       },
     );
-  });
+  }
 
   return data;
 }
 
 /* ---------------- YEARLY FILL ---------------- */
 
-function fillYearlyData(results) {
+function fillYearlyData(results, refDateStr) {
   const months = [];
-  const year = new Date().getFullYear();
+  const end = refDateStr ? new Date(refDateStr) : new Date();
 
-  const monthNames = [
-    "Jan",
-    "Feb",
-    "Mar",
-    "Apr",
-    "May",
-    "Jun",
-    "Jul",
-    "Aug",
-    "Sep",
-    "Oct",
-    "Nov",
-    "Dec",
-  ];
-
-  for (let i = 0; i < 12; i++) {
-    const key = `${year}-${String(i + 1).padStart(2, "0")}`;
+  for (let i = 11; i >= 0; i--) {
+    const d = new Date(end.getFullYear(), end.getMonth() - i, 1);
+    const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+    const label = d.toLocaleDateString("en-US", { month: "short", year: "2-digit" });
 
     const found = results.find((r) => r.date === key);
 
     months.push(
       found || {
         date: key,
-        name: monthNames[i],
+        name: label,
         sales: 0,
         revenue: 0,
         unitsSold: 0,
@@ -361,15 +432,15 @@ export const getChartData = async (req, res) => {
     let data = results;
 
     if (!hasCustomRange && period === "weekly") {
-      data = fillWeeklyData(results);
+      data = fillWeeklyData(results, req.query.refDate);
     }
 
     if (!hasCustomRange && period === "monthly") {
-      data = fillMonthlyData(results);
+      data = fillMonthlyData(results, req.query.refDate);
     }
 
     if (!hasCustomRange && period === "yearly") {
-      data = fillYearlyData(results);
+      data = fillYearlyData(results, req.query.refDate);
     }
 
     const totals = data.reduce(
@@ -400,18 +471,21 @@ export const getChartData = async (req, res) => {
 
 export const getBestSellingProducts = async (req, res) => {
   try {
+    const period = req.query.period || "overall";
     const hasLimit = req.query.limit !== undefined;
     const requestedLimit = hasLimit ? parseInt(req.query.limit, 10) : null;
     const limit = hasLimit
       ? Math.min(Math.max(requestedLimit || 5, 1), 50)
       : null;
-
-    const results = await Order.aggregate([
-      {
-        $match: {
-          orderStatus: { $nin: ["Cancelled", "Returned"] },
+      const createdAtMatch = getReportDateMatch(req.query, "overall");
+  
+      const results = await Order.aggregate([
+        {
+          $match: {
+            orderStatus: { $nin: ["Cancelled", "Returned"] },
+            ...createdAtMatch,
+          },
         },
-      },
       {
         $unwind: "$orderItems",
       },
@@ -469,9 +543,9 @@ export const getBestSellingProducts = async (req, res) => {
       },
     ]);
 
-    res
-      .status(200)
-      .json({ success: true, count: results.length, data: results });
+      res
+        .status(200)
+        .json({ success: true, period, count: results.length, data: results });
   } catch (error) {
     console.error("[getBestSellingProducts]", error);
     res.status(500).json({
@@ -496,7 +570,7 @@ export const getAbandonedCarts = async (req, res) => {
       "items.0": { $exists: true },
     })
       .populate("user", "name email phoneNumber")
-      .populate("items.product", "name images")
+      .populate("items.product", "name images mainImage slug")
       .sort({ updatedAt: -1 })
       .limit(limit)
       .lean();
@@ -519,20 +593,28 @@ export const getAbandonedCarts = async (req, res) => {
           .toUpperCase()
           .slice(0, 2);
 
-        const diffDays = Math.floor(
-          (Date.now() - new Date(cart.updatedAt)) / 86_400_000,
-        );
+        const items = cart.items.map((item) => {
+          const activePrice =
+            item.discountPrice > 0 ? item.discountPrice : item.price;
 
-        let date;
-        if (diffDays === 0) date = "Today";
-        else if (diffDays === 1) date = "Yesterday";
-        else if (diffDays < 7) date = `${diffDays}d ago`;
-        else if (diffDays < 30) date = `${Math.floor(diffDays / 7)}w ago`;
-        else
-          date = new Date(cart.updatedAt).toLocaleDateString("en-IN", {
-            day: "numeric",
-            month: "short",
-          });
+          return {
+            productId: item.product?._id || item.product || null,
+            name: item.product?.name || "Product",
+            slug: item.product?.slug || null,
+            image:
+              item.variantImage ||
+              item.product?.mainImage?.url ||
+              item.product?.images?.[0] ||
+              null,
+            quantity: item.quantity,
+            size: item.size || null,
+            color: item.color || null,
+            unitPrice: activePrice,
+            lineTotal: Math.round(activePrice * item.quantity * 100) / 100,
+          };
+        });
+
+        const checkpoints = buildReminderCheckpoints(cart);
 
         return {
           cartId: cart._id,
@@ -543,14 +625,15 @@ export const getAbandonedCarts = async (req, res) => {
           initials,
           cartValue: Math.round(cartValue * 100) / 100,
           itemCount: cart.items.length,
-          date,
+          date: formatRelativeAbandonedDate(cart.abandonedAt || cart.updatedAt),
           lastActivityAt: cart.lastActivityAt || cart.updatedAt,
           abandonedAt: cart.abandonedAt || cart.updatedAt,
           abandonmentReason: cart.abandonmentReason || "inactivity",
+          reminderAttemptsCount: cart.abandonmentReminderAttempts?.length || 0,
+          checkpoints,
+          items,
           previewImage:
-            cart.items[0]?.variantImage ||
-            cart.items[0]?.product?.images?.[0] ||
-            null,
+            items[0]?.image || null,
         };
       })
       .filter(Boolean);

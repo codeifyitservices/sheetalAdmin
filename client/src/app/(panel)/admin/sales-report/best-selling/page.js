@@ -1,7 +1,6 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
 import {
   ShoppingBag,
   TrendingUp,
@@ -9,58 +8,65 @@ import {
   IndianRupee,
   RefreshCw,
 } from "lucide-react";
+import ReportExportMenu from "@/components/admin/common/ReportExportMenu";
 import PageHeader from "@/components/admin/layout/PageHeader";
 import BestSellingProducts from "@/components/admin/sales/BestSellingProducts";
 import { getBestSellingItems } from "@/services/salesService";
 import { getPaginationRange } from "@/utils/pagination";
+import { downloadCsvReport, downloadPdfReport } from "@/utils/reportExport";
 
 const LIMIT_OPTIONS = [5, 10, 25];
+const PERIOD_OPTIONS = ["overall", "weekly", "monthly", "yearly"];
 const SORT_OPTIONS = [
-  {
-    value: "units",
-    label: "By Units Sold",
-    icon: PackageCheck,
-  },
-  {
-    value: "revenue",
-    label: "By Revenue",
-    icon: IndianRupee,
-  },
+  { value: "units", label: "By Units Sold", icon: PackageCheck },
+  { value: "revenue", label: "By Revenue", icon: IndianRupee },
 ];
 
+const getPeriodDateRangeLabel = (period) => {
+  if (period === "overall") return "All time";
+
+  const end = new Date();
+  const start = new Date(end);
+
+  if (period === "monthly") {
+    start.setDate(start.getDate() - 27);
+  } else if (period === "yearly") {
+    start.setMonth(start.getMonth() - 11);
+    start.setDate(1);
+  } else {
+    start.setDate(start.getDate() - 6);
+  }
+
+  const formatOptions =
+    period === "yearly"
+      ? { month: "short", year: "numeric" }
+      : { month: "short", day: "numeric", year: "numeric" };
+
+  return `${start.toLocaleDateString("en-US", formatOptions)} - ${end.toLocaleDateString("en-US", formatOptions)}`;
+};
+
 export default function BestSellingPage() {
-  const router = useRouter();
-  const searchParams = useSearchParams();
-
-  const limitFromUrl = parseInt(searchParams.get("limit")) || 5;
-  const pageFromUrl = parseInt(searchParams.get("page")) || 1;
-  const sortFromUrl = searchParams.get("sort") || "units";
-
-  const [limit, setLimit] = useState(
-    LIMIT_OPTIONS.includes(limitFromUrl) ? limitFromUrl : 10,
-  );
-  const [currentPage, setCurrentPage] = useState(pageFromUrl);
-  const [sortBy, setSortBy] = useState(
-    SORT_OPTIONS.some((option) => option.value === sortFromUrl)
-      ? sortFromUrl
-      : "units",
-  );
+  const [limit, setLimit] = useState(10);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [sortBy, setSortBy] = useState("units");
+  const [period, setPeriod] = useState("overall");
 
   const [allProducts, setAllProducts] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [isExporting, setIsExporting] = useState(false);
   const [stats, setStats] = useState({
     totalProducts: 0,
     totalUnitsSold: 0,
     totalRevenue: 0,
-    topProduct: "—",
+    topProduct: "-",
   });
 
   const fetchData = useCallback(async () => {
     setLoading(true);
     setError(null);
     try {
-      const res = await getBestSellingItems();
+      const res = await getBestSellingItems({ period });
       const data = res.data || [];
       setAllProducts(data);
 
@@ -68,18 +74,49 @@ export default function BestSellingPage() {
         totalProducts: data.length,
         totalUnitsSold: data.reduce((sum, p) => sum + (p.unitsSold || 0), 0),
         totalRevenue: data.reduce((sum, p) => sum + (p.totalRevenue || 0), 0),
-        topProduct: data[0]?.name || "—",
+        topProduct: data[0]?.name || "-",
       });
     } catch (err) {
       setError(err.message);
     } finally {
       setLoading(false);
     }
+  }, [period]);
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const limitFromUrl = parseInt(params.get("limit")) || 5;
+    const pageFromUrl = parseInt(params.get("page")) || 1;
+    const sortFromUrl = params.get("sort") || "units";
+    const periodFromUrl = params.get("period") || "overall";
+
+    setLimit(LIMIT_OPTIONS.includes(limitFromUrl) ? limitFromUrl : 10);
+    setCurrentPage(pageFromUrl);
+    setSortBy(
+      SORT_OPTIONS.some((option) => option.value === sortFromUrl)
+        ? sortFromUrl
+        : "units",
+    );
+    setPeriod(
+      PERIOD_OPTIONS.includes(periodFromUrl) ? periodFromUrl : "overall",
+    );
   }, []);
 
-  const syncUrl = (newLimit, newPage, newSortBy = sortBy) => {
-    router.replace(
-      `/admin/sales-report/best-selling?limit=${newLimit}&page=${newPage}&sort=${newSortBy}`,
+  const syncUrl = (
+    newLimit,
+    newPage,
+    newSortBy = sortBy,
+    newPeriod = period,
+  ) => {
+    const params = new URLSearchParams(window.location.search);
+    params.set("limit", String(newLimit));
+    params.set("page", String(newPage));
+    params.set("sort", newSortBy);
+    params.set("period", newPeriod);
+    window.history.replaceState(
+      {},
+      "",
+      `${window.location.pathname}?${params.toString()}`,
     );
   };
 
@@ -100,6 +137,12 @@ export default function BestSellingPage() {
     syncUrl(limit, 1, newSortBy);
   };
 
+  const handlePeriodChange = (newPeriod) => {
+    setPeriod(newPeriod);
+    setCurrentPage(1);
+    syncUrl(limit, 1, sortBy, newPeriod);
+  };
+
   useEffect(() => {
     fetchData();
   }, [fetchData]);
@@ -118,32 +161,86 @@ export default function BestSellingPage() {
     );
   });
 
-  // Client-side pagination
   const totalPages = Math.ceil(sortedProducts.length / limit);
   const paginatedProducts = sortedProducts.slice(
     (currentPage - 1) * limit,
     currentPage * limit,
   );
-  const activeTopProduct = sortedProducts[0]?.name || "—";
+  const activeTopProduct = sortedProducts[0]?.name || "-";
+
+  const handleExportPdf = async () => {
+    setIsExporting(true);
+    try {
+      await downloadPdfReport({
+        filename: `best_selling_${period}_${new Date().toISOString().split("T")[0]}`,
+        title: "Best Selling Products Report",
+        meta: [
+          `Period: ${period}`,
+          `Date Range: ${getPeriodDateRangeLabel(period)}`,
+          `Generated on: ${new Date().toLocaleString()}`,
+        ],
+        columns: [
+          { key: "name", label: "Product" },
+          { key: "unitsSold", label: "Units Sold" },
+          { key: "totalRevenue", label: "Revenue" },
+        ],
+        rows: sortedProducts.map((product) => ({
+          name: product.name || "-",
+          unitsSold: (product.unitsSold || 0).toLocaleString("en-IN"),
+          totalRevenue: `Rs. ${(product.totalRevenue || 0).toLocaleString("en-IN")}`,
+        })),
+      });
+    } finally {
+      setIsExporting(false);
+    }
+  };
+
+  const handleExportExcel = async () => {
+    setIsExporting(true);
+    try {
+      downloadCsvReport({
+        filename: `best_selling_${period}_${new Date().toISOString().split("T")[0]}`,
+        columns: [
+          { key: "name", label: "Product" },
+          { key: "unitsSold", label: "Units Sold" },
+          { key: "totalRevenue", label: "Revenue" },
+        ],
+        rows: sortedProducts.map((product) => ({
+          name: product.name || "-",
+          unitsSold: product.unitsSold || 0,
+          totalRevenue: product.totalRevenue || 0,
+        })),
+      });
+    } finally {
+      setIsExporting(false);
+    }
+  };
 
   return (
     <div className="min-h-screen w-full animate-in fade-in duration-500">
       <PageHeader
         title="Best Selling Products"
-        subtitle="All-time ranking by units sold and revenue generated, including out-of-stock products"
+        subtitle={`${period.charAt(0).toUpperCase() + period.slice(1)} ranking by units sold and revenue generated`}
         action={
-          <button
-            onClick={fetchData}
-            disabled={loading}
-            className="flex items-center gap-2 px-4 py-2.5 bg-slate-900 hover:bg-black text-white rounded-xl text-sm font-bold transition-all cursor-pointer disabled:opacity-50 active:scale-95"
-          >
-            <RefreshCw size={15} className={loading ? "animate-spin" : ""} />
-            Refresh
-          </button>
+          <div className="flex items-center gap-2">
+            <ReportExportMenu
+              disabled={loading || sortedProducts.length === 0}
+              busy={isExporting}
+              onExportPdf={handleExportPdf}
+              onExportExcel={handleExportExcel}
+            />
+            <button
+              onClick={fetchData}
+              disabled={loading}
+              className="flex items-center gap-2 px-4 py-2.5 bg-slate-900 hover:bg-black text-white rounded-xl text-sm font-bold transition-all cursor-pointer disabled:opacity-50 active:scale-95"
+            >
+              <RefreshCw size={15} className={loading ? "animate-spin" : ""} />
+              Refresh
+            </button>
+          </div>
         }
       />
 
-      {/* Stat Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
         <StatCard
           title="Total Products"
@@ -159,7 +256,7 @@ export default function BestSellingPage() {
         />
         <StatCard
           title="Total Revenue"
-          value={`₹${stats.totalRevenue.toLocaleString()}`}
+          value={`Rs. ${stats.totalRevenue.toLocaleString()}`}
           icon={<IndianRupee size={20} />}
           color="amber"
         />
@@ -172,7 +269,27 @@ export default function BestSellingPage() {
         />
       </div>
 
-      {/* Sort Tags */}
+      <div className="mb-4 flex flex-wrap gap-2">
+        {PERIOD_OPTIONS.map((option) => (
+          <button
+            key={option}
+            type="button"
+            onClick={() => handlePeriodChange(option)}
+            className={`cursor-pointer rounded-full border px-3 py-2 text-xs font-bold uppercase tracking-wide transition-all ${
+              period === option
+                ? "border-slate-900 bg-slate-900 text-white"
+                : "border-slate-200 bg-white text-slate-600 hover:border-slate-400"
+            }`}
+          >
+            {option}
+          </button>
+        ))}
+      </div>
+
+      <div className="mb-6 inline-flex items-center rounded-full border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-600 shadow-sm">
+        Date Range: {getPeriodDateRangeLabel(period)}
+      </div>
+
       <div className="mb-6 flex flex-wrap items-center gap-3 rounded-2xl border border-slate-200 bg-white px-4 py-4 shadow-sm">
         <div className="flex items-center gap-2">
           <span className="text-[10px] font-black uppercase tracking-[0.16em] text-slate-400">
@@ -197,14 +314,12 @@ export default function BestSellingPage() {
               >
                 <Icon size={14} />
                 <span>{option.label}</span>
-                
               </button>
             );
           })}
         </div>
       </div>
 
-      {/* Table Card */}
       <div className="bg-white border border-slate-200 rounded-xl shadow-sm overflow-hidden">
         <BestSellingProducts
           products={paginatedProducts}
@@ -212,10 +327,8 @@ export default function BestSellingPage() {
           error={error}
         />
 
-        {/* Footer Pagination */}
         {!loading && !error && allProducts.length > 0 && (
           <div className="p-6 bg-slate-50/50 border-t border-slate-100 flex flex-col sm:flex-row items-center justify-between gap-6">
-            {/* Rows selector */}
             <div className="flex items-center gap-3 bg-white px-3 py-1.5 rounded-xl border border-slate-200">
               <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">
                 Rows
@@ -233,7 +346,6 @@ export default function BestSellingPage() {
               </select>
             </div>
 
-            {/* Pagination */}
             <div className="flex items-center gap-1">
               {getPaginationRange(currentPage, totalPages).map((page, i) =>
                 page === "..." ? (

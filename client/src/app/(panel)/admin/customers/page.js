@@ -1,12 +1,13 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect } from "react";
 import CustomerTable from "@/components/admin/customer/CustomerTable";
 import PageHeader from "@/components/admin/layout/PageHeader";
 import { Users, UserCheck, UserMinus, Clock } from "lucide-react";
 import { getUserStats } from "@/services/userService";
 
 export default function CustomersPage() {
+  const [dateRange, setDateRange] = useState({ startDate: "", endDate: "" });
   const [stats, setStats] = useState({
     total: 0,
     active: 0,
@@ -14,18 +15,18 @@ export default function CustomersPage() {
     today: 0,
   });
 
-  const fetchStats = useCallback(async () => {
-    try {
-      const res = await getUserStats();
-      if (res.success) setStats(res.data);
-    } catch (err) {
-      console.error(err);
-    }
-  }, []);
-
   useEffect(() => {
+    const fetchStats = async () => {
+      try {
+        const res = await getUserStats(dateRange.startDate, dateRange.endDate);
+        if (res.success) setStats(res.data);
+      } catch (err) {
+        console.error(err);
+      }
+    };
+
     fetchStats();
-  }, [fetchStats]);
+  }, [dateRange.endDate, dateRange.startDate]);
 
   return (
     <div className="min-h-screen w-full animate-in fade-in duration-500">
@@ -62,7 +63,10 @@ export default function CustomersPage() {
       </div>
 
       <div className="bg-white border border-slate-200 rounded-xl shadow-sm overflow-hidden">
-        <CustomerTable refreshStats={fetchStats} />
+        <CustomerTable
+          dateRange={dateRange}
+          onDateRangeChange={setDateRange}
+        />
       </div>
     </div>
   );

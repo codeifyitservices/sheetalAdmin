@@ -3,10 +3,12 @@
 import React, { useState, useEffect, useCallback, useRef } from "react";
 import toast from "react-hot-toast";
 
+import ReportExportMenu from "@/components/admin/common/ReportExportMenu";
 import EnquiryStatsCards from "@/components/admin/enquiry/EnquiryStatsCards";
 import EnquiryFilters from "@/components/admin/enquiry/EnquiryFilters";
 import EnquiryTable from "@/components/admin/enquiry/EnquiryTable";
 import EnquiryModal from "@/components/admin/enquiry/EnquiryModal";
+import { downloadCsvReport, downloadPdfReport } from "@/utils/reportExport";
 
 import {
   fetchContactEnquiries,
@@ -14,6 +16,7 @@ import {
   updateContactEnquiryStatus,
   deriveContactEnquiryCounts,
 } from "@/services/contactEnquiryService";
+import { formatEnquiryDate } from "@/services/enquiryService";
 
 export default function ContactEnquiriesPage() {
   const [enquiries, setEnquiries] = useState([]);
@@ -22,7 +25,13 @@ export default function ContactEnquiriesPage() {
   const [statusFilter, setStatusFilter] = useState("all");
   const [selected, setSelected] = useState(null);
   const [pendingAction, setPendingAction] = useState(null);
-  const [counts, setCounts] = useState({ total: 0, new: 0, read: 0, replied: 0 });
+  const [counts, setCounts] = useState({
+    total: 0,
+    new: 0,
+    read: 0,
+    replied: 0,
+  });
+  const [isExporting, setIsExporting] = useState(false);
 
   const abortRef = useRef(null);
 
@@ -97,8 +106,68 @@ export default function ContactEnquiriesPage() {
     }
   };
 
+  const exportColumns = [
+    { key: "name", label: "Name" },
+    { key: "email", label: "Email" },
+    { key: "phone", label: "Phone" },
+    { key: "status", label: "Status" },
+    { key: "query", label: "Query" },
+    { key: "createdAt", label: "Created At" },
+  ];
+
+  const exportRows = enquiries.map((enquiry) => ({
+    name: enquiry.name || "-",
+    email: enquiry.email || "-",
+    phone: enquiry.phone || "-",
+    status: enquiry.status || "-",
+    query: enquiry.query || "-",
+    createdAt: formatEnquiryDate(enquiry.createdAt),
+  }));
+
+  const handleExport = async (format) => {
+    if (exportRows.length === 0) return;
+
+    setIsExporting(true);
+    try {
+      const filename = `contact_enquiries_${new Date().toISOString().split("T")[0]}`;
+      const meta = [
+        `Generated on: ${new Date().toLocaleString()}`,
+        `Status filter: ${statusFilter}`,
+        `Search: ${search || "None"}`,
+        `Records: ${exportRows.length}`,
+      ];
+
+      if (format === "pdf") {
+        await downloadPdfReport({
+          filename,
+          title: "Contact Enquiries Report",
+          meta,
+          columns: exportColumns,
+          rows: exportRows,
+        });
+        return;
+      }
+
+      downloadCsvReport({
+        filename,
+        columns: exportColumns,
+        rows: exportRows,
+      });
+    } finally {
+      setIsExporting(false);
+    }
+  };
+
   return (
     <div className="space-y-6 animate-in fade-in slide-in-from-bottom-2 duration-500">
+      <div className="w-full flex justify-end">
+        <ReportExportMenu
+          disabled={enquiries.length === 0}
+          busy={isExporting}
+          onExportPdf={() => handleExport("pdf")}
+          onExportExcel={() => handleExport("excel")}
+        />
+      </div>
       <EnquiryStatsCards
         counts={counts}
         statusFilter={statusFilter}
@@ -120,7 +189,9 @@ export default function ContactEnquiriesPage() {
         <EnquiryTable
           enquiries={enquiries}
           isLoading={isLoading}
-          deletingId={pendingAction?.action === "delete" ? pendingAction.id : null}
+          deletingId={
+            pendingAction?.action === "delete" ? pendingAction.id : null
+          }
           onSelect={handleSelect}
           onDelete={handleDelete}
           type="contact"

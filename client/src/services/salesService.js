@@ -6,9 +6,19 @@ const handleResponse = async (res) => {
   return data;
 };
 
-export const getBestSellingItems = async ({ limit } = {}) => {
+export const getBestSellingItems = async ({
+  limit,
+  period,
+  refDate,
+  startDate,
+  endDate,
+} = {}) => {
   const query = new URLSearchParams();
   if (limit != null) query.set("limit", limit);
+  if (period) query.set("period", period);
+  if (refDate) query.set("refDate", refDate);
+  if (startDate) query.set("startDate", startDate);
+  if (endDate) query.set("endDate", endDate);
 
   const url = query.toString()
     ? `${API_BASE_URL}/sales/best-selling?${query}`
@@ -23,9 +33,10 @@ export const getBestSellingItems = async ({ limit } = {}) => {
 /**
  * Fetch combined sales + revenue chart data.
  */
-export const getChartData = async ({ period, startDate, endDate } = {}) => {
+export const getChartData = async ({ period, startDate, endDate, refDate } = {}) => {
   const query = new URLSearchParams();
   if (period) query.set("period", period);
+  if (refDate) query.set("refDate", refDate);
   if (startDate) query.set("startDate", startDate);
   if (endDate) query.set("endDate", endDate);
 
@@ -38,9 +49,10 @@ export const getChartData = async ({ period, startDate, endDate } = {}) => {
 /**
  * Fetch revenue-only data (breakdown: itemsRevenue, tax, shipping).
  */
-export const getRevenueData = async ({ period, startDate, endDate } = {}) => {
+export const getRevenueData = async ({ period, startDate, endDate, refDate } = {}) => {
   const query = new URLSearchParams();
   if (period) query.set("period", period);
+  if (refDate) query.set("refDate", refDate);
   if (startDate) query.set("startDate", startDate);
   if (endDate) query.set("endDate", endDate);
 
@@ -53,9 +65,10 @@ export const getRevenueData = async ({ period, startDate, endDate } = {}) => {
 /**
  * Fetch sales-only data (order counts, units sold).
  */
-export const getSalesData = async ({ period, startDate, endDate } = {}) => {
+export const getSalesData = async ({ period, startDate, endDate, refDate } = {}) => {
   const query = new URLSearchParams();
   if (period) query.set("period", period);
+  if (refDate) query.set("refDate", refDate);
   if (startDate) query.set("startDate", startDate);
   if (endDate) query.set("endDate", endDate);
 

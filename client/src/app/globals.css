@@ -1,5 +1,13 @@
 @import "tailwindcss";
 
+@custom-variant dark (&:is(.dark *));
+
+/* Custom scrollbar — moved from dashboard <style jsx global> for performance */
+.custom-scrollbar::-webkit-scrollbar { width: 6px; }
+.custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
+.custom-scrollbar::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 20px; }
+.custom-scrollbar::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
+
 :root {
   --background: #ffffff;
   --foreground: #171717;
@@ -25,14 +33,7 @@ body {
   font-family: Arial, Helvetica, sans-serif;
 }
 
-/* globals.css */
-.custom-scrollbar::-webkit-scrollbar {
-  width: 4px;
-}
-.custom-scrollbar::-webkit-scrollbar-thumb {
-  background: #cbd5e1;
-  border-radius: 10px;
-}
+
 
 .scrollbar-hide::-webkit-scrollbar {
     display: none;
