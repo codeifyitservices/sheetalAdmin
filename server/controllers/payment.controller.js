@@ -15,6 +15,10 @@ export const createPaymentLink = async (req, res, next) => {
         couponId,
         couponCode,
         discountPrice,
+        recoverySource,
+        recoveryStage,
+        recoveryCartId,
+        recoveryCycleId,
         } = req.body;
 
         // Validate inputs
@@ -80,6 +84,12 @@ export const createPaymentLink = async (req, res, next) => {
                 couponId,
                 couponCode,
                 discountPrice,
+            },
+            {
+                recoverySource,
+                recoveryStage,
+                recoveryCartId,
+                recoveryCycleId,
             }
         );
 

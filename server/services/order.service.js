@@ -17,6 +17,10 @@ export const createOrderService = async (data, userId) => {
     paymentInfo,
     buyNowItems = [],
     cartItems = [],
+    recoverySource = null,
+    recoveryStage = null,
+    recoveryCartId = null,
+    recoveryCycleId = null,
   } = data;
   const user = await User.findById(userId).lean();
   const isBuyNow = Array.isArray(buyNowItems) && buyNowItems.length > 0;
@@ -84,6 +88,11 @@ export const createOrderService = async (data, userId) => {
     taxPrice: data.taxPrice || 0,
     shippingPrice: data.shippingPrice || 0,
     totalPrice: data.totalPrice || 0,
+    recoverySource,
+    recoveryStage: recoveryStage ? Number(recoveryStage) : null,
+    recoveryCartId: recoveryCartId || null,
+    recoveryCycleId: recoveryCycleId || null,
+    recoveredAt: recoverySource ? new Date() : null,
     purchaseSource: isBuyNow ? "buyNow" : "cart",
     orderStatus: "Processing", // Default status as per your schema
     paidAt: paymentInfo?.method === "Online" ? Date.now() : null,

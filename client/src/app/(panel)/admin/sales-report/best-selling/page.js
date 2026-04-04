@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
 import {
   ShoppingBag,
   TrendingUp,
@@ -9,47 +9,24 @@ import {
   RefreshCw,
 } from "lucide-react";
 import ReportExportMenu from "@/components/admin/common/ReportExportMenu";
+import DateRangeControl from "@/components/admin/common/DateRangeControl";
 import PageHeader from "@/components/admin/layout/PageHeader";
 import BestSellingProducts from "@/components/admin/sales/BestSellingProducts";
 import { getBestSellingItems } from "@/services/salesService";
 import { getPaginationRange } from "@/utils/pagination";
 import { downloadCsvReport, downloadPdfReport } from "@/utils/reportExport";
+import { useDateRange } from "@/hooks/useDateRange";
 
 const LIMIT_OPTIONS = [5, 10, 25];
-const PERIOD_OPTIONS = ["overall", "weekly", "monthly", "yearly"];
 const SORT_OPTIONS = [
   { value: "units", label: "By Units Sold", icon: PackageCheck },
   { value: "revenue", label: "By Revenue", icon: IndianRupee },
 ];
 
-const getPeriodDateRangeLabel = (period) => {
-  if (period === "overall") return "All time";
-
-  const end = new Date();
-  const start = new Date(end);
-
-  if (period === "monthly") {
-    start.setDate(start.getDate() - 27);
-  } else if (period === "yearly") {
-    start.setMonth(start.getMonth() - 11);
-    start.setDate(1);
-  } else {
-    start.setDate(start.getDate() - 6);
-  }
-
-  const formatOptions =
-    period === "yearly"
-      ? { month: "short", year: "numeric" }
-      : { month: "short", day: "numeric", year: "numeric" };
-
-  return `${start.toLocaleDateString("en-US", formatOptions)} - ${end.toLocaleDateString("en-US", formatOptions)}`;
-};
-
 export default function BestSellingPage() {
   const [limit, setLimit] = useState(10);
   const [currentPage, setCurrentPage] = useState(1);
   const [sortBy, setSortBy] = useState("units");
-  const [period, setPeriod] = useState("overall");
 
   const [allProducts, setAllProducts] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -61,12 +38,32 @@ export default function BestSellingPage() {
     totalRevenue: 0,
     topProduct: "-",
   });
+  const {
+    rangeType,
+    setRangeType,
+    customStartDate,
+    setCustomStartDate,
+    customEndDate,
+    setCustomEndDate,
+    dateRange,
+    dateRangeLabel,
+  } = useDateRange("last_7_days");
+
+  const reportRangeQuery = useMemo(
+    () => ({
+      startDate: dateRange.startDate.toISOString().split("T")[0],
+      endDate: dateRange.endDate.toISOString().split("T")[0],
+    }),
+    [dateRange.endDate, dateRange.startDate],
+  );
 
   const fetchData = useCallback(async () => {
     setLoading(true);
     setError(null);
     try {
-      const res = await getBestSellingItems({ period });
+      const res = await getBestSellingItems({
+        ...reportRangeQuery,
+      });
       const data = res.data || [];
       setAllProducts(data);
 
@@ -81,14 +78,13 @@ export default function BestSellingPage() {
     } finally {
       setLoading(false);
     }
-  }, [period]);
+  }, [reportRangeQuery]);
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     const limitFromUrl = parseInt(params.get("limit")) || 5;
     const pageFromUrl = parseInt(params.get("page")) || 1;
     const sortFromUrl = params.get("sort") || "units";
-    const periodFromUrl = params.get("period") || "overall";
 
     setLimit(LIMIT_OPTIONS.includes(limitFromUrl) ? limitFromUrl : 10);
     setCurrentPage(pageFromUrl);
@@ -97,22 +93,17 @@ export default function BestSellingPage() {
         ? sortFromUrl
         : "units",
     );
-    setPeriod(
-      PERIOD_OPTIONS.includes(periodFromUrl) ? periodFromUrl : "overall",
-    );
   }, []);
 
   const syncUrl = (
     newLimit,
     newPage,
     newSortBy = sortBy,
-    newPeriod = period,
   ) => {
     const params = new URLSearchParams(window.location.search);
     params.set("limit", String(newLimit));
     params.set("page", String(newPage));
     params.set("sort", newSortBy);
-    params.set("period", newPeriod);
     window.history.replaceState(
       {},
       "",
@@ -135,12 +126,6 @@ export default function BestSellingPage() {
     setSortBy(newSortBy);
     setCurrentPage(1);
     syncUrl(limit, 1, newSortBy);
-  };
-
-  const handlePeriodChange = (newPeriod) => {
-    setPeriod(newPeriod);
-    setCurrentPage(1);
-    syncUrl(limit, 1, sortBy, newPeriod);
   };
 
   useEffect(() => {
@@ -172,11 +157,11 @@ export default function BestSellingPage() {
     setIsExporting(true);
     try {
       await downloadPdfReport({
-        filename: `best_selling_${period}_${new Date().toISOString().split("T")[0]}`,
+        filename: `best_selling_${rangeType}_${new Date().toISOString().split("T")[0]}`,
         title: "Best Selling Products Report",
         meta: [
-          `Period: ${period}`,
-          `Date Range: ${getPeriodDateRangeLabel(period)}`,
+          `Period: ${rangeType}`,
+          `Date Range: ${dateRangeLabel}`,
           `Generated on: ${new Date().toLocaleString()}`,
         ],
         columns: [
@@ -199,7 +184,7 @@ export default function BestSellingPage() {
     setIsExporting(true);
     try {
       downloadCsvReport({
-        filename: `best_selling_${period}_${new Date().toISOString().split("T")[0]}`,
+        filename: `best_selling_${rangeType}_${new Date().toISOString().split("T")[0]}`,
         columns: [
           { key: "name", label: "Product" },
           { key: "unitsSold", label: "Units Sold" },
@@ -220,7 +205,7 @@ export default function BestSellingPage() {
     <div className="min-h-screen w-full animate-in fade-in duration-500">
       <PageHeader
         title="Best Selling Products"
-        subtitle={`${period.charAt(0).toUpperCase() + period.slice(1)} ranking by units sold and revenue generated`}
+        subtitle={dateRangeLabel}
         action={
           <div className="flex items-center gap-2">
             <ReportExportMenu
@@ -240,6 +225,20 @@ export default function BestSellingPage() {
           </div>
         }
       />
+
+      <div className="mb-6 rounded-2xl border border-slate-200 bg-white px-4 py-4 shadow-sm">
+        <DateRangeControl
+          rangeType={rangeType}
+          customStartDate={customStartDate}
+          customEndDate={customEndDate}
+          onRangeTypeChange={(next) => {
+            setRangeType(next);
+            setCurrentPage(1);
+          }}
+          onCustomStartDateChange={setCustomStartDate}
+          onCustomEndDateChange={setCustomEndDate}
+        />
+      </div>
 
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
         <StatCard
@@ -267,27 +266,6 @@ export default function BestSellingPage() {
           color="blue"
           isText
         />
-      </div>
-
-      <div className="mb-4 flex flex-wrap gap-2">
-        {PERIOD_OPTIONS.map((option) => (
-          <button
-            key={option}
-            type="button"
-            onClick={() => handlePeriodChange(option)}
-            className={`cursor-pointer rounded-full border px-3 py-2 text-xs font-bold uppercase tracking-wide transition-all ${
-              period === option
-                ? "border-slate-900 bg-slate-900 text-white"
-                : "border-slate-200 bg-white text-slate-600 hover:border-slate-400"
-            }`}
-          >
-            {option}
-          </button>
-        ))}
-      </div>
-
-      <div className="mb-6 inline-flex items-center rounded-full border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-600 shadow-sm">
-        Date Range: {getPeriodDateRangeLabel(period)}
       </div>
 
       <div className="mb-6 flex flex-wrap items-center gap-3 rounded-2xl border border-slate-200 bg-white px-4 py-4 shadow-sm">

@@ -49,6 +49,7 @@ const cartSchema = new mongoose.Schema(
     ],
     email: { type: String, trim: true, lowercase: true, default: null },
     phoneNumber: { type: String, trim: true, default: null },
+    cartTrackingId: { type: String, trim: true, default: null },
     lastActivityAt: { type: Date, default: Date.now },
     abandonmentStatus: {
       type: String,
@@ -75,6 +76,14 @@ const cartSchema = new mongoose.Schema(
     },
   },
   { timestamps: true },
+);
+
+cartSchema.index(
+  { cartTrackingId: 1 },
+  {
+    unique: true,
+    partialFilterExpression: { cartTrackingId: { $type: "string" } },
+  },
 );
 
 const Cart = mongoose.models.Cart || mongoose.model("Cart", cartSchema);

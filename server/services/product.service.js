@@ -2250,14 +2250,40 @@ const getPeriodDateRange = (period = "overall", refDateValue) => {
   return { $gte: start, $lte: end };
 };
 
+const getExplicitDateRange = (startDate, endDate) => {
+  if (!startDate && !endDate) return null;
+
+  const match = {};
+  if (startDate) {
+    const start = new Date(startDate);
+    if (!Number.isNaN(start.getTime())) {
+      start.setHours(0, 0, 0, 0);
+      match.$gte = start;
+    }
+  }
+
+  if (endDate) {
+    const end = new Date(endDate);
+    if (!Number.isNaN(end.getTime())) {
+      end.setHours(23, 59, 59, 999);
+      match.$lte = end;
+    }
+  }
+
+  return Object.keys(match).length ? match : null;
+};
+
 export const getMostViewedProductsService = async ({
   limit = 10,
   period = "overall",
   refDate,
+  startDate,
+  endDate,
 } = {}) => {
   const normalizedLimit = Math.min(Math.max(Number(limit) || 10, 1), 50);
+  const viewedAt = getExplicitDateRange(startDate, endDate) || getPeriodDateRange(period, refDate);
 
-  if (period === "overall") {
+  if (!viewedAt) {
     const products = await Product.find({ status: "Active" })
       .sort({ viewCount: -1 })
       .limit(normalizedLimit)
@@ -2275,7 +2301,6 @@ export const getMostViewedProductsService = async ({
     }));
   }
 
-  const viewedAt = getPeriodDateRange(period, refDate);
   const items = await ProductView.aggregate([
     {
       $match: {

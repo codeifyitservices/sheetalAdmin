@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { getMostViewedProducts } from "../services/productService";
 
-export function useMostViewed(limit = 5, period = "overall", refDate = "") {
+export function useMostViewed(limit = 5, options = {}) {
   const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -9,7 +9,7 @@ export function useMostViewed(limit = 5, period = "overall", refDate = "") {
   useEffect(() => {
     let isMounted = true;
 
-    getMostViewedProducts(limit, period, refDate)
+    getMostViewedProducts(limit, options)
       .then((data) => {
         if (!isMounted) return;
         setItems(data);
@@ -25,7 +25,7 @@ export function useMostViewed(limit = 5, period = "overall", refDate = "") {
     return () => {
       isMounted = false;
     };
-  }, [limit, period, refDate]);
+  }, [limit, options]);
 
   return { items, loading, error };
 }

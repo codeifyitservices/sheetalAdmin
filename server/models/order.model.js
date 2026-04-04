@@ -56,6 +56,20 @@ const orderSchema = new mongoose.Schema(
     taxPrice: { type: Number, default: 0 },
     shippingPrice: { type: Number, default: 0 },
     totalPrice: { type: Number, default: 0 },
+    recoverySource: {
+      type: String,
+      enum: ["email", "whatsapp", "sms"],
+      default: null,
+    },
+    recoveryStage: {
+      type: Number,
+      min: 1,
+      max: 4,
+      default: null,
+    },
+    recoveryCartId: { type: String, default: null },
+    recoveryCycleId: { type: String, default: null },
+    recoveredAt: { type: Date, default: null },
     purchaseSource: {
       type: String,
       enum: ["cart", "buyNow"],

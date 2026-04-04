@@ -18,6 +18,7 @@ export const createPaymentLinkService = async (
   buyNowItems = [],
   cartItems = [],
   couponData = {},
+  recoveryData = {},
 ) => {
   const user = await User.findById(userId);
 
@@ -126,6 +127,13 @@ export const createPaymentLinkService = async (
     shippingPrice: shippingPrice,
     taxPrice: platformFee, // Using taxPrice field for platformFee if no specific field exists, or add to schema
     totalPrice: finalAmount,
+    recoverySource: recoveryData.recoverySource || null,
+    recoveryStage: recoveryData.recoveryStage
+      ? Number(recoveryData.recoveryStage)
+      : null,
+    recoveryCartId: recoveryData.recoveryCartId || null,
+    recoveryCycleId: recoveryData.recoveryCycleId || null,
+    recoveredAt: null,
     orderStatus: "Processing",
     purchaseSource: isBuyNow ? "buyNow" : "cart",
   });
@@ -195,8 +203,8 @@ export const createPaymentLinkService = async (
     const paymentLink = await razorpay.paymentLink.create(paymentLinkOptions);
 
     // Update order with payment link ID just in case
-    order.paymentInfo.id = paymentLink.id;
-    await order.save();
+  order.paymentInfo.id = paymentLink.id;
+  await order.save();
 
     return paymentLink;
   } catch (error) {
@@ -293,6 +301,9 @@ export const verifyOnlinePaymentService = async (params) => {
   order.paymentInfo.id = razorpay_payment_id;
   order.paymentInfo.status = "Paid";
   order.paidAt = new Date();
+  if (order.recoverySource && !order.recoveredAt) {
+    order.recoveredAt = new Date();
+  }
   await order.save();
 
   await confirmCouponUsageForOrder(order);

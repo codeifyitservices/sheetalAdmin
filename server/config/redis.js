@@ -24,18 +24,17 @@ export const hasRedisConfiguration = () =>
   Boolean(config.redis.url || config.redis.host || config.redis.port);
 
 export const isRedisReachable = async () => {
-  if (redisReachableCache !== undefined) {
+  if (redisReachableCache === true) {
     return redisReachableCache;
   }
 
   if (!hasRedisConfiguration()) {
-    redisReachableCache = false;
-    return redisReachableCache;
+    return false;
   }
 
   const { host, port } = config.redis;
 
-  redisReachableCache = await new Promise((resolve) => {
+  const reachable = await new Promise((resolve) => {
     const socket = new net.Socket();
     let settled = false;
 
@@ -53,5 +52,6 @@ export const isRedisReachable = async () => {
     socket.connect(port, host);
   });
 
-  return redisReachableCache;
+  redisReachableCache = reachable ? true : undefined;
+  return reachable;
 };

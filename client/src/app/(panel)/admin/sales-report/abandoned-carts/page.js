@@ -5,11 +5,11 @@ import { useRouter, useSearchParams } from "next/navigation";
 import {
   ShoppingCart,
   IndianRupee,
-  Users,
   RefreshCw,
   Loader2,
   AlertCircle,
   Clock,
+  TrendingUp,
 } from "lucide-react";
 import PageHeader from "@/components/admin/layout/PageHeader";
 import AbandonedCartDetailsModal from "@/components/admin/sales/AbandonedCartDetailsModal";
@@ -36,7 +36,7 @@ export default function AbandonedCartsPage() {
   const [stats, setStats] = useState({
     total: 0,
     totalValue: 0,
-    avgValue: 0,
+    recoveredAmount: 0,
     oldestDays: 0,
   });
 
@@ -65,9 +65,7 @@ export default function AbandonedCartsPage() {
       setStats({
         total: data.length,
         totalValue: Math.round(totalValue * 100) / 100,
-        avgValue: data.length
-          ? Math.round((totalValue / data.length) * 100) / 100
-          : 0,
+        recoveredAmount: Math.round(Number(res.recoveredAmount || 0) * 100) / 100,
         oldestDays: oldest,
       });
     } catch (err) {
@@ -130,10 +128,10 @@ export default function AbandonedCartsPage() {
           color="amber"
         />
         <StatCard
-          title="Avg Cart Value"
-          value={`₹ ${stats.avgValue.toLocaleString()}`}
-          icon={<Users size={20} />}
-          color="indigo"
+          title="Recovered Amount"
+          value={`₹ ${stats.recoveredAmount.toLocaleString()}`}
+          icon={<TrendingUp size={20} />}
+          color="emerald"
         />
         <StatCard
           title="Oldest Cart"
@@ -366,6 +364,7 @@ function StatCard({ title, value, icon, color }) {
     rose: "bg-rose-50 text-rose-500 border-rose-100",
     amber: "bg-amber-50 text-amber-600 border-amber-100",
     indigo: "bg-indigo-50 text-indigo-600 border-indigo-100",
+    emerald: "bg-emerald-50 text-emerald-600 border-emerald-100",
     slate: "bg-slate-100 text-slate-500 border-slate-200",
   };
 
@@ -385,3 +384,4 @@ function StatCard({ title, value, icon, color }) {
     </div>
   );
 }
+

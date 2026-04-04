@@ -4,6 +4,16 @@ import ErrorResponse from "../utils/ErrorResponse.js";
 import logger from "../utils/logger.js";
 import { handleUserActivity } from "./abandonedCart.service.js";
 
+const sanitizeAbandonmentReminderAttempts = (cart) => {
+  if (!Array.isArray(cart?.abandonmentReminderAttempts)) {
+    return [];
+  }
+
+  return cart.abandonmentReminderAttempts.filter(
+    (attempt) => attempt && typeof attempt.jobId === "string" && attempt.jobId.trim(),
+  );
+};
+
 export const getCartByUserIdService = async (userId) => {
   const cart = await Cart.findOne({ user: userId }).populate({
     path: "items.product",
@@ -27,6 +37,8 @@ export const getCartByUserIdService = async (userId) => {
   const orphanCount = cart.items.filter((item) => !item.product).length;
   if (orphanCount > 0) {
     cart.items = cart.items.filter((item) => item.product != null);
+    cart.abandonmentReminderAttempts =
+      sanitizeAbandonmentReminderAttempts(cart);
     await cart.save();
   }
   // ─────────────────────────────────────────────────────────────────────────
@@ -97,6 +109,8 @@ export const addToCartService = async (
     });
   }
 
+  cart.abandonmentReminderAttempts =
+    sanitizeAbandonmentReminderAttempts(cart);
   await cart.save();
   try {
     await handleUserActivity({ userId, cartId: cart._id, source: "cart_add" });
@@ -126,6 +140,8 @@ export const removeFromCartService = async (userId, itemId) => {
 
   if (itemIndex > -1) {
     cart.items.splice(itemIndex, 1); // Remove the item
+    cart.abandonmentReminderAttempts =
+      sanitizeAbandonmentReminderAttempts(cart);
     await cart.save();
     try {
       await handleUserActivity({
@@ -175,6 +191,8 @@ export const updateCartItemQuantityService = async (
     itemToUpdate.quantity = newQuantity;
   }
 
+  cart.abandonmentReminderAttempts =
+    sanitizeAbandonmentReminderAttempts(cart);
   await cart.save();
   try {
     await handleUserActivity({
@@ -203,6 +221,8 @@ export const clearCartService = async (userId) => {
   }
 
   cart.items = [];
+  cart.abandonmentReminderAttempts =
+    sanitizeAbandonmentReminderAttempts(cart);
   await cart.save();
   try {
     await handleUserActivity({

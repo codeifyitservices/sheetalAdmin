@@ -6,9 +6,19 @@ import { API_BASE_URL } from "@/services/api";
  * @param {{ status: string, search: string }} params
  * @returns {Promise<Object[]>} enquiries array
  */
-export async function fetchEnquiries({ status = "all", search = "" } = {}) {
+export async function fetchEnquiries({
+  status = "all",
+  search = "",
+  startDate = "",
+  endDate = "",
+} = {}, signal) {
+  const params = { status, search };
+  if (startDate) params.startDate = startDate;
+  if (endDate) params.endDate = endDate;
+
   const { data } = await axios.get(`${API_BASE_URL}/enquiry`, {
-    params: { status, search },
+    params,
+    signal,
     withCredentials: true,
   });
   if (!data.success) throw new Error("Failed to fetch enquiries");

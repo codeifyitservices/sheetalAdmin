@@ -42,10 +42,32 @@ export const createEnquiry = async (req, res, next) => {
 // @access  Private/Admin
 export const getEnquiries = async (req, res, next) => {
   try {
-    const { status, search } = req.query;
+    const { status, search, startDate, endDate } = req.query;
     const query = {};
 
     if (status && status !== "all") query.status = status;
+
+    if (startDate || endDate) {
+      query.createdAt = {};
+      if (startDate) {
+        const start = new Date(startDate);
+        if (!Number.isNaN(start.getTime())) {
+          start.setHours(0, 0, 0, 0);
+          query.createdAt.$gte = start;
+        }
+      }
+      if (endDate) {
+        const end = new Date(endDate);
+        if (!Number.isNaN(end.getTime())) {
+          end.setHours(23, 59, 59, 999);
+          query.createdAt.$lte = end;
+        }
+      }
+
+      if (Object.keys(query.createdAt).length === 0) {
+        delete query.createdAt;
+      }
+    }
 
     if (search?.trim()) {
       query.$or = [

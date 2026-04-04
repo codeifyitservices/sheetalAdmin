@@ -4,15 +4,19 @@ import connectDB from "./config/db.js";
 import { seedAdmin } from "./scripts/seedAdmin.js";
 import initializeFirebase from "./config/firebase.js";
 import { initializeAbandonedCartWorker } from "./workers/abandonedCart.worker.js";
-import { isRedisReachable } from "./config/redis.js";
+import { hasRedisConfiguration, isRedisReachable } from "./config/redis.js";
 
 const startServer = async () => {
   try {
     initializeFirebase();
     await connectDB();
     await seedAdmin();
-    if (await isRedisReachable()) {
+    if (hasRedisConfiguration() && (await isRedisReachable())) {
       initializeAbandonedCartWorker();
+    } else {
+      console.warn(
+        "[AbandonedCart] Redis unavailable; worker not started",
+      );
     }
   } catch (error) {
     console.error("Database connection failed:", error);

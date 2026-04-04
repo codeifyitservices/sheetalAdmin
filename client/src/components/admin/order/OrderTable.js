@@ -24,7 +24,6 @@ import { getAllOrders, assignAwb } from "@/services/orderService";
 
 export default function OrderTable({
   dateRange,
-  onDateRangeChange,
 }) {
   const [orders, setOrders] = useState([]);
   const [loading, setLoading] = useState(false);
@@ -56,7 +55,6 @@ export default function OrderTable({
       );
       if (res.success) {
         setOrders(res.data.orders);
-        if (refreshStats) refreshStats();
         if (isRefresh) toast.success("Orders synchronized");
       }
     } catch (err) {
@@ -134,6 +132,41 @@ export default function OrderTable({
     }
   };
 
+  const exportRows = filteredData.map((order) => ({
+    id: order._id,
+    customer: order.shippingAddress?.fullName || "-",
+    items: order.orderItems?.length || 0,
+    amount: order.totalPrice != null ? `₹${Number(order.totalPrice).toLocaleString("en-IN")}` : "-",
+    status: order.orderStatus || "-",
+    paymentMethod: order.paymentInfo?.method || "-",
+    awbCode: order.awbCode || "-",
+    shiprocketOrderId: order.shiprocketOrderId || "-",
+    date: order.createdAt
+      ? new Date(order.createdAt).toLocaleString("en-IN")
+      : "-",
+  }));
+
+  const handleDownloadPdf = async () => {
+    await downloadPdfReport({
+      filename: `orders_report_${new Date().toISOString().split("T")[0]}`,
+      title: "Orders Report",
+      meta: [
+        `Total Orders: ${exportRows.length}`,
+        `Generated on: ${new Date().toLocaleString()}`,
+      ],
+      columns: exportColumns,
+      rows: exportRows,
+    });
+  };
+
+  const handleDownloadExcel = async () => {
+    downloadCsvReport({
+      filename: `orders_report_${new Date().toISOString().split("T")[0]}`,
+      columns: exportColumns,
+      rows: exportRows,
+    });
+  };
+
   return (
     <div className="bg-white border border-slate-200 rounded-2xl shadow-sm text-slate-900 overflow-hidden">
       {/* Header Toolbar */}
@@ -163,43 +196,6 @@ export default function OrderTable({
             <option value="Delivered">Delivered</option>
             <option value="Cancelled">Cancelled</option>
           </select>
-
-          <input
-            type="date"
-            value={dateRange?.startDate || ""}
-            onChange={(e) =>
-              onDateRangeChange?.((prev) => ({
-                ...prev,
-                startDate: e.target.value,
-              }))
-            }
-            className="border border-slate-200 rounded-xl px-3 py-2.5 text-sm font-medium text-slate-600 bg-slate-50 outline-none hover:bg-white transition-all"
-          />
-
-          <input
-            type="date"
-            value={dateRange?.endDate || ""}
-            min={dateRange?.startDate || undefined}
-            onChange={(e) =>
-              onDateRangeChange?.((prev) => ({
-                ...prev,
-                endDate: e.target.value,
-              }))
-            }
-            className="border border-slate-200 rounded-xl px-3 py-2.5 text-sm font-medium text-slate-600 bg-slate-50 outline-none hover:bg-white transition-all"
-          />
-
-          {(dateRange?.startDate || dateRange?.endDate) && (
-            <button
-              type="button"
-              onClick={() =>
-                onDateRangeChange?.({ startDate: "", endDate: "" })
-              }
-              className="px-3 py-2.5 text-sm font-bold text-slate-500 hover:text-slate-900 hover:bg-slate-100 rounded-xl transition-all"
-            >
-              Clear Dates
-            </button>
-          )}
 
           <button
             onClick={() => fetchOrders(true)}

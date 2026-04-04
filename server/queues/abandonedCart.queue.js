@@ -38,10 +38,41 @@ export const ensureAbandonedCartQueue = async () => {
 };
 
 export const buildAbandonedCartJobId = (cartId, cycleId, stage) =>
-  `abandoned-cart:${cartId}:${cycleId}:${stage}`;
+  `abandoned-cart-${cartId}-${cycleId}-${stage}`;
 
-export const buildAbandonedCartOrderUrl = (cartId) =>
-  `${config.frontendDomain.replace(/\/$/, "")}/checkout?cartId=${cartId}`;
+const RECOVERY_STAGE_MAP = {
+  first: 1,
+  second: 2,
+  third: 3,
+  final: 4,
+};
+
+export const buildAbandonedCartOrderUrl = (cartId, recoveryMeta = {}) => {
+  const checkoutUrl = new URL(
+    `${config.frontendDomain.replace(/\/$/, "")}/checkout`,
+  );
+
+  checkoutUrl.searchParams.set("cartId", cartId);
+
+  if (recoveryMeta.source) {
+    checkoutUrl.searchParams.set("recoverySource", recoveryMeta.source);
+  }
+
+  if (recoveryMeta.stage != null) {
+    checkoutUrl.searchParams.set("recoveryStage", String(recoveryMeta.stage));
+  } else if (recoveryMeta.reminderStage && RECOVERY_STAGE_MAP[recoveryMeta.reminderStage]) {
+    checkoutUrl.searchParams.set(
+      "recoveryStage",
+      String(RECOVERY_STAGE_MAP[recoveryMeta.reminderStage]),
+    );
+  }
+
+  if (recoveryMeta.cycleId) {
+    checkoutUrl.searchParams.set("recoveryCycleId", recoveryMeta.cycleId);
+  }
+
+  return checkoutUrl.toString();
+};
 
 export const closeAbandonedCartQueue = async () => {
   if (!abandonedCartQueue) return;

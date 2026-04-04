@@ -9,42 +9,19 @@ import {
   LayoutList,
 } from "lucide-react";
 import ReportExportMenu from "@/components/admin/common/ReportExportMenu";
+import DateRangeControl from "@/components/admin/common/DateRangeControl";
 import PageHeader from "@/components/admin/layout/PageHeader";
 import MostViewedItems from "@/components/admin/sales/MostViewedItems";
 import { getMostViewedProducts } from "@/services/productService";
 import { getPaginationRange } from "@/utils/pagination";
 import { downloadCsvReport, downloadPdfReport } from "@/utils/reportExport";
+import { useDateRange } from "@/hooks/useDateRange";
 
 const LIMIT_OPTIONS = [5, 10, 25];
-const PERIOD_OPTIONS = ["overall", "weekly", "monthly", "yearly"];
-
-const getPeriodDateRangeLabel = (period) => {
-  if (period === "overall") return "All time";
-
-  const end = new Date();
-  const start = new Date(end);
-
-  if (period === "monthly") {
-    start.setDate(start.getDate() - 27);
-  } else if (period === "yearly") {
-    start.setMonth(start.getMonth() - 11);
-    start.setDate(1);
-  } else {
-    start.setDate(start.getDate() - 6);
-  }
-
-  const formatOptions =
-    period === "yearly"
-      ? { month: "short", year: "numeric" }
-      : { month: "short", day: "numeric", year: "numeric" };
-
-  return `${start.toLocaleDateString("en-US", formatOptions)} - ${end.toLocaleDateString("en-US", formatOptions)}`;
-};
 
 export default function MostViewedPage() {
   const [limit, setLimit] = useState(10);
   const [currentPage, setCurrentPage] = useState(1);
-  const [period, setPeriod] = useState("overall");
 
   const [allItems, setAllItems] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -55,12 +32,25 @@ export default function MostViewedPage() {
     topProduct: "-",
     topCategory: "-",
   });
+  const {
+    rangeType,
+    setRangeType,
+    customStartDate,
+    setCustomStartDate,
+    customEndDate,
+    setCustomEndDate,
+    dateRange,
+    dateRangeLabel,
+  } = useDateRange("last_7_days");
 
   const fetchData = useCallback(async () => {
     setLoading(true);
     setError(null);
     try {
-      const data = await getMostViewedProducts(25, period);
+      const data = await getMostViewedProducts(25, {
+        startDate: dateRange.startDate.toISOString().split("T")[0],
+        endDate: dateRange.endDate.toISOString().split("T")[0],
+      });
       setAllItems(data);
 
       const totalViews = data.reduce((sum, p) => sum + (p.views || 0), 0);
@@ -77,26 +67,21 @@ export default function MostViewedPage() {
     } finally {
       setLoading(false);
     }
-  }, [period]);
+  }, [dateRange.endDate, dateRange.startDate]);
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     const limitFromUrl = parseInt(params.get("limit")) || 10;
     const pageFromUrl = parseInt(params.get("page")) || 1;
-    const periodFromUrl = params.get("period") || "overall";
 
     setLimit(LIMIT_OPTIONS.includes(limitFromUrl) ? limitFromUrl : 10);
     setCurrentPage(pageFromUrl);
-    setPeriod(
-      PERIOD_OPTIONS.includes(periodFromUrl) ? periodFromUrl : "overall",
-    );
   }, []);
 
-  const syncUrl = (newLimit, newPage, newPeriod = period) => {
+  const syncUrl = (newLimit, newPage) => {
     const params = new URLSearchParams(window.location.search);
     params.set("limit", String(newLimit));
     params.set("page", String(newPage));
-    params.set("period", newPeriod);
     window.history.replaceState(
       {},
       "",
@@ -115,12 +100,6 @@ export default function MostViewedPage() {
     syncUrl(limit, newPage);
   };
 
-  const handlePeriodChange = (newPeriod) => {
-    setPeriod(newPeriod);
-    setCurrentPage(1);
-    syncUrl(limit, 1, newPeriod);
-  };
-
   useEffect(() => {
     fetchData();
   }, [fetchData]);
@@ -135,11 +114,11 @@ export default function MostViewedPage() {
     setIsExporting(true);
     try {
       await downloadPdfReport({
-        filename: `most_viewed_${period}_${new Date().toISOString().split("T")[0]}`,
+        filename: `most_viewed_${rangeType}_${new Date().toISOString().split("T")[0]}`,
         title: "Most Viewed Products Report",
         meta: [
-          `Period: ${period}`,
-          `Date Range: ${getPeriodDateRangeLabel(period)}`,
+          `Period: ${rangeType}`,
+          `Date Range: ${dateRangeLabel}`,
           `Generated on: ${new Date().toLocaleString()}`,
         ],
         columns: [
@@ -162,7 +141,7 @@ export default function MostViewedPage() {
     setIsExporting(true);
     try {
       downloadCsvReport({
-        filename: `most_viewed_${period}_${new Date().toISOString().split("T")[0]}`,
+        filename: `most_viewed_${rangeType}_${new Date().toISOString().split("T")[0]}`,
         columns: [
           { key: "name", label: "Product" },
           { key: "category", label: "Category" },
@@ -183,7 +162,7 @@ export default function MostViewedPage() {
     <div className="min-h-screen w-full animate-in fade-in duration-500">
       <PageHeader
         title="Most Viewed Products"
-        subtitle={`${period.charAt(0).toUpperCase() + period.slice(1)} product views`}
+        subtitle={dateRangeLabel}
         action={
           <div className="flex items-center gap-2">
             <ReportExportMenu
@@ -203,6 +182,20 @@ export default function MostViewedPage() {
           </div>
         }
       />
+
+      <div className="mb-6 rounded-2xl border border-slate-200 bg-white px-4 py-4 shadow-sm">
+        <DateRangeControl
+          rangeType={rangeType}
+          customStartDate={customStartDate}
+          customEndDate={customEndDate}
+          onRangeTypeChange={(next) => {
+            setRangeType(next);
+            setCurrentPage(1);
+          }}
+          onCustomStartDateChange={setCustomStartDate}
+          onCustomEndDateChange={setCustomEndDate}
+        />
+      </div>
 
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
         <StatCard
@@ -232,27 +225,6 @@ export default function MostViewedPage() {
           color="blue"
           isText
         />
-      </div>
-
-      <div className="mb-4 flex flex-wrap gap-2">
-        {PERIOD_OPTIONS.map((option) => (
-          <button
-            key={option}
-            type="button"
-            onClick={() => handlePeriodChange(option)}
-            className={`cursor-pointer rounded-full border px-3 py-2 text-xs font-bold uppercase tracking-wide transition-all ${
-              period === option
-                ? "border-slate-900 bg-slate-900 text-white"
-                : "border-slate-200 bg-white text-slate-600 hover:border-slate-400"
-            }`}
-          >
-            {option}
-          </button>
-        ))}
-      </div>
-
-      <div className="mb-6 inline-flex items-center rounded-full border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-600 shadow-sm">
-        Date Range: {getPeriodDateRangeLabel(period)}
       </div>
 
       <div className="bg-white border border-slate-200 rounded-xl shadow-sm overflow-hidden">

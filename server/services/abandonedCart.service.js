@@ -18,11 +18,21 @@ import {
 } from "./abandonedCart.notification.service.js";
 
 const REMINDER_STAGES = [
-  { stage: "first", delayMinutes: 30 },
+  {
+    stage: "first",
+    delayMinutes: config.abandonedCart.firstReminderMinutes,
+  },
   { stage: "second", delayMinutes: 6 * 60 },
   { stage: "third", delayMinutes: 24 * 60 },
   { stage: "final", delayMinutes: 48 * 60 },
 ];
+
+const REMINDER_STAGE_TO_RECOVERY_STEP = {
+  first: 1,
+  second: 2,
+  third: 3,
+  final: 4,
+};
 
 const clamp = (value, min, max) =>
   Math.min(max, Math.max(min, Number(value) || min));
@@ -33,6 +43,21 @@ const normalizeContact = (value) => {
   return trimmed.length ? trimmed : null;
 };
 
+export const buildCartTrackingId = (cart, updatedAt = new Date()) => {
+  const createdAt = cart?.createdAt
+    ? new Date(cart.createdAt)
+    : updatedAt instanceof Date
+      ? updatedAt
+      : new Date(updatedAt);
+  const lastUpdatedAt =
+    updatedAt instanceof Date ? updatedAt : new Date(updatedAt || Date.now());
+
+  return `cart-${createdAt.getTime()}-${lastUpdatedAt.getTime()}`;
+};
+
+const getCartTrackingId = (cart, updatedAt = new Date()) =>
+  cart?.cartTrackingId || buildCartTrackingId(cart, updatedAt);
+
 const getReminderPolicy = async () => {
   const settings = await Settings.findOne().lean();
 
@@ -40,7 +65,7 @@ const getReminderPolicy = async () => {
     inactivityMinutes: clamp(
       settings?.abandonedCartInactivityMinutes ??
         config.abandonedCart.inactivityMinutes,
-      15,
+      1,
       30,
     ),
     discountPercent: clamp(
@@ -92,6 +117,7 @@ const buildCartSnapshot = (cart) => {
 
   return {
     cartId: cart._id.toString(),
+    trackingId: getCartTrackingId(cart, cart.updatedAt),
     userId: cart.user?._id?.toString?.() || cart.user?.toString?.() || null,
     email: cart.email || cart.user?.email || null,
     phoneNumber: cart.phoneNumber || cart.user?.phoneNumber || null,
@@ -122,12 +148,13 @@ const buildReminderData = (
   abandonedAt,
 ) => ({
   cartId: cartSnapshot.cartId,
+  cartTrackingId: cartSnapshot.trackingId,
   userId: cartSnapshot.userId,
   cycleId,
   stage,
+  recoveryStage: REMINDER_STAGE_TO_RECOVERY_STEP[stage] || null,
   abandonedAt,
   snapshot: cartSnapshot,
-  ctaUrl: buildAbandonedCartOrderUrl(cartSnapshot.cartId),
   discountPercent: policy.discountPercent,
   couponCode: policy.couponCode,
 });
@@ -181,7 +208,18 @@ const persistReminderAttempt = async (cartId, entry) => {
   });
 };
 
+const sanitizeReminderAttempts = (cart) => {
+  if (!Array.isArray(cart?.abandonmentReminderAttempts)) {
+    return [];
+  }
+
+  return cart.abandonmentReminderAttempts.filter(
+    (attempt) => attempt && typeof attempt.jobId === "string" && attempt.jobId.trim(),
+  );
+};
+
 const syncCartState = async (cart, updates) => {
+  cart.abandonmentReminderAttempts = sanitizeReminderAttempts(cart);
   Object.assign(cart, updates);
   await cart.save();
   return cart;
@@ -291,6 +329,7 @@ export const cancelReminders = async (cartIdOrDoc, options = {}) => {
     cart.abandonmentStatus = options.clearStatus;
   }
 
+  cart.abandonmentReminderAttempts = sanitizeReminderAttempts(cart);
   await cart.save();
   return cart;
 };
@@ -377,6 +416,7 @@ export const scheduleReminders = async (
   }
 
   cart.abandonmentReminderJobIds = jobIds;
+  cart.abandonmentReminderAttempts = sanitizeReminderAttempts(cart);
   await cart.save();
   return cart;
 };
@@ -426,10 +466,12 @@ export const markCartAsAbandoned = async (
   }
 
   const contact = await getCartContactUpdates(cart);
+  const trackingId = cart.items?.length ? getCartTrackingId(cart, triggeredAt) : null;
 
   await syncCartState(cart, {
     email: contact.email,
     phoneNumber: contact.phoneNumber,
+    cartTrackingId: trackingId,
     abandonmentStatus: "abandoned",
     abandonedAt: triggeredAt,
     checkoutExitedAt:
@@ -449,6 +491,7 @@ export const markCartAsAbandoned = async (
   logger.info(
     {
       cartId: cart._id.toString(),
+      cartTrackingId: cart.cartTrackingId || null,
       userId: cart.user?._id?.toString?.() || cart.user?.toString?.() || null,
       reason,
       cycleId: finalCycleId,
@@ -498,8 +541,7 @@ export const sendReminder = async ({
 
   const policy = await getReminderPolicy();
   const cartSnapshot = snapshotFromJob || buildCartSnapshot(cart);
-  const ctaUrl =
-    ctaUrlFromJob || buildAbandonedCartOrderUrl(cartSnapshot.cartId);
+  const ctaUrl = ctaUrlFromJob || buildAbandonedCartOrderUrl(cartSnapshot.cartId);
   const couponCode = couponFromJob || policy.couponCode;
   const discountPercent = discountFromJob || policy.discountPercent;
   const channels = getStageChannels(stage, cartSnapshot);
@@ -516,6 +558,7 @@ export const sendReminder = async ({
       error: null,
       metadata: {
         reason: "no_available_channels",
+        cartTrackingId: cartSnapshot.trackingId,
       },
     };
 
@@ -529,7 +572,11 @@ export const sendReminder = async ({
         channel,
         cartSnapshot,
         stage,
-        ctaUrl,
+        ctaUrl: buildAbandonedCartOrderUrl(cartSnapshot.cartId, {
+          source: channel,
+          stage: REMINDER_STAGE_TO_RECOVERY_STEP[stage] || null,
+          cycleId,
+        }),
         policy: { couponCode, discountPercent },
       }).then((result) => {
         logReminderProviderResult(channel, result);
@@ -564,6 +611,7 @@ export const sendReminder = async ({
   const attemptEntry = {
     cycleId,
     stage,
+    recoveryStage: REMINDER_STAGE_TO_RECOVERY_STEP[stage] || null,
     jobId,
     status: overallStatus,
     channels,
@@ -571,6 +619,7 @@ export const sendReminder = async ({
     completedAt: new Date(),
     error: failures[0]?.error || null,
     metadata: {
+      cartTrackingId: cartSnapshot.trackingId,
       cartValue: cartSnapshot.cartValue,
       itemCount: cartSnapshot.itemCount,
       ctaUrl,
@@ -583,12 +632,13 @@ export const sendReminder = async ({
   await persistReminderAttempt(cart._id, attemptEntry);
 
   if (overallStatus === "failure") {
-    logger.error(
-      {
-        cartId: cart._id.toString(),
-        cycleId,
-        stage,
-        jobId,
+  logger.error(
+    {
+      cartId: cart._id.toString(),
+      cartTrackingId: cart.cartTrackingId || null,
+      cycleId,
+      stage,
+      jobId,
         channels: channelStatuses,
       },
       "[AbandonedCart] Reminder dispatch failed",
@@ -599,6 +649,7 @@ export const sendReminder = async ({
   logger.info(
     {
       cartId: cart._id.toString(),
+      cartTrackingId: cart.cartTrackingId || null,
       cycleId,
       stage,
       jobId,
@@ -629,7 +680,20 @@ export const handleUserActivity = async ({
   }
 
   if (cart.abandonmentStatus === "completed") {
-    return cart;
+    if (!cart.items?.length) {
+      return cart;
+    }
+
+    await syncCartState(cart, {
+      abandonmentStatus: "active",
+      abandonedAt: null,
+      checkoutExitedAt: null,
+      completedAt: null,
+      abandonmentReason: null,
+      abandonmentCycleId: null,
+      abandonmentReminderJobIds: {},
+      cartTrackingId: null,
+    });
   }
 
   const contact = await getCartContactUpdates(cart, {
@@ -647,9 +711,11 @@ export const handleUserActivity = async ({
 
   const nextCycleId = crypto.randomUUID();
   const now = new Date();
+  const nextTrackingId = cart.items?.length ? getCartTrackingId(cart, now) : null;
   const nextState = {
     email: contact.email,
     phoneNumber: contact.phoneNumber,
+    cartTrackingId: nextTrackingId,
     lastActivityAt: now,
     abandonmentStatus: "active",
     abandonedAt: null,
@@ -718,6 +784,7 @@ export const handleUserActivity = async ({
   logger.info(
     {
       cartId: cart._id.toString(),
+      cartTrackingId: cart.cartTrackingId || null,
       userId: cart.user?._id?.toString?.() || userId?.toString?.() || null,
       source,
       cycleId: cart.abandonmentCycleId,
@@ -788,11 +855,14 @@ export const completeAbandonedCartFlow = async ({
   cart.abandonmentReason = "order_completed";
   cart.abandonmentCycleId = null;
   cart.abandonmentReminderJobIds = {};
+  cart.abandonmentReminderAttempts = sanitizeReminderAttempts(cart);
+  cart.cartTrackingId = null;
   await cart.save();
 
   logger.info(
     {
       cartId: cart._id.toString(),
+      cartTrackingId: cart.cartTrackingId || null,
       userId: cart.user?.toString?.() || userId?.toString?.() || null,
     },
     "[AbandonedCart] Flow completed and reminders cancelled",

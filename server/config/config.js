@@ -17,7 +17,7 @@ export const config = Object.freeze({
   adminName: process.env.ADMIN_NAME || "Admin",
   adminEmail: process.env.ADMIN_EMAIL,
   adminPassword: process.env.ADMIN_PASSWORD,
-  frontendDomain: process.env.FRONTEND_URL || "http://localhost:3000",
+  frontendDomain: process.env.FRONTEND_URL || "http://localhost:3001",
   baseUrl: process.env.BACKEND_URL || "http://localhost:8000",
   redis: {
     url: process.env.REDIS_URL || "",
@@ -30,10 +30,15 @@ export const config = Object.freeze({
     inactivityMinutes: Math.min(
       30,
       Math.max(
-        15,
-        parseInt(process.env.ABANDONED_CART_INACTIVITY_MINUTES || "20", 10) ||
-          20,
+        1,
+        parseInt(process.env.ABANDONED_CART_INACTIVITY_MINUTES || "1", 10) ||
+          1,
       ),
+    ),
+    firstReminderMinutes: Math.max(
+      1,
+      parseInt(process.env.ABANDONED_CART_FIRST_REMINDER_MINUTES || "1", 10) ||
+        1,
     ),
     discountPercent: Math.max(
       5,

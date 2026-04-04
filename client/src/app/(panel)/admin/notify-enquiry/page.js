@@ -8,7 +8,9 @@ import EnquiryStatsCards from "@/components/admin/enquiry/EnquiryStatsCards";
 import EnquiryFilters from "@/components/admin/enquiry/EnquiryFilters";
 import EnquiryTable from "@/components/admin/enquiry/EnquiryTable";
 import EnquiryModal from "@/components/admin/enquiry/EnquiryModal";
+import DateRangeControl from "@/components/admin/common/DateRangeControl";
 import { downloadCsvReport, downloadPdfReport } from "@/utils/reportExport";
+import { useDateRange } from "@/hooks/useDateRange";
 
 import {
   fetchEnquiries,
@@ -27,6 +29,16 @@ export default function EnquiriesPage() {
   const [pendingAction, setPendingAction] = useState(null);
   const [counts, setCounts] = useState({ total: 0, new: 0, read: 0, replied: 0 });
   const [isExporting, setIsExporting] = useState(false);
+  const {
+    rangeType,
+    setRangeType,
+    customStartDate,
+    setCustomStartDate,
+    customEndDate,
+    setCustomEndDate,
+    dateRange,
+    dateRangeLabel,
+  } = useDateRange("last_7_days");
 
   // Ref holds the AbortController for the in-flight fetch pair so we can
   // cancel it the moment a newer search/filter change comes in.
@@ -47,8 +59,17 @@ export default function EnquiriesPage() {
     setIsLoading(true);
     try {
       const [filtered, all] = await Promise.all([
-        fetchEnquiries({ status: statusFilter, search }, signal),
-        fetchEnquiries({ status: "all" }, signal),
+        fetchEnquiries({
+          status: statusFilter,
+          search,
+          startDate: dateRange.startDate.toISOString().split("T")[0],
+          endDate: dateRange.endDate.toISOString().split("T")[0],
+        }, signal),
+        fetchEnquiries({
+          status: "all",
+          startDate: dateRange.startDate.toISOString().split("T")[0],
+          endDate: dateRange.endDate.toISOString().split("T")[0],
+        }, signal),
       ]);
 
       // If this request was aborted (a newer one started), do not commit.
@@ -63,7 +84,7 @@ export default function EnquiriesPage() {
     } finally {
       if (!signal.aborted) setIsLoading(false);
     }
-  }, [statusFilter, search]);
+  }, [statusFilter, search, dateRange.endDate, dateRange.startDate]);
 
   useEffect(() => {
     const timer = setTimeout(() => loadEnquiries(), 300);
@@ -138,6 +159,7 @@ export default function EnquiriesPage() {
       const meta = [
         `Generated on: ${new Date().toLocaleString()}`,
         `Status filter: ${statusFilter}`,
+        `Date Range: ${dateRangeLabel}`,
         `Search: ${search || "None"}`,
         `Records: ${exportRows.length}`,
       ];
@@ -168,7 +190,23 @@ export default function EnquiriesPage() {
   // ── Render ─────────────────────────────────────────────────────────────────
 
   return (
-    <div className="space-y-6 animate-in fade-in slide-in-from-bottom-2 duration-500">
+      <div className="space-y-6 animate-in fade-in slide-in-from-bottom-2 duration-500">
+      <div className="flex w-full justify-between gap-4 rounded-2xl border border-slate-200 bg-white px-4 py-4 shadow-sm">
+        <DateRangeControl
+          rangeType={rangeType}
+          customStartDate={customStartDate}
+          customEndDate={customEndDate}
+          onRangeTypeChange={(next) => {
+            setRangeType(next);
+          }}
+          onCustomStartDateChange={setCustomStartDate}
+          onCustomEndDateChange={setCustomEndDate}
+        />
+        <div className="inline-flex items-center rounded-full border border-slate-200 bg-slate-50 px-4 py-2 text-sm font-medium text-slate-600">
+          {dateRangeLabel}
+        </div>
+      </div>
+
       <div className="flex w-full justify-end">
         <ReportExportMenu
             disabled={enquiries.length === 0}

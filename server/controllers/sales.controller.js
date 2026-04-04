@@ -4,7 +4,12 @@ import User from "../models/user.model.js";
 import Product from "../models/product.model.js";
 
 const ABANDONED_CART_STEPS = [
-  { stage: "first", label: "Step 1", title: "30 min reminder", delayMinutes: 30 },
+  {
+    stage: "first",
+    label: "Step 1",
+    title: "1 min reminder",
+    delayMinutes: 1,
+  },
   { stage: "second", label: "Step 2", title: "6 hour reminder", delayMinutes: 6 * 60 },
   { stage: "third", label: "Step 3", title: "24 hour reminder", delayMinutes: 24 * 60 },
   { stage: "final", label: "Step 4", title: "48 hour final reminder", delayMinutes: 48 * 60 },
@@ -564,16 +569,43 @@ export const getBestSellingProducts = async (req, res) => {
 export const getAbandonedCarts = async (req, res) => {
   try {
     const limit = Math.min(parseInt(req.query.limit) || 20, 100);
-
-    const carts = await Cart.find({
-      abandonmentStatus: "abandoned",
-      "items.0": { $exists: true },
-    })
-      .populate("user", "name email phoneNumber")
-      .populate("items.product", "name images mainImage slug")
-      .sort({ updatedAt: -1 })
-      .limit(limit)
-      .lean();
+    const [carts, recoveryStats] = await Promise.all([
+      Cart.find({
+        abandonmentStatus: "abandoned",
+        "items.0": { $exists: true },
+      })
+        .populate("user", "name email phoneNumber")
+        .populate("items.product", "name images mainImage slug")
+        .sort({ updatedAt: -1 })
+        .limit(limit)
+        .lean(),
+      Order.aggregate([
+        {
+          $match: {
+            recoveredAt: { $ne: null },
+            recoverySource: { $in: ["email", "whatsapp", "sms"] },
+            recoveryStage: { $in: [1, 2, 3, 4] },
+            orderStatus: { $nin: ["Cancelled", "Returned"] },
+          },
+        },
+        {
+          $group: {
+            _id: {
+              source: "$recoverySource",
+              stage: "$recoveryStage",
+            },
+            totalRecoveredAmount: { $sum: "$totalPrice" },
+            recoveredOrders: { $sum: 1 },
+          },
+        },
+        {
+          $sort: {
+            "_id.stage": 1,
+            "_id.source": 1,
+          },
+        },
+      ]),
+    ]);
 
     const data = carts
       .map((cart) => {
@@ -617,7 +649,8 @@ export const getAbandonedCarts = async (req, res) => {
         const checkpoints = buildReminderCheckpoints(cart);
 
         return {
-          cartId: cart._id,
+          cartId: cart.cartTrackingId || cart._id,
+          mongoCartId: cart._id,
           userId: cart.user?._id,
           email: cart.email || cart.user?.email,
           phoneNumber: cart.phoneNumber || cart.user?.phoneNumber,
@@ -639,11 +672,17 @@ export const getAbandonedCarts = async (req, res) => {
       .filter(Boolean);
 
     const totalValue = data.reduce((sum, c) => sum + c.cartValue, 0);
+    const recoveredAmount = recoveryStats.reduce(
+      (sum, row) => sum + Number(row.totalRecoveredAmount || 0),
+      0,
+    );
 
     res.status(200).json({
       success: true,
       count: data.length,
       totalAbandonedValue: Math.round(totalValue * 100) / 100,
+      recoveredAmount: Math.round(recoveredAmount * 100) / 100,
+      recoveryStats,
       data,
     });
   } catch (error) {

@@ -326,6 +326,8 @@ export const getMostViewedProducts = async (req, res, next) => {
       limit: req.query.limit,
       period: req.query.period || "overall",
       refDate: req.query.refDate,
+      startDate: req.query.startDate,
+      endDate: req.query.endDate,
     });
 
     res.json({ success: true, items });

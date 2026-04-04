@@ -131,11 +131,21 @@ export const getProducts = async (
   // Admin dashboard
   export const getMostViewedProducts = async (
     limit = 5,
-    period = "overall",
+    periodOrOptions = "overall",
     refDate = "",
   ) => {
-    const query = new URLSearchParams({ limit: String(limit), period });
-    if (refDate) query.set("refDate", refDate);
+    const query = new URLSearchParams({ limit: String(limit) });
+
+    if (typeof periodOrOptions === "object" && periodOrOptions !== null) {
+      const { period, refDate: nextRefDate, startDate, endDate } = periodOrOptions;
+      if (period) query.set("period", period);
+      if (nextRefDate) query.set("refDate", nextRefDate);
+      if (startDate) query.set("startDate", startDate);
+      if (endDate) query.set("endDate", endDate);
+    } else {
+      query.set("period", periodOrOptions);
+      if (refDate) query.set("refDate", refDate);
+    }
 
     const res = await fetch(`${API_BASE_URL}/products/admin/most-viewed?${query}`, {
       credentials: "include",

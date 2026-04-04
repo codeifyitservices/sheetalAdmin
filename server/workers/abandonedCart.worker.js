@@ -10,6 +10,17 @@ import {
 let abandonedCartWorker;
 let redisUnavailableLogged = false;
 
+const describeWorkerError = (error) => {
+  if (!error) return "Unknown abandoned-cart worker error";
+  if (typeof error === "string") return error.trim() || "Unknown abandoned-cart worker error";
+
+  const parts = [error.name, error.code, error.message, error.stack]
+    .filter((part) => typeof part === "string" && part.trim())
+    .map((part) => part.trim());
+
+  return parts[0] || "Unknown abandoned-cart worker error";
+};
+
 export const initializeAbandonedCartWorker = () => {
   if (abandonedCartWorker) return abandonedCartWorker;
 
@@ -20,7 +31,10 @@ export const initializeAbandonedCartWorker = () => {
         case "mark-abandoned":
           return markCartAsAbandonedByJob(job.data);
         case "send-reminder":
-          return sendReminderByJob(job.data);
+          return sendReminderByJob({
+            ...job.data,
+            jobId: job.id,
+          });
         default:
           throw new Error(`Unsupported abandoned cart job: ${job.name}`);
       }
@@ -53,15 +67,16 @@ export const initializeAbandonedCartWorker = () => {
   });
 
   abandonedCartWorker.on("error", (error) => {
+    const description = describeWorkerError(error);
     if (
-      error?.message?.includes("ECONNREFUSED") &&
-      error?.message?.includes("6379")
+      (description.includes("ECONNREFUSED") && description.includes("6379")) ||
+      description === "Unknown abandoned-cart worker error"
     ) {
       if (!redisUnavailableLogged) {
         redisUnavailableLogged = true;
         logger.warn(
           {
-            error: error.message,
+            error: description,
           },
           "[AbandonedCart] Redis unavailable; delayed reminders are paused",
         );
@@ -69,7 +84,7 @@ export const initializeAbandonedCartWorker = () => {
       return;
     }
 
-    logger.error({ error: error.message }, "[AbandonedCart] Worker error");
+    logger.error({ error: description }, "[AbandonedCart] Worker error");
   });
 
   return abandonedCartWorker;
