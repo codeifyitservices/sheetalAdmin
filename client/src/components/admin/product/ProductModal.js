@@ -31,16 +31,6 @@ export default function ProductModal({
   const [loading, setLoading] = useState(false);
   const [categories, setCategories] = useState([]);
 
-  const emptyVariant = {
-    v_sku: "",
-    color: { name: "", code: "#000000", swatchImage: "" },
-    sizes: [{ name: "", stock: 0, price: 0, discountPrice: 0 }],
-    v_image: "",
-    videoFile: null,
-    v_video: "",
-    gallery: [],
-  };
-
   const [formData, setFormData] = useState({
     name: "",
     sku: "",
@@ -81,6 +71,34 @@ export default function ProductModal({
     isTrending: false,
     isNewArrival: false,
     isCollection: false,
+  });
+
+  const getDefaultVariantSizes = () => {
+    const selectedCategory = categories.find(
+      (cat) => cat._id === formData.category,
+    );
+    const chartSizes = selectedCategory?.sizeChart?.table;
+
+    if (Array.isArray(chartSizes) && chartSizes.length > 0) {
+      return chartSizes.map((row) => ({
+        name: row.label || "",
+        stock: 0,
+        price: 0,
+        discountPrice: 0,
+      }));
+    }
+
+    return [{ name: "", stock: 0, price: 0, discountPrice: 0 }];
+  };
+
+  const createEmptyVariant = () => ({
+    v_sku: "",
+    color: { name: "", code: "#000000", swatchImage: "" },
+    sizes: getDefaultVariantSizes(),
+    v_image: "",
+    videoFile: null,
+    v_video: "",
+    gallery: [],
   });
 
   useEffect(() => {
@@ -153,6 +171,51 @@ export default function ProductModal({
     });
   }, [formData.variants]);
 
+  useEffect(() => {
+    if (!isOpen || !formData.category || categories.length === 0) return;
+
+    const selectedCategory = categories.find(
+      (cat) => cat._id === formData.category,
+    );
+    const seededSizes =
+      Array.isArray(selectedCategory?.sizeChart?.table) &&
+      selectedCategory.sizeChart.table.length > 0
+        ? selectedCategory.sizeChart.table
+            .map((row) => ({
+              name: row.label || "",
+              stock: 0,
+              price: 0,
+              discountPrice: 0,
+            }))
+            .filter((row) => row.name.trim() !== "")
+        : [];
+
+    if (seededSizes.length === 0) return;
+
+    setFormData((prev) => {
+      const nextVariants = Array.isArray(prev.variants)
+        ? prev.variants.map((variant) =>
+            !Array.isArray(variant.sizes) ||
+            variant.sizes.length === 0 ||
+            variant.sizes.every((size) => !String(size?.name || "").trim())
+              ? { ...variant, sizes: seededSizes }
+              : variant,
+          )
+        : [];
+
+      const changed =
+        nextVariants.length !== (prev.variants?.length || 0) ||
+        nextVariants.some((variant, index) => variant !== prev.variants?.[index]);
+
+      if (!changed) return prev;
+
+      return {
+        ...prev,
+        variants: nextVariants,
+      };
+    });
+  }, [categories, formData.category, isOpen]);
+
   const fetchCategories = async () => {
     try {
       const res = await getCategories(1, 1000);
@@ -200,10 +263,34 @@ export default function ProductModal({
   const handleChange = (e) => {
     const { name, value, type, checked } = e.target;
     if (name === "category") {
+      const selectedCategory = categories.find((cat) => cat._id === value);
+      const seededSizes =
+        Array.isArray(selectedCategory?.sizeChart?.table) &&
+        selectedCategory.sizeChart.table.length > 0
+          ? selectedCategory.sizeChart.table
+              .map((row) => ({
+                name: row.label || "",
+                stock: 0,
+                price: 0,
+                discountPrice: 0,
+              }))
+              .filter((row) => row.name.trim() !== "")
+          : [];
+
       setFormData((prev) => ({
         ...prev,
         category: value,
         subCategory: "", // Reset subcategory when category changes
+        variants:
+          seededSizes.length > 0
+            ? prev.variants.map((variant) =>
+                !Array.isArray(variant.sizes) ||
+                variant.sizes.length === 0 ||
+                variant.sizes.every((size) => !String(size?.name || "").trim())
+                  ? { ...variant, sizes: seededSizes }
+                  : variant,
+              )
+            : prev.variants,
       }));
     } else {
       setFormData((prev) => ({
@@ -516,7 +603,7 @@ export default function ProductModal({
               <InventoryParams
                 formData={formData}
                 setFormData={setFormData}
-                emptyVariant={emptyVariant}
+                createEmptyVariant={createEmptyVariant}
               />
             )}
 

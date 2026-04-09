@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useEffect, useState } from "react";
 import { X, UploadCloud } from "lucide-react";
 import { uploadHowToMeasureImage } from "@/services/sizeChartService";
 import toast from "react-hot-toast";
@@ -8,17 +8,17 @@ export default function HowToMeasureModal({
   onClose,
   onSuccess,
   currentImage,
+  chartId,
+  chartName,
 }) {
   const [image, setImage] = useState(null);
   const [imagePreview, setImagePreview] = useState(null);
   const [loading, setLoading] = useState(false);
-  // Remove local error state as we will use toast for errors
-  // const [error, setError] = useState(null);
 
   useEffect(() => {
     if (isOpen) {
       setImagePreview(currentImage);
-      setImage(null); // Clear selected file when modal opens
+      setImage(null);
     }
   }, [isOpen, currentImage]);
 
@@ -38,22 +38,23 @@ export default function HowToMeasureModal({
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    // Only require image if no currentImage exists
-    if (!image && !currentImage) {
-      toast.error("Please select an image to upload.");
-      // setError("Please select an image to upload."); // Remove this
+    if (!chartId) {
+      toast.error("Select a chart before uploading an image.");
       return;
     }
+    if (!image) {
+      onClose();
+      return;
+    }
+
     setLoading(true);
-    // setError(null); // Remove this
     const formData = new FormData();
     if (image) {
-      // Only append if a new image is selected
       formData.append("howToMeasureImage", image);
     }
 
     try {
-      const response = await uploadHowToMeasureImage(formData);
+      const response = await uploadHowToMeasureImage(chartId, formData);
       onSuccess(response.data);
       toast.success("How to measure image updated successfully!");
       setImage(null);
@@ -61,7 +62,6 @@ export default function HowToMeasureModal({
       onClose();
     } catch (err) {
       toast.error(err.message || "Failed to upload image.");
-      // setError(err.message); // Remove this
       console.error("Error uploading image:", err);
     } finally {
       setLoading(false);
@@ -72,7 +72,12 @@ export default function HowToMeasureModal({
     <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center">
       <div className="bg-white rounded-lg shadow-xl w-full max-w-lg p-6 animate-in fade-in-0 zoom-in-95">
         <div className="flex items-center justify-between text-black pb-4">
-          <h2 className="text-xl font-bold">How to Measure</h2>
+          <div>
+            <h2 className="text-xl font-bold">How to Measure</h2>
+            {chartName ? (
+              <p className="text-sm text-gray-500 mt-1">{chartName}</p>
+            ) : null}
+          </div>
           <button
             onClick={onClose}
             className="text-gray-500 hover:text-gray-700"
@@ -121,8 +126,6 @@ export default function HowToMeasureModal({
               </div>
             </div>
           </div>
-          {/* Remove local error display */}
-          {/* {error && <p className="text-red-500 text-sm">{error}</p>} */}
           <div className="flex justify-end gap-4 pt-4">
             <button
               type="button"

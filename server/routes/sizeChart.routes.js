@@ -6,7 +6,7 @@ import { uploadTo } from "../middlewares/multer.middleware.js";
 const router = express.Router();
 
 router
-  .route("/how-to-measure")
+  .route("/:id/how-to-measure")
   .put(
     isAuthenticated,
     isAdmin,
@@ -21,7 +21,17 @@ router
 
 router
   .route("/:id")
+  .get(sizeChartController.getSizeChart)
   .put(isAuthenticated, isAdmin, sizeChartController.updateSize)
   .delete(isAuthenticated, isAdmin, sizeChartController.deleteSize);
+
+router
+  .route("/:id/rows")
+  .post(isAuthenticated, isAdmin, sizeChartController.addSizeRow);
+
+router
+  .route("/:id/rows/:rowId")
+  .patch(isAuthenticated, isAdmin, sizeChartController.updateSizeRow)
+  .delete(isAuthenticated, isAdmin, sizeChartController.deleteSizeRow);
 
 export default router;

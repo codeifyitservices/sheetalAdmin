@@ -383,7 +383,13 @@ export const getNewArrivalsService = async () => {
 export const getProductDetailsService = async (id) => {
   const query = id.match(/^[0-9a-fA-F]{24}$/) ? { _id: id } : { slug: id };
   const product = await Product.findOne(query)
-    .populate("category", "name slug")
+    .populate({
+      path: "category",
+      select: "name slug sizeChart",
+      populate: {
+        path: "sizeChart",
+      },
+    })
     .populate("sizeChart")
     .lean();
   return product

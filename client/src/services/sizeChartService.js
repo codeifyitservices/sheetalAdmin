@@ -6,8 +6,50 @@ const handleResponse = async (res) => {
   return data;
 };
 
-export const uploadHowToMeasureImage = async (formData) => {
-  const res = await fetch(`${API_BASE_URL}/size-chart/how-to-measure`, {
+export const getSizeCharts = async () => {
+  const res = await fetch(`${API_BASE_URL}/size-chart`, {
+    credentials: "include",
+  });
+  return handleResponse(res);
+};
+
+export const getSizeChart = async (id) => {
+  const res = await fetch(`${API_BASE_URL}/size-chart/${id}`, {
+    credentials: "include",
+  });
+  return handleResponse(res);
+};
+
+export const createSizeChart = async (chartData) => {
+  const res = await fetch(`${API_BASE_URL}/size-chart`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    credentials: "include",
+    body: JSON.stringify(chartData),
+  });
+  return handleResponse(res);
+};
+
+export const updateSizeChart = async (id, chartData) => {
+  const res = await fetch(`${API_BASE_URL}/size-chart/${id}`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    credentials: "include",
+    body: JSON.stringify(chartData),
+  });
+  return handleResponse(res);
+};
+
+export const deleteSizeChart = async (id) => {
+  const res = await fetch(`${API_BASE_URL}/size-chart/${id}`, {
+    method: "DELETE",
+    credentials: "include",
+  });
+  return handleResponse(res);
+};
+
+export const uploadHowToMeasureImage = async (id, formData) => {
+  const res = await fetch(`${API_BASE_URL}/size-chart/${id}/how-to-measure`, {
     method: "PUT",
     credentials: "include",
     body: formData,
@@ -15,35 +57,28 @@ export const uploadHowToMeasureImage = async (formData) => {
   return handleResponse(res);
 };
 
-export const getSizeChart = async () => {
-  const res = await fetch(`${API_BASE_URL}/size-chart`, {
-    credentials: "include",
-  });
-  return handleResponse(res);
-};
-
-export const addSize = async (sizeData) => {
-  const res = await fetch(`${API_BASE_URL}/size-chart`, {
+export const addSizeChartRow = async (id, rowData) => {
+  const res = await fetch(`${API_BASE_URL}/size-chart/${id}/rows`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     credentials: "include",
-    body: JSON.stringify(sizeData),
+    body: JSON.stringify(rowData),
   });
   return handleResponse(res);
 };
 
-export const updateSize = async (id, sizeData) => {
-  const res = await fetch(`${API_BASE_URL}/size-chart/${id}`, {
-    method: "PUT",
+export const updateSizeChartRow = async (chartId, rowId, rowData) => {
+  const res = await fetch(`${API_BASE_URL}/size-chart/${chartId}/rows/${rowId}`, {
+    method: "PATCH",
     headers: { "Content-Type": "application/json" },
     credentials: "include",
-    body: JSON.stringify(sizeData),
+    body: JSON.stringify(rowData),
   });
   return handleResponse(res);
 };
 
-export const deleteSize = async (id) => {
-  const res = await fetch(`${API_BASE_URL}/size-chart/${id}`, {
+export const deleteSizeChartRow = async (chartId, rowId) => {
+  const res = await fetch(`${API_BASE_URL}/size-chart/${chartId}/rows/${rowId}`, {
     method: "DELETE",
     credentials: "include",
   });
