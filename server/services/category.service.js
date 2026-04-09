@@ -1,5 +1,6 @@
 import Category from "../models/category.model.js";
 import Product from "../models/product.model.js";
+import SizeChart from "../models/sizechart.model.js";
 import slugify from "slugify";
 import { deleteFile, deleteS3File } from "../utils/fileHelper.js";
 import { config } from "../config/config.js";
@@ -25,6 +26,7 @@ export const createCategoryService = async (data, files) => {
     wearType,
     occasion,
     byPrice,
+    sizeChart,
   } = data;
 
   if (!name) return { success: false, message: "Category name is required" };
@@ -69,6 +71,19 @@ export const createCategoryService = async (data, files) => {
   const parsedWearType = parseArrayField(wearType);
   const parsedOccasion = parseArrayField(occasion);
   const parsedByPrice = parseArrayField(byPrice);
+  const parsedSizeChart =
+    sizeChart && sizeChart !== "null" && sizeChart !== "undefined"
+      ? sizeChart
+      : null;
+
+  if (parsedSizeChart) {
+    const sizeChartExists = await SizeChart.findById(parsedSizeChart).select(
+      "_id",
+    );
+    if (!sizeChartExists) {
+      return { success: false, message: "Selected size chart not found" };
+    }
+  }
 
   const newCategoryData = {
     name,
@@ -91,6 +106,7 @@ export const createCategoryService = async (data, files) => {
     wearType: parsedWearType,
     occasion: parsedOccasion,
     byPrice: parsedByPrice,
+    sizeChart: parsedSizeChart,
   };
 
   if (files && files.mainImage) {
@@ -125,9 +141,10 @@ export const createCategoryService = async (data, files) => {
 export const getAllCategoriesService = async () => {
   const categories = await Category.find({ isActive: true })
     .select(
-      "name slug mainImage bannerImage parentCategory subCategories style work fabric productType wearType occasion byPrice",
+      "name slug mainImage bannerImage parentCategory subCategories style work fabric productType wearType occasion byPrice sizeChart",
     )
     .populate("parentCategory", "name")
+    .populate("sizeChart", "name table howToMeasureImage")
     .sort({ order: 1 });
 
   const categoriesWithFullUrls = categories.map((category) => {
@@ -181,7 +198,7 @@ export const getCategoryBySlugService = async (slug) => {
   const category = await Category.findOne({ slug, isActive: true }).populate(
     "parentCategory",
     "name",
-  );
+  ).populate("sizeChart", "name table howToMeasureImage");
 
   if (!category) return { success: false, message: "Category not found" };
 
@@ -194,6 +211,7 @@ export const getAdminCategoriesService = async ({ page, limit, search }) => {
   const total = await Category.countDocuments(query);
   const categories = await Category.find(query)
     .populate("parentCategory", "name")
+    .populate("sizeChart", "name table howToMeasureImage")
     .sort({ order: 1 })
     .skip((page - 1) * limit)
     .limit(limit);
@@ -282,6 +300,23 @@ export const updateCategoryService = async (id, data, files) => {
     updateData.occasion = parseArrayField(data.occasion);
   if (data.byPrice !== undefined)
     updateData.byPrice = parseArrayField(data.byPrice);
+  if (data.sizeChart !== undefined) {
+    if (
+      data.sizeChart === "" ||
+      data.sizeChart === "null" ||
+      data.sizeChart === "undefined"
+    ) {
+      updateData.sizeChart = null;
+    } else {
+      const sizeChartExists = await SizeChart.findById(data.sizeChart).select(
+        "_id",
+      );
+      if (!sizeChartExists) {
+        return { success: false, message: "Selected size chart not found" };
+      }
+      updateData.sizeChart = data.sizeChart;
+    }
+  }
 
   if (data.subCategories !== undefined) {
     let parsedSubCategories = [];

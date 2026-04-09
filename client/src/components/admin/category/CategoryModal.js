@@ -7,12 +7,14 @@ import {
   updateCategory,
   getCategories,
 } from "@/services/categoryService";
+import { getSizeCharts } from "@/services/sizeChartService";
 import { toast } from "react-hot-toast";
 import { IMAGE_BASE_URL } from "@/services/api";
 import {
   getRatioLabel,
   validateImageAspectRatio,
 } from "@/utils/imageAspectRatio";
+import CreateChartModal from "../size-chart/CreateChartModal";
 
 const OG_RATIO = { width: 1200, height: 630 };
 const OG_RATIO_LABEL = getRatioLabel(OG_RATIO.width, OG_RATIO.height);
@@ -38,6 +40,8 @@ export default function CategoryModal({
   const [loading, setLoading] = useState(false);
   const [activeTab, setActiveTab] = useState("Details");
   const [parentCategories, setParentCategories] = useState([]);
+  const [sizeCharts, setSizeCharts] = useState([]);
+  const [isCreateChartModalOpen, setIsCreateChartModalOpen] = useState(false);
   const [previewMainImage, setPreviewMainImage] = useState(null);
   const [previewBannerImage, setPreviewBannerImage] = useState(null);
   const [previewOgImage, setPreviewOgImage] = useState(null);
@@ -57,6 +61,7 @@ export default function CategoryModal({
     wearType: [],
     occasion: [],
     byPrice: [],
+    sizeChart: "",
     mainImage: null,
     bannerImage: null,
     // SEO fields
@@ -85,6 +90,7 @@ export default function CategoryModal({
         wearType: initialData?.wearType || [],
         occasion: initialData?.occasion || [],
         byPrice: initialData?.byPrice || [],
+        sizeChart: initialData?.sizeChart?._id || initialData?.sizeChart || "",
         mainImage: null,
         bannerImage: null,
         metaTitle: initialData?.metaTitle || "",
@@ -134,6 +140,7 @@ export default function CategoryModal({
       }
 
       fetchParents();
+      fetchSizeCharts();
     }
   }, [isOpen, initialData]);
 
@@ -146,6 +153,16 @@ export default function CategoryModal({
       setParentCategories(filtered);
     } catch (err) {
       console.error("Failed to fetch parents:", err);
+    }
+  };
+
+  const fetchSizeCharts = async () => {
+    try {
+      const res = await getSizeCharts();
+      setSizeCharts(Array.isArray(res.data?.charts) ? res.data.charts : []);
+    } catch (err) {
+      console.error("Failed to fetch size charts:", err);
+      setSizeCharts([]);
     }
   };
 
@@ -191,6 +208,16 @@ export default function CategoryModal({
     }
   };
 
+  const handleSizeChartCreated = (chart) => {
+    setSizeCharts((prev) => [chart, ...prev]);
+    setFormData((prev) => ({
+      ...prev,
+      sizeChart: chart?._id || "",
+    }));
+    setIsCreateChartModalOpen(false);
+    toast.success(`"${chart?.name || "Size chart"}" created`);
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     setLoading(true);
@@ -210,6 +237,7 @@ export default function CategoryModal({
     data.append("wearType", JSON.stringify(formData.wearType));
     data.append("occasion", JSON.stringify(formData.occasion));
     data.append("byPrice", JSON.stringify(formData.byPrice));
+    data.append("sizeChart", formData.sizeChart || "");
     // SEO
     data.append("metaTitle", formData.metaTitle);
     data.append("metaDescription", formData.metaDescription);
@@ -517,6 +545,41 @@ export default function CategoryModal({
                       </div>
                     )}
                   </div>
+
+                  <div className="space-y-1.5">
+                    <div className="flex items-center justify-between gap-3">
+                      <label className="text-xs font-bold text-slate-900 uppercase tracking-wider">
+                        Size Chart
+                      </label>
+                      <button
+                        type="button"
+                        onClick={() => setIsCreateChartModalOpen(true)}
+                        className="text-[10px] font-bold uppercase tracking-wider text-indigo-600 hover:text-indigo-700 cursor-pointer"
+                      >
+                        + New Chart
+                      </button>
+                    </div>
+                    <select
+                      value={formData.sizeChart}
+                      onChange={(e) =>
+                        setFormData((prev) => ({
+                          ...prev,
+                          sizeChart: e.target.value,
+                        }))
+                      }
+                      className="w-full bg-white border border-slate-300 px-3 py-2.5 rounded-lg text-sm outline-none focus:border-slate-900 transition font-medium"
+                    >
+                      <option value="">No chart selected</option>
+                      {sizeCharts.map((chart) => (
+                        <option key={chart._id} value={chart._id}>
+                          {chart.name || "Untitled Size Chart"}
+                        </option>
+                      ))}
+                    </select>
+                    <p className="text-[11px] text-slate-500">
+                      Products in this category will use the selected chart.
+                    </p>
+                  </div>
                 </div>
 
                 {/* Column 3: Attributes */}
@@ -800,6 +863,11 @@ export default function CategoryModal({
           </div>
         </form>
       </div>
+      <CreateChartModal
+        isOpen={isCreateChartModalOpen}
+        onClose={() => setIsCreateChartModalOpen(false)}
+        onSuccess={handleSizeChartCreated}
+      />
     </div>
   );
 }

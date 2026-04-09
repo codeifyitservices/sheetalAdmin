@@ -28,7 +28,7 @@ const validateVariantVideo = async (file) => {
 export default function InventoryParams({
   formData,
   setFormData,
-  emptyVariant,
+  createEmptyVariant,
 }) {
   const [filePreviews, setFilePreviews] = useState(() => new Map());
   const previewsRef = useRef(filePreviews);
@@ -124,7 +124,7 @@ export default function InventoryParams({
             onClick={() =>
               setFormData((p) => ({
                 ...p,
-                variants: [...p.variants, { ...emptyVariant }],
+                variants: [...p.variants, createEmptyVariant()],
               }))
             }
             className="bg-white text-slate-900 px-3 py-1.5 rounded-lg hover:bg-blue-50 transition flex items-center gap-2 text-xs font-bold"
@@ -493,6 +493,9 @@ export default function InventoryParams({
                     Add Size
                   </button>
                 </div>
+                <p className="text-[10px] text-slate-400 mb-2">
+                  Sizes are seeded from the selected category chart and can be removed for this product.
+                </p>
                 <div className="space-y-2">
                   {v.sizes.map((s, s_idx) => (
                     <div key={s_idx} className="flex items-end gap-2">
