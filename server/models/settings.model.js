@@ -5,6 +5,14 @@ const navbarItemSchema = new mongoose.Schema(
     id: { type: String, required: true },
     label: { type: String, required: true },
     href: { type: String },
+    hidden: { type: Boolean, default: false },
+    itemType: {
+      type: String,
+      enum: ["link", "category", "static", "custom"],
+      default: "link",
+    },
+    categoryId: { type: String },
+    categorySlug: { type: String },
     type: {
       type: String,
       enum: ["link", "category", "custom"],
