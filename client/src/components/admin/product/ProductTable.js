@@ -26,7 +26,11 @@ import DeleteConfirmModal from "../common/DeleteConfirmModal";
 import SettingsModal from "./SettingsModal";
 import BulkImportModal from "./BulkImportModal";
 
-import { getProducts, deleteProduct, starProduct } from "@/services/productService";
+import {
+  getProducts,
+  deleteProduct,
+  starProduct,
+} from "@/services/productService";
 import { getCategories } from "@/services/categoryService";
 import { useProductModal } from "@/hooks/useProductModal";
 
@@ -304,6 +308,10 @@ export default function ProductTable({ refreshStats }) {
     });
   };
 
+  const starredProducts = products.filter((p) => p.isStarred);
+  const normalProducts = products.filter((p) => !p.isStarred);
+  const orderedProducts = [...starredProducts, ...normalProducts];
+
   return (
     <div className="bg-white border border-slate-200 rounded-lg shadow-sm text-slate-900 overflow-hidden">
       {/* ── Bulk action bar (only in select mode with selections) ── */}
@@ -330,7 +338,10 @@ export default function ProductTable({ refreshStats }) {
                   : "bg-amber-500/20 hover:bg-amber-500 text-amber-300 hover:text-white border border-amber-500/40"
               }`}
             >
-              <Star size={13} className={allSelectedStarred ? "fill-white" : ""} />
+              <Star
+                size={13}
+                className={allSelectedStarred ? "fill-white" : ""}
+              />
               {allSelectedStarred ? "Unstar" : "Star"} {selectedIds.size}
             </button>
 
@@ -474,14 +485,16 @@ export default function ProductTable({ refreshStats }) {
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-100">
-            {products.length > 0 ? (
-              products.map((p, i) => {
-                const isSelected = selectedIds.has(p._id);
+            {orderedProducts.length > 0 ? (
+              orderedProducts.map((product, i) => {
+                const isSelected = selectedIds.has(product._id);
                 return (
                   <tr
-                    key={p._id}
+                    key={product._id}
                     onClick={
-                      selectMode ? () => toggleSelectOne(p._id) : undefined
+                      selectMode
+                        ? () => toggleSelectOne(product._id)
+                        : undefined
                     }
                     className={`transition-colors ${
                       selectMode ? "cursor-pointer" : ""
@@ -493,7 +506,7 @@ export default function ProductTable({ refreshStats }) {
                         onClick={(e) => e.stopPropagation()}
                       >
                         <button
-                          onClick={() => toggleSelectOne(p._id)}
+                          onClick={() => toggleSelectOne(product._id)}
                           className="flex items-center justify-center text-slate-400 hover:text-slate-700 transition-colors"
                         >
                           {isSelected ? (
@@ -514,14 +527,14 @@ export default function ProductTable({ refreshStats }) {
                         className="w-10 h-10 mx-auto rounded-lg bg-slate-100 border border-slate-200 overflow-hidden flex items-center justify-center cursor-pointer"
                         onClick={(e) => {
                           e.stopPropagation();
-                          setViewProduct(p);
+                          setViewProduct(product);
                           setShowDrawer(true);
                         }}
                       >
-                        {p.images?.[0]?.url || p.mainImage?.url ? (
+                        {product.images?.[0]?.url || product.mainImage?.url ? (
                           <img
                             src={(
-                              p.images?.[0]?.url || p.mainImage?.url
+                              product.images?.[0]?.url || product.mainImage?.url
                             ).replace(/\\/g, "/")}
                             alt=""
                             className="w-full h-full object-cover"
@@ -536,24 +549,18 @@ export default function ProductTable({ refreshStats }) {
                       <div className="flex flex-col">
                         <div className="flex items-center gap-1.5">
                           <span className="font-bold text-slate-900">
-                            {p.name}
+                            {product.name}
                           </span>
-                          {p.isStarred && (
-                            <Star
-                              size={12}
-                              className="fill-amber-400 text-amber-400 shrink-0"
-                            />
-                          )}
                         </div>
                         <span className="text-[10px] text-slate-400 uppercase font-black tracking-tighter">
-                          SKU: {p.sku || "N/A"}
+                          SKU: {product.sku || "N/A"}
                         </span>
                       </div>
                     </td>
 
                     <td className="px-4 py-4">
                       <div className="flex flex-wrap gap-1 max-w-xs">
-                        {p.wearType?.slice(0, 2).map((tag, idx) => (
+                        {product.wearType?.slice(0, 2).map((tag, idx) => (
                           <span
                             key={idx}
                             className="bg-purple-100 text-purple-700 text-[9px] font-bold px-1.5 py-0.5 rounded uppercase"
@@ -561,7 +568,7 @@ export default function ProductTable({ refreshStats }) {
                             {tag}
                           </span>
                         ))}
-                        {p.occasion?.slice(0, 2).map((tag, idx) => (
+                        {product.occasion?.slice(0, 2).map((tag, idx) => (
                           <span
                             key={idx}
                             className="bg-pink-100 text-pink-700 text-[9px] font-bold px-1.5 py-0.5 rounded uppercase"
@@ -569,7 +576,7 @@ export default function ProductTable({ refreshStats }) {
                             {tag}
                           </span>
                         ))}
-                        {p.tags?.slice(0, 1).map((tag, idx) => (
+                        {product.tags?.slice(0, 1).map((tag, idx) => (
                           <span
                             key={idx}
                             className="bg-slate-100 text-slate-700 text-[9px] font-bold px-1.5 py-0.5 rounded uppercase"
@@ -577,9 +584,9 @@ export default function ProductTable({ refreshStats }) {
                             {tag}
                           </span>
                         ))}
-                        {(p.wearType?.length > 2 ||
-                          p.occasion?.length > 2 ||
-                          p.tags?.length > 1) && (
+                        {(product.wearType?.length > 2 ||
+                          product.occasion?.length > 2 ||
+                          product.tags?.length > 1) && (
                           <span className="text-[9px] text-slate-400 font-medium">
                             +more
                           </span>
@@ -588,7 +595,7 @@ export default function ProductTable({ refreshStats }) {
                     </td>
 
                     <td className="px-4 py-4 text-slate-600 font-medium">
-                      {p.category?.name || (
+                      {product.category?.name || (
                         <span className="text-slate-400 text-xs italic">
                           Uncategorized
                         </span>
@@ -596,19 +603,20 @@ export default function ProductTable({ refreshStats }) {
                     </td>
 
                     <td className="px-4 py-4 text-slate-600 font-medium">
-                      {p.subCategory || (
+                      {product.subCategory || (
                         <span className="text-slate-400 text-xs">-</span>
                       )}
                     </td>
 
                     <td className="px-4 py-4">
-                      {p.lowStockVariantCount > 0 ? (
+                      {product.lowStockVariantCount > 0 ? (
                         <span className="bg-red-100 text-red-800 text-xs font-medium px-2.5 py-0.5 rounded-full">
-                          {p.lowStockVariantCount} Variant
-                          {p.lowStockVariantCount > 1 ? "s" : ""} Low Stock
-                          {p.lowStockThreshold !== undefined && (
+                          {product.lowStockVariantCount} Variant
+                          {product.lowStockVariantCount > 1 ? "s" : ""} Low
+                          Stock
+                          {product.lowStockThreshold !== undefined && (
                             <span className="ml-1 text-red-600 font-normal">
-                              (≤{p.lowStockThreshold})
+                              (≤{product.lowStockThreshold})
                             </span>
                           )}
                         </span>
@@ -624,18 +632,20 @@ export default function ProductTable({ refreshStats }) {
                       <div className="flex justify-end gap-4 text-slate-400">
                         {/* ── Star toggle ── */}
                         <button
-                          title={p.isStarred ? "Unstar" : "Star"}
-                          disabled={starringId === p._id}
-                          onClick={(e) => handleStar(e, p._id)}
+                          title={product.isStarred ? "Unstar" : "Star"}
+                          disabled={starringId === product._id}
+                          onClick={(e) => handleStar(e, product._id)}
                           className={`transition-colors cursor-pointer disabled:opacity-40 ${
-                            p.isStarred
+                            product.isStarred
                               ? "text-amber-400 hover:text-slate-400"
                               : "hover:text-amber-400"
                           }`}
                         >
                           <Star
                             size={18}
-                            className={p.isStarred ? "fill-amber-400" : ""}
+                            className={
+                              product.isStarred ? "fill-amber-400" : ""
+                            }
                           />
                         </button>
 
@@ -643,7 +653,7 @@ export default function ProductTable({ refreshStats }) {
                           title="Edit"
                           className="hover:text-blue-600 cursor-pointer transition-colors"
                           onClick={() => {
-                            setEditData(p);
+                            setEditData(product);
                             setShowModal(true);
                           }}
                         >
@@ -653,7 +663,7 @@ export default function ProductTable({ refreshStats }) {
                           title="Delete"
                           className="hover:text-rose-600 cursor-pointer transition-colors"
                           onClick={() => {
-                            setDeleteId(p._id);
+                            setDeleteId(product._id);
                             setShowDeleteModal(true);
                           }}
                         >
