@@ -10,9 +10,24 @@ const ABANDONED_CART_STEPS = [
     title: "1 min reminder",
     delayMinutes: 1,
   },
-  { stage: "second", label: "Step 2", title: "6 hour reminder", delayMinutes: 6 * 60 },
-  { stage: "third", label: "Step 3", title: "24 hour reminder", delayMinutes: 24 * 60 },
-  { stage: "final", label: "Step 4", title: "48 hour final reminder", delayMinutes: 48 * 60 },
+  {
+    stage: "second",
+    label: "Step 2",
+    title: "6 hour reminder",
+    delayMinutes: 6 * 60,
+  },
+  {
+    stage: "third",
+    label: "Step 3",
+    title: "24 hour reminder",
+    delayMinutes: 24 * 60,
+  },
+  {
+    stage: "final",
+    label: "Step 4",
+    title: "48 hour final reminder",
+    delayMinutes: 48 * 60,
+  },
 ];
 
 const formatRelativeAbandonedDate = (value) => {
@@ -242,7 +257,10 @@ function fillYearlyData(results, refDateStr) {
   for (let i = 11; i >= 0; i--) {
     const d = new Date(end.getFullYear(), end.getMonth() - i, 1);
     const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
-    const label = d.toLocaleDateString("en-US", { month: "short", year: "2-digit" });
+    const label = d.toLocaleDateString("en-US", {
+      month: "short",
+      year: "2-digit",
+    });
 
     const found = results.find((r) => r.date === key);
 
@@ -482,15 +500,15 @@ export const getBestSellingProducts = async (req, res) => {
     const limit = hasLimit
       ? Math.min(Math.max(requestedLimit || 5, 1), 50)
       : null;
-      const createdAtMatch = getReportDateMatch(req.query, "overall");
-  
-      const results = await Order.aggregate([
-        {
-          $match: {
-            orderStatus: { $nin: ["Cancelled", "Returned"] },
-            ...createdAtMatch,
-          },
+    const createdAtMatch = getReportDateMatch(req.query, "overall");
+
+    const results = await Order.aggregate([
+      {
+        $match: {
+          orderStatus: { $nin: ["Cancelled", "Returned"] },
+          ...createdAtMatch,
         },
+      },
       {
         $unwind: "$orderItems",
       },
@@ -548,9 +566,9 @@ export const getBestSellingProducts = async (req, res) => {
       },
     ]);
 
-      res
-        .status(200)
-        .json({ success: true, period, count: results.length, data: results });
+    res
+      .status(200)
+      .json({ success: true, period, count: results.length, data: results });
   } catch (error) {
     console.error("[getBestSellingProducts]", error);
     res.status(500).json({
@@ -566,28 +584,115 @@ export const getBestSellingProducts = async (req, res) => {
 // Returns carts not updated in 3+ days, with user + product details populated.
 // Query: ?limit=20 (default 20, max 100)
 // ─────────────────────────────────────────────────────────────────────────────
+const ABANDONED_CART_RECOVERY_STEPS = {
+  1: "1 min reminder",
+  2: "6 hour reminder",
+  3: "24 hour reminder",
+  4: "48 hour final reminder",
+};
+
+const buildInclusiveDateRange = (startDate, endDate) => {
+  const range = {};
+
+  if (startDate) {
+    range.$gte = new Date(startDate);
+  }
+
+  if (endDate) {
+    const end = new Date(endDate);
+    end.setHours(23, 59, 59, 999);
+    range.$lte = end;
+  }
+
+  return Object.keys(range).length > 0 ? range : null;
+};
+
+const buildCartDateMatch = (status, startDate, endDate) => {
+  const range = buildInclusiveDateRange(startDate, endDate);
+  if (!range) return null;
+
+  return {
+    [status === "completed" ? "completedAt" : "abandonedAt"]: range,
+  };
+};
+
+const getRecoveryStageLabel = (stage) =>
+  ABANDONED_CART_RECOVERY_STEPS[Number(stage)] || null;
+
 export const getAbandonedCarts = async (req, res) => {
   try {
-    const limit = Math.min(parseInt(req.query.limit) || 20, 100);
+    const limit = Math.min(parseInt(req.query.limit) || 20, 1000);
+    const includeRecovered = req.query.includeRecovered === "true";
+    const startDate = req.query.startDate || null;
+    const endDate = req.query.endDate || null;
+
+    const cartMatch = {
+      "items.0": { $exists: true },
+      abandonmentStatus: includeRecovered
+        ? { $in: ["abandoned", "completed"] }
+        : "abandoned",
+    };
+
+    if (includeRecovered) {
+      const dateClauses = [];
+      const abandonedDateMatch = buildCartDateMatch(
+        "abandoned",
+        startDate,
+        endDate,
+      );
+      const recoveredDateMatch = buildCartDateMatch(
+        "completed",
+        startDate,
+        endDate,
+      );
+
+      if (abandonedDateMatch) {
+        dateClauses.push({
+          abandonmentStatus: "abandoned",
+          ...abandonedDateMatch,
+        });
+      }
+      if (recoveredDateMatch) {
+        dateClauses.push({
+          abandonmentStatus: "completed",
+          ...recoveredDateMatch,
+        });
+      }
+
+      if (dateClauses.length > 0) {
+        cartMatch.$or = dateClauses;
+      }
+    } else {
+      const abandonedDateMatch = buildCartDateMatch(
+        "abandoned",
+        startDate,
+        endDate,
+      );
+      if (abandonedDateMatch) {
+        Object.assign(cartMatch, abandonedDateMatch);
+      }
+    }
+
+    const recoveryDateRange = buildInclusiveDateRange(startDate, endDate);
+    const recoveryMatch = {
+      recoveredAt: { $ne: null },
+      recoverySource: { $in: ["email", "whatsapp", "sms"] },
+      recoveryStage: { $in: [1, 2, 3, 4] },
+      orderStatus: { $nin: ["Cancelled", "Returned"] },
+    };
+    if (recoveryDateRange) {
+      recoveryMatch.recoveredAt = recoveryDateRange;
+    }
+
     const [carts, recoveryStats] = await Promise.all([
-      Cart.find({
-        abandonmentStatus: "abandoned",
-        "items.0": { $exists: true },
-      })
+      Cart.find(cartMatch)
         .populate("user", "name email phoneNumber")
         .populate("items.product", "name images mainImage slug")
         .sort({ updatedAt: -1 })
         .limit(limit)
         .lean(),
       Order.aggregate([
-        {
-          $match: {
-            recoveredAt: { $ne: null },
-            recoverySource: { $in: ["email", "whatsapp", "sms"] },
-            recoveryStage: { $in: [1, 2, 3, 4] },
-            orderStatus: { $nin: ["Cancelled", "Returned"] },
-          },
-        },
+        { $match: recoveryMatch },
         {
           $group: {
             _id: {
@@ -606,6 +711,30 @@ export const getAbandonedCarts = async (req, res) => {
         },
       ]),
     ]);
+
+    const recoveryByCartId = new Map();
+    if (includeRecovered) {
+      const recoveryOrders = await Order.aggregate([
+        { $match: recoveryMatch },
+        { $sort: { recoveredAt: -1 } },
+        {
+          $group: {
+            _id: "$recoveryCartId",
+            totalRecoveredAmount: { $sum: "$totalPrice" },
+            recoveredOrders: { $sum: 1 },
+            recoverySource: { $first: "$recoverySource" },
+            recoveryStage: { $first: "$recoveryStage" },
+            recoveredAt: { $first: "$recoveredAt" },
+          },
+        },
+      ]);
+
+      recoveryOrders.forEach((row) => {
+        if (row._id) {
+          recoveryByCartId.set(String(row._id), row);
+        }
+      });
+    }
 
     const data = carts
       .map((cart) => {
@@ -647,6 +776,15 @@ export const getAbandonedCarts = async (req, res) => {
         });
 
         const checkpoints = buildReminderCheckpoints(cart);
+        const recoveryRecord = recoveryByCartId.get(String(cart._id)) || null;
+        const recoveredAtStage =
+          recoveryRecord?.recoveryStage || cart.recoveredAtStage || null;
+        const status =
+          cart.abandonmentStatus === "completed" ? "recovered" : "abandoned";
+        const eventDate =
+          status === "recovered"
+            ? recoveryRecord?.recoveredAt || cart.completedAt || cart.updatedAt
+            : cart.abandonedAt || cart.updatedAt;
 
         return {
           cartId: cart.cartTrackingId || cart._id,
@@ -658,30 +796,51 @@ export const getAbandonedCarts = async (req, res) => {
           initials,
           cartValue: Math.round(cartValue * 100) / 100,
           itemCount: cart.items.length,
-          date: formatRelativeAbandonedDate(cart.abandonedAt || cart.updatedAt),
+          date: formatRelativeAbandonedDate(eventDate),
           lastActivityAt: cart.lastActivityAt || cart.updatedAt,
           abandonedAt: cart.abandonedAt || cart.updatedAt,
+          recoveredAt: recoveryRecord?.recoveredAt || cart.completedAt || null,
+          recoveredAtStage,
+          recoveredAtStep: getRecoveryStageLabel(recoveredAtStage),
+          recoveredRevenue:
+            Math.round(
+              Number(recoveryRecord?.totalRecoveredAmount || 0) * 100,
+            ) / 100,
+          status,
           abandonmentReason: cart.abandonmentReason || "inactivity",
           reminderAttemptsCount: cart.abandonmentReminderAttempts?.length || 0,
           checkpoints,
           items,
-          previewImage:
-            items[0]?.image || null,
+          previewImage: items[0]?.image || null,
         };
       })
       .filter(Boolean);
 
     const totalValue = data.reduce((sum, c) => sum + c.cartValue, 0);
-    const recoveredAmount = recoveryStats.reduce(
-      (sum, row) => sum + Number(row.totalRecoveredAmount || 0),
-      0,
-    );
+    const abandonedCount = data.filter(
+      (cart) => cart.status === "abandoned",
+    ).length;
+    const recoveredCount = data.filter(
+      (cart) => cart.status === "recovered",
+    ).length;
+    const recoveredAmount = data
+      .filter((cart) => cart.status === "recovered")
+      .reduce((sum, cart) => sum + cart.cartValue, 0);
+    const retentionRate =
+      abandonedCount + recoveredCount > 0
+        ? (recoveredCount / (abandonedCount + recoveredCount)) * 100
+        : 0;
 
     res.status(200).json({
       success: true,
       count: data.length,
+      abandonedCount,
+      recoveredCount,
       totalAbandonedValue: Math.round(totalValue * 100) / 100,
+      totalCartValue: Math.round(totalValue * 100) / 100,
       recoveredAmount: Math.round(recoveredAmount * 100) / 100,
+      recoveredRevenue: Math.round(recoveredAmount * 100) / 100,
+      retentionRate: Math.round(retentionRate * 100) / 100,
       recoveryStats,
       data,
     });

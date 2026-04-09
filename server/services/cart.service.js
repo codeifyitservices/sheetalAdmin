@@ -3,6 +3,7 @@ import Product from "../models/product.model.js";
 import ErrorResponse from "../utils/ErrorResponse.js";
 import logger from "../utils/logger.js";
 import { handleUserActivity } from "./abandonedCart.service.js";
+import { recalculateAbandonedCartDiscount } from "./abandonedcartcoupon.service.js";
 
 const sanitizeAbandonmentReminderAttempts = (cart) => {
   if (!Array.isArray(cart?.abandonmentReminderAttempts)) {
@@ -12,6 +13,23 @@ const sanitizeAbandonmentReminderAttempts = (cart) => {
   return cart.abandonmentReminderAttempts.filter(
     (attempt) => attempt && typeof attempt.jobId === "string" && attempt.jobId.trim(),
   );
+};
+
+/**
+ * After saving a cart mutation, recalculate the abandoned-cart coupon
+ * discount if one is applied. Errors are swallowed so they never break
+ * the primary cart operation.
+ */
+const tryRecalculateCoupon = async (cart) => {
+  if (!cart?.appliedAbandonedCoupon?.couponRecordId) return;
+  try {
+    await recalculateAbandonedCartDiscount(cart);
+  } catch (err) {
+    logger.error(
+      { cartId: cart._id?.toString?.(), error: err.message },
+      "[Cart] Failed to recalculate abandoned-cart coupon discount",
+    );
+  }
 };
 
 export const getCartByUserIdService = async (userId) => {
@@ -31,17 +49,16 @@ export const getCartByUserIdService = async (userId) => {
     return { success: true, data: newCart };
   }
 
-  // ── Strip orphan items (product deleted from admin) ──────────────────────
-  // After populate, items referencing a deleted product will have item.product === null.
-  // Remove them silently so the client never receives null-product data.
+  // Strip orphan items (product deleted from admin).
   const orphanCount = cart.items.filter((item) => !item.product).length;
   if (orphanCount > 0) {
     cart.items = cart.items.filter((item) => item.product != null);
     cart.abandonmentReminderAttempts =
       sanitizeAbandonmentReminderAttempts(cart);
     await cart.save();
+    // Recalculate coupon after orphan strip — cart value changed.
+    await tryRecalculateCoupon(cart);
   }
-  // ─────────────────────────────────────────────────────────────────────────
 
   return { success: true, data: cart };
 };
@@ -93,7 +110,6 @@ export const addToCartService = async (
 
   if (existingItem) {
     existingItem.quantity += quantity;
-    // Optionally update price if it can change
     existingItem.price = price;
     existingItem.discountPrice = discountPrice;
     existingItem.variantImage = variantImage;
@@ -112,6 +128,11 @@ export const addToCartService = async (
   cart.abandonmentReminderAttempts =
     sanitizeAbandonmentReminderAttempts(cart);
   await cart.save();
+
+  // Adding items changes the cart total, so recalculate the abandoned-cart
+  // discount to keep the applied amount in sync.
+  await tryRecalculateCoupon(cart);
+
   try {
     await handleUserActivity({ userId, cartId: cart._id, source: "cart_add" });
   } catch (error) {
@@ -133,16 +154,19 @@ export const removeFromCartService = async (userId, itemId) => {
     throw new ErrorResponse("Cart not found", 404);
   }
 
-  // Find the index of the item to remove
   const itemIndex = cart.items.findIndex(
     (item) => item._id.toString() === itemId,
   );
 
   if (itemIndex > -1) {
-    cart.items.splice(itemIndex, 1); // Remove the item
+    cart.items.splice(itemIndex, 1);
     cart.abandonmentReminderAttempts =
       sanitizeAbandonmentReminderAttempts(cart);
     await cart.save();
+
+    // Removing an item changes the cart total, so recalculate the discount.
+    await tryRecalculateCoupon(cart);
+
     try {
       await handleUserActivity({
         userId,
@@ -185,7 +209,6 @@ export const updateCartItemQuantityService = async (
   }
 
   if (newQuantity <= 0) {
-    // Remove item if quantity is 0 or less
     cart.items = cart.items.filter((item) => item._id.toString() !== itemId);
   } else {
     itemToUpdate.quantity = newQuantity;
@@ -194,6 +217,10 @@ export const updateCartItemQuantityService = async (
   cart.abandonmentReminderAttempts =
     sanitizeAbandonmentReminderAttempts(cart);
   await cart.save();
+
+  // Quantity change affects cart total — recalculate discount.
+  await tryRecalculateCoupon(cart);
+
   try {
     await handleUserActivity({
       userId,
@@ -221,9 +248,13 @@ export const clearCartService = async (userId) => {
   }
 
   cart.items = [];
+  // Clearing the cart zeros the discount and clears the applied coupon —
+  // no point keeping it when the cart is empty.
+  cart.appliedAbandonedCoupon = null;
   cart.abandonmentReminderAttempts =
     sanitizeAbandonmentReminderAttempts(cart);
   await cart.save();
+
   try {
     await handleUserActivity({
       userId,
@@ -243,10 +274,6 @@ export const clearCartService = async (userId) => {
   };
 };
 
-/**
- * Merges guest cart items (from localStorage) into the authenticated user's server cart.
- * Called once after the user logs in.
- */
 export const mergeGuestCartService = async (userId, guestItems) => {
   if (!Array.isArray(guestItems) || guestItems.length === 0) {
     return { success: true, message: "Nothing to merge" };
@@ -295,6 +322,10 @@ export const mergeGuestCartService = async (userId, guestItems) => {
   }
 
   await cart.save();
+
+  // Merging adds items — re-enforce the cap.
+  await tryRecalculateCoupon(cart);
+
   try {
     await handleUserActivity({
       userId,

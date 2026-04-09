@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import {
   ShoppingCart,
@@ -11,10 +11,15 @@ import {
   Clock,
   TrendingUp,
 } from "lucide-react";
+import ReportExportMenu from "@/components/admin/common/ReportExportMenu";
+import DateRangeControl from "@/components/admin/common/DateRangeControl";
 import PageHeader from "@/components/admin/layout/PageHeader";
 import AbandonedCartDetailsModal from "@/components/admin/sales/AbandonedCartDetailsModal";
+import AbandonedCartStepsModal from "@/components/admin/sales/AbandonedCartStepsModal";
+import { downloadCsvReport, downloadPdfReport } from "@/utils/reportExport";
 import { getAbandonedCarts } from "@/services/salesService";
 import { getPaginationRange } from "@/utils/pagination";
+import { useDateRange } from "@/hooks/useDateRange";
 
 const LIMIT_OPTIONS = [5, 10, 25];
 
@@ -33,19 +38,45 @@ export default function AbandonedCartsPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [selectedCart, setSelectedCart] = useState(null);
+  const [isStepsModalOpen, setIsStepsModalOpen] = useState(false);
+  const [isExporting, setIsExporting] = useState(false);
+  const [statusFilter, setStatusFilter] = useState("all");
   const [stats, setStats] = useState({
     total: 0,
     totalValue: 0,
     recoveredAmount: 0,
-    oldestDays: 0,
+    recoveredRevenue: 0,
+    retentionRate: 0,
   });
+  const {
+    rangeType,
+    setRangeType,
+    customStartDate,
+    setCustomStartDate,
+    customEndDate,
+    setCustomEndDate,
+    dateRange,
+    dateRangeLabel,
+  } = useDateRange("last_7_days");
+  const tableDateRange = useMemo(
+    () => ({
+      startDate: dateRange.startDate.toISOString().split("T")[0],
+      endDate: dateRange.endDate.toISOString().split("T")[0],
+    }),
+    [dateRange.endDate, dateRange.startDate],
+  );
 
   const fetchData = useCallback(async () => {
     setLoading(true);
     setError(null);
 
     try {
-      const res = await getAbandonedCarts(100);
+      const res = await getAbandonedCarts({
+        limit: 1000,
+        includeRecovered: true,
+        startDate: tableDateRange.startDate,
+        endDate: tableDateRange.endDate,
+      });
       const data = res.data || [];
       setAllCarts(data);
 
@@ -53,27 +84,23 @@ export default function AbandonedCartsPage() {
         (sum, cart) => sum + Number(cart.cartValue || 0),
         0,
       );
-      const oldest = data.reduce((max, cart) => {
-        const days = Math.floor(
-          (Date.now() -
-            new Date(cart.abandonedAt || cart.lastActivityAt || Date.now())) /
-            86_400_000,
-        );
-        return days > max ? days : max;
-      }, 0);
+
+      console.log(res.recoveredRevenue)
 
       setStats({
-        total: data.length,
+        total: Number(res.abandonedCount || 0),
         totalValue: Math.round(totalValue * 100) / 100,
         recoveredAmount: Math.round(Number(res.recoveredAmount || 0) * 100) / 100,
-        oldestDays: oldest,
+        recoveredRevenue:
+          Math.round(Number(res.recoveredRevenue || 0) * 100) / 100,
+        retentionRate: Number(res.retentionRate || 0),
       });
     } catch (err) {
       setError(err.message);
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [tableDateRange.endDate, tableDateRange.startDate]);
 
   useEffect(() => {
     fetchData();
@@ -91,11 +118,87 @@ export default function AbandonedCartsPage() {
     syncUrl(limit, p);
   };
 
-  const totalPages = Math.ceil(allCarts.length / limit);
-  const paginatedCarts = allCarts.slice(
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [statusFilter, tableDateRange.endDate, tableDateRange.startDate]);
+
+  const filteredCarts = useMemo(() => {
+    if (statusFilter === "abandoned") {
+      return allCarts.filter((cart) => cart.status === "abandoned");
+    }
+    if (statusFilter === "recovered") {
+      return allCarts.filter((cart) => cart.status === "recovered");
+    }
+    return allCarts;
+  }, [allCarts, statusFilter]);
+
+  useEffect(() => {
+    const totalPages = Math.max(1, Math.ceil(filteredCarts.length / limit));
+    if (currentPage > totalPages) {
+      setCurrentPage(1);
+      router.replace(`/admin/sales-report/abandoned-carts?limit=${limit}&page=1`);
+    }
+  }, [currentPage, filteredCarts.length, limit, router]);
+
+  const paginatedCarts = filteredCarts.slice(
     (currentPage - 1) * limit,
     currentPage * limit,
   );
+  const totalPages = Math.ceil(filteredCarts.length / limit);
+
+  const handleExport = async (format) => {
+    if (filteredCarts.length === 0) return;
+
+    setIsExporting(true);
+    try {
+      const columns = [
+        { key: "#", label: "#" },
+        { key: "Customer", label: "Customer" },
+        { key: "Name", label: "Name" },
+        { key: "Phone", label: "Phone" },
+        { key: "Items", label: "Items" },
+        { key: "Cart Value", label: "Cart Value" },
+        { key: "Status", label: "Status" },
+        { key: "Date", label: "Date" },
+        { key: "Recovered At", label: "Recovered At" },
+        { key: "Recovered Step", label: "Recovered Step" },
+      ];
+
+      const rows = filteredCarts.map((cart, index) => ({
+        "#": String(index + 1).padStart(2, "0"),
+        Customer: cart.email || cart.name || "Unknown",
+        Name: cart.name || "-",
+        Phone: cart.phoneNumber || "-",
+        Items: `${cart.itemCount} item${cart.itemCount !== 1 ? "s" : ""}`,
+        "Cart Value": `Rs. ${Number(cart.cartValue || 0).toFixed(2)}`,
+        Status: cart.status === "recovered" ? "Recovered" : "Abandoned",
+        Date: cart.date || "-",
+        "Recovered At": cart.recoveredAt || "-",
+        "Recovered Step": cart.recoveredAtStep || "-",
+      }));
+
+      const filename = `abandoned_carts_${statusFilter}_${tableDateRange.startDate || "all"}_${tableDateRange.endDate || "all"}`;
+
+      if (format === "pdf") {
+        await downloadPdfReport({
+          filename,
+          title: "Abandoned Carts Report",
+          meta: [
+            `Status Filter: ${statusFilter}`,
+            `Date Range: ${dateRangeLabel}`,
+            `Generated on: ${new Date().toLocaleString()}`,
+            `Rows: ${rows.length}`,
+          ],
+          columns,
+          rows,
+        });
+      } else {
+        downloadCsvReport({ filename, columns, rows });
+      }
+    } finally {
+      setIsExporting(false);
+    }
+  };
 
   return (
     <div className="min-h-screen w-full animate-in fade-in duration-500">
@@ -103,16 +206,48 @@ export default function AbandonedCartsPage() {
         title="Abandoned Carts"
         subtitle="Customers currently in the abandoned-cart recovery flow"
         action={
-          <button
-            onClick={fetchData}
-            disabled={loading}
-            className="flex items-center gap-2 px-4 py-2.5 bg-slate-900 hover:bg-black text-white rounded-xl text-sm font-bold transition-all cursor-pointer disabled:opacity-50 active:scale-95"
-          >
-            <RefreshCw size={15} className={loading ? "animate-spin" : ""} />
-            Refresh
-          </button>
+          <div className="flex items-center gap-2">
+            <ReportExportMenu
+              busy={isExporting}
+              disabled={loading || filteredCarts.length === 0}
+              onExportPdf={() => handleExport("pdf")}
+              onExportExcel={() => handleExport("excel")}
+            />
+            <button
+              type="button"
+              onClick={() => setIsStepsModalOpen(true)}
+              className="flex items-center cursor-pointer gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-bold text-slate-700 transition-all hover:border-slate-400 active:scale-95"
+            >
+              Steps Details
+            </button>
+            <button
+              onClick={fetchData}
+              disabled={loading}
+              className="flex items-center gap-2 px-4 py-2.5 bg-slate-900 hover:bg-black text-white rounded-xl text-sm font-bold transition-all cursor-pointer disabled:opacity-50 active:scale-95"
+            >
+              <RefreshCw size={15} className={loading ? "animate-spin" : ""} />
+              Refresh
+            </button>
+          </div>
         }
       />
+
+      <div className="mb-6 rounded-2xl border border-slate-200 bg-white px-4 py-4 shadow-sm">
+        <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+          <DateRangeControl
+            rangeType={rangeType}
+            customStartDate={customStartDate}
+            customEndDate={customEndDate}
+            onRangeTypeChange={setRangeType}
+            onCustomStartDateChange={setCustomStartDate}
+            onCustomEndDateChange={setCustomEndDate}
+          />
+
+          <div className="inline-flex items-center rounded-full border border-slate-200 bg-slate-50 px-4 py-2 text-sm font-medium text-slate-600">
+            {dateRangeLabel}
+          </div>
+        </div>
+      </div>
 
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
         <StatCard
@@ -128,14 +263,14 @@ export default function AbandonedCartsPage() {
           color="amber"
         />
         <StatCard
-          title="Recovered Amount"
-          value={`₹ ${stats.recoveredAmount.toLocaleString()}`}
+          title="Revenue Recovered"
+          value={`₹ ${stats.recoveredRevenue.toLocaleString()}`}
           icon={<TrendingUp size={20} />}
           color="emerald"
         />
         <StatCard
-          title="Oldest Cart"
-          value={stats.oldestDays ? `${stats.oldestDays}d ago` : "—"}
+          title="Retention Rate"
+          value={`${stats.retentionRate.toFixed(1)}%`}
           icon={<Clock size={20} />}
           color="slate"
         />
@@ -159,10 +294,35 @@ export default function AbandonedCartsPage() {
           </div>
           {!loading && (
             <span className="text-xs font-bold text-slate-400">
-              {allCarts.length} cart{allCarts.length !== 1 ? "s" : ""}
+              {filteredCarts.length} cart{filteredCarts.length !== 1 ? "s" : ""}
             </span>
           )}
         </div>
+
+        {!loading && !error && allCarts.length > 0 && (
+          <div className="px-6 py-4">
+            <div className="inline-flex rounded-2xl border border-slate-200 bg-slate-50 p-1">
+              {[
+                { key: "all", label: "All" },
+                { key: "abandoned", label: "Abandoned" },
+                { key: "recovered", label: "Recovered" },
+              ].map((item) => (
+                <button
+                  key={item.key}
+                  type="button"
+                  onClick={() => setStatusFilter(item.key)}
+                  className={`rounded-xl cursor-pointer px-4 py-2 text-xs font-black uppercase tracking-widest transition-colors ${
+                    statusFilter === item.key
+                      ? "bg-slate-900 text-white shadow-sm"
+                      : "text-slate-500 hover:text-slate-900"
+                  }`}
+                >
+                  {item.label}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
 
         {loading ? (
           <div className="flex flex-col items-center justify-center py-20 gap-3">
@@ -191,13 +351,22 @@ export default function AbandonedCartsPage() {
               No abandoned carts
             </p>
           </div>
+        ) : filteredCarts.length === 0 ? (
+          <div className="flex flex-col items-center justify-center py-20 gap-3">
+            <div className="bg-slate-50 rounded-2xl p-4">
+              <ShoppingCart size={28} className="text-slate-300" />
+            </div>
+            <p className="text-sm font-semibold text-slate-400">
+              No carts match this filter
+            </p>
+          </div>
         ) : (
           <>
             <div className="grid grid-cols-12 px-6 py-3 bg-slate-50 border-b border-slate-100">
               <div className="col-span-1 text-[10px] font-black text-slate-400 uppercase tracking-widest">
                 #
               </div>
-              <div className="col-span-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">
+              <div className="col-span-3 text-[10px] font-black text-slate-400 uppercase tracking-widest">
                 Customer
               </div>
               <div className="col-span-2 text-[10px] font-black text-slate-400 uppercase tracking-widest">
@@ -207,7 +376,10 @@ export default function AbandonedCartsPage() {
                 Cart Value
               </div>
               <div className="col-span-2 text-[10px] font-black text-slate-400 uppercase tracking-widest">
-                Abandoned
+                Status
+              </div>
+              <div className="col-span-2 text-[10px] font-black text-slate-400 uppercase tracking-widest">
+                Event
               </div>
             </div>
 
@@ -222,7 +394,7 @@ export default function AbandonedCartsPage() {
           </>
         )}
 
-        {!loading && !error && allCarts.length > 0 && (
+        {!loading && !error && filteredCarts.length > 0 && (
           <div className="p-6 bg-slate-50/50 border-t border-slate-100 flex flex-col sm:flex-row items-center justify-between gap-6">
             <div className="flex items-center gap-3 bg-white px-3 py-1.5 rounded-xl border border-slate-200">
               <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">
@@ -243,8 +415,8 @@ export default function AbandonedCartsPage() {
 
             <span className="text-xs font-bold text-slate-400">
               {(currentPage - 1) * limit + 1}-
-              {Math.min(currentPage * limit, allCarts.length)} of{" "}
-              {allCarts.length}
+              {Math.min(currentPage * limit, filteredCarts.length)} of{" "}
+              {filteredCarts.length}
             </span>
 
             <div className="flex items-center gap-1">
@@ -280,6 +452,10 @@ export default function AbandonedCartsPage() {
         isOpen={Boolean(selectedCart)}
         onClose={() => setSelectedCart(null)}
       />
+      <AbandonedCartStepsModal
+        isOpen={isStepsModalOpen}
+        onClose={() => setIsStepsModalOpen(false)}
+      />
     </div>
   );
 }
@@ -297,7 +473,7 @@ function CartRow({ cart, index, onOpen }) {
         </span>
       </div>
 
-      <div className="col-span-4 flex items-center gap-3 min-w-0">
+      <div className="col-span-3 flex items-center gap-3 min-w-0">
         <div
           style={{
             width: 36,
@@ -351,6 +527,10 @@ function CartRow({ cart, index, onOpen }) {
       </div>
 
       <div className="col-span-2">
+        <StatusBadge status={cart.status} />
+      </div>
+
+      <div className="col-span-2">
         <span className="text-xs font-semibold text-slate-400">
           {cart.date}
         </span>
@@ -384,4 +564,23 @@ function StatCard({ title, value, icon, color }) {
     </div>
   );
 }
+
+function StatusBadge({ status }) {
+  const isRecovered = status === "recovered";
+
+  return (
+    <span
+      className={`inline-flex items-center rounded-full border px-3 py-1 text-[11px] font-black uppercase tracking-widest ${
+        isRecovered
+          ? "border-emerald-200 bg-emerald-50 text-emerald-700"
+          : "border-rose-200 bg-rose-50 text-rose-700"
+      }`}
+    >
+      {isRecovered ? "Recovered" : "Abandoned"}
+    </span>
+  );
+}
+
+
+
 

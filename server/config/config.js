@@ -31,13 +31,13 @@ export const config = Object.freeze({
       30,
       Math.max(
         1,
-        parseInt(process.env.ABANDONED_CART_INACTIVITY_MINUTES || "1", 10) ||
+        parseInt(process.env.ABANDONED_CART_INACTIVITY_MINUTES || "20", 10) ||
           1,
       ),
     ),
     firstReminderMinutes: Math.max(
       1,
-      parseInt(process.env.ABANDONED_CART_FIRST_REMINDER_MINUTES || "1", 10) ||
+      parseInt(process.env.ABANDONED_CART_FIRST_REMINDER_MINUTES || "20", 10) ||
         1,
     ),
     discountPercent: Math.max(

@@ -78,6 +78,7 @@ const productSchema = new mongoose.Schema(
 
     displayCollections: { type: [String], default: [], index: true },
     eventTags: { type: [String], default: [], index: true },
+    isStarred: { type: Boolean, default: false, index: true },
 
     variants: [
       {

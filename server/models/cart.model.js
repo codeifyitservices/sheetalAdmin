@@ -19,6 +19,33 @@ const reminderAttemptSchema = new mongoose.Schema(
   { _id: false },
 );
 
+/**
+ * Tracks an abandoned-cart coupon that has been applied to this cart.
+ * Cleared when the coupon is redeemed, expires, or the cart becomes active
+ * again under a new cycle.
+ */
+const appliedAbandonedCouponSchema = new mongoose.Schema(
+  {
+    // Reference to the AbandonedCartCoupon document.
+    couponRecordId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "AbandonedCartCoupon",
+      required: true,
+    },
+
+    code: { type: String, required: true, uppercase: true, trim: true },
+
+    discountPercent: { type: Number, required: true },
+
+    // Live discount - updated by recalculateAbandonedCartDiscount() on every
+    // cart mutation.
+    currentDiscount: { type: Number, required: true, min: 0 },
+
+    appliedAt: { type: Date, default: Date.now },
+  },
+  { _id: false },
+);
+
 const cartSchema = new mongoose.Schema(
   {
     user: {
@@ -73,6 +100,14 @@ const cartSchema = new mongoose.Schema(
     abandonmentReminderAttempts: {
       type: [reminderAttemptSchema],
       default: [],
+    },
+
+    // Abandoned-cart coupon
+    // Populated when the user applies (or auto-applies via email link) an
+    // abandoned-cart coupon. Null when no such coupon is active on this cart.
+    appliedAbandonedCoupon: {
+      type: appliedAbandonedCouponSchema,
+      default: null,
     },
   },
   { timestamps: true },

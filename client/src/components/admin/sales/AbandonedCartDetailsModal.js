@@ -55,6 +55,11 @@ const formatReason = (value) => {
   return "Inactivity";
 };
 
+const formatStatus = (value) => {
+  if (value === "recovered") return "Recovered";
+  return "Abandoned";
+};
+
 export default function AbandonedCartDetailsModal({ cart, isOpen, onClose }) {
   if (!isOpen || !cart) return null;
 
@@ -74,8 +79,14 @@ export default function AbandonedCartDetailsModal({ cart, isOpen, onClose }) {
             <section className="border-b border-slate-200 p-6 sm:p-8 lg:border-b-0 lg:border-r">
               <div className="mb-6 flex items-start justify-between gap-4 pr-10">
                 <div>
-                  <p className="text-[11px] font-black uppercase tracking-[0.28em] text-rose-600">
-                    Abandoned Cart
+                  <p
+                    className={`text-[11px] font-black uppercase tracking-[0.28em] ${
+                      cart.status === "recovered"
+                        ? "text-emerald-600"
+                        : "text-rose-600"
+                    }`}
+                  >
+                    {cart.status === "recovered" ? "Recovered Cart" : "Abandoned Cart"}
                   </p>
                   <h2 className="mt-2 text-2xl font-black text-slate-900">
                     {cart.name || cart.email || "Customer"}
@@ -84,11 +95,29 @@ export default function AbandonedCartDetailsModal({ cart, isOpen, onClose }) {
                     {cart.email || "No email"}{cart.phoneNumber ? ` - ${cart.phoneNumber}` : ""}
                   </p>
                 </div>
-                <div className="rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-right">
-                  <p className="text-[10px] font-black uppercase tracking-[0.18em] text-rose-500">
-                    Cart Value
+                <div
+                  className={`rounded-2xl px-4 py-3 text-right ${
+                    cart.status === "recovered"
+                      ? "border border-emerald-200 bg-emerald-50"
+                      : "border border-rose-200 bg-rose-50"
+                  }`}
+                >
+                  <p
+                    className={`text-[10px] font-black uppercase tracking-[0.18em] ${
+                      cart.status === "recovered"
+                        ? "text-emerald-500"
+                        : "text-rose-500"
+                    }`}
+                  >
+                    {formatStatus(cart.status)}
                   </p>
-                  <p className="mt-1 text-xl font-black text-rose-700">
+                  <p
+                    className={`mt-1 text-xl font-black ${
+                      cart.status === "recovered"
+                        ? "text-emerald-700"
+                        : "text-rose-700"
+                    }`}
+                  >
                     {formatMoney(cart.cartValue)}
                   </p>
                 </div>
@@ -96,10 +125,26 @@ export default function AbandonedCartDetailsModal({ cart, isOpen, onClose }) {
 
               <div className="mb-6 grid grid-cols-2 gap-3 sm:grid-cols-4">
                 <InfoCard label="Items" value={`${cart.itemCount}`} />
-                <InfoCard label="Abandoned" value={cart.date || "Now"} />
+                <InfoCard label="Event" value={cart.date || "Now"} />
                 <InfoCard label="Reason" value={formatReason(cart.abandonmentReason)} />
                 <InfoCard label="Attempts" value={`${cart.reminderAttemptsCount || 0}`} />
               </div>
+
+              {cart.status === "recovered" ? (
+                <div className="mb-6 rounded-3xl border border-emerald-200 bg-emerald-50 p-4">
+                  <p className="text-[11px] font-black uppercase tracking-[0.18em] text-emerald-700">
+                    Cart retained
+                  </p>
+                  <div className="mt-2 flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
+                    <p className="text-sm font-bold text-emerald-900">
+                      {cart.recoveredAtStep || "Recovery step not tracked"}
+                    </p>
+                    <p className="text-xs font-semibold text-emerald-700">
+                      {formatDateTime(cart.recoveredAt)}
+                    </p>
+                  </div>
+                </div>
+              ) : null}
 
               <div>
                 <div className="mb-3 flex items-center justify-between">

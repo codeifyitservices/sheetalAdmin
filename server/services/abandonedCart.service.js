@@ -16,6 +16,10 @@ import {
   sendReminderSms,
   sendReminderWhatsApp,
 } from "./abandonedCart.notification.service.js";
+import {
+  cancelAbandonedCartCoupons,
+  issueAbandonedCartCoupon,
+} from "./abandonedcartcoupon.service.js";
 
 const REMINDER_STAGES = [
   {
@@ -146,6 +150,7 @@ const buildReminderData = (
   policy,
   cycleId,
   abandonedAt,
+  ctaUrl = null,
 ) => ({
   cartId: cartSnapshot.cartId,
   cartTrackingId: cartSnapshot.trackingId,
@@ -157,6 +162,7 @@ const buildReminderData = (
   snapshot: cartSnapshot,
   discountPercent: policy.discountPercent,
   couponCode: policy.couponCode,
+  ctaUrl,
 });
 
 const getCartContactUpdates = async (cart, overrides = {}) => {
@@ -321,6 +327,18 @@ export const cancelReminders = async (cartIdOrDoc, options = {}) => {
 
   await Promise.all(jobIds.map((jobId) => removeQueueJob(jobId)));
 
+  // ── Cancel any active abandoned-cart coupons for this cart ───────────────
+  // When a cycle is cancelled (user became active again), the coupon issued
+  // for that cycle should no longer be usable.
+  try {
+    await cancelAbandonedCartCoupons(cart);
+  } catch (couponErr) {
+    logger.warn(
+      { cartId: cart._id.toString(), error: couponErr.message },
+      "[AbandonedCart] Failed to cancel abandoned-cart coupons on cycle cancel",
+    );
+  }
+
   cart.abandonmentReminderJobIds = {};
   if (options.clearCycle !== false) {
     cart.abandonmentCycleId = null;
@@ -383,6 +401,32 @@ export const scheduleReminders = async (
 
     const delay = reminder.delayMinutes * 60 * 1000;
 
+    // ── Issue coupon when the third reminder is scheduled ─────────────────
+    // We issue it eagerly here (before the job fires) so the coupon record
+    // exists and the reminder CTA can carry the same abandoned-cart coupon
+    // code when the email/whatsapp/sms is sent.
+    if (reminder.stage === "third" && cartSnapshot.userId) {
+      try {
+        await issueAbandonedCartCoupon({
+          cartId: cartSnapshot.cartId,
+          userId: cartSnapshot.userId,
+          cycleId: activeCycleId,
+          discountPercent: policy.discountPercent,
+          items: cartSnapshot.items,
+        });
+      } catch (couponErr) {
+        // Non-fatal — reminder still sends, just without the coupon.
+        logger.warn(
+          {
+            cartId: cartSnapshot.cartId,
+            cycleId: activeCycleId,
+            error: couponErr.message,
+          },
+          "[AbandonedCart] Failed to issue abandoned-cart coupon for third reminder",
+        );
+      }
+    }
+
     try {
       await queue.add(
         "send-reminder",
@@ -392,6 +436,13 @@ export const scheduleReminders = async (
           policy,
           activeCycleId,
           abandonedAt,
+          buildAbandonedCartOrderUrl(cartSnapshot.cartId, {
+            source: reminder.stage === "third" ? "email" : undefined,
+            stage: REMINDER_STAGE_TO_RECOVERY_STEP[reminder.stage] || null,
+            cycleId: activeCycleId,
+            couponCode:
+              reminder.stage === "third" ? policy.couponCode : undefined,
+          }),
         ),
         {
           jobId,
@@ -572,11 +623,7 @@ export const sendReminder = async ({
         channel,
         cartSnapshot,
         stage,
-        ctaUrl: buildAbandonedCartOrderUrl(cartSnapshot.cartId, {
-          source: channel,
-          stage: REMINDER_STAGE_TO_RECOVERY_STEP[stage] || null,
-          cycleId,
-        }),
+        ctaUrl,
         policy: { couponCode, discountPercent },
       }).then((result) => {
         logReminderProviderResult(channel, result);
@@ -632,13 +679,13 @@ export const sendReminder = async ({
   await persistReminderAttempt(cart._id, attemptEntry);
 
   if (overallStatus === "failure") {
-  logger.error(
-    {
-      cartId: cart._id.toString(),
-      cartTrackingId: cart.cartTrackingId || null,
-      cycleId,
-      stage,
-      jobId,
+    logger.error(
+      {
+        cartId: cart._id.toString(),
+        cartTrackingId: cart.cartTrackingId || null,
+        cycleId,
+        stage,
+        jobId,
         channels: channelStatuses,
       },
       "[AbandonedCart] Reminder dispatch failed",

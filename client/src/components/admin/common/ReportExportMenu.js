@@ -50,7 +50,7 @@ export default function ReportExportMenu({
           <button
             type="button"
             onClick={() => handleExport(onExportPdf)}
-            className="flex w-full items-center gap-2 rounded-xl px-3 py-2 text-left text-sm font-semibold text-slate-700 transition-colors hover:bg-slate-50"
+            className="flex cursor-pointer w-full items-center gap-2 rounded-xl px-3 py-2 text-left text-sm font-semibold text-slate-700 transition-colors hover:bg-slate-50"
           >
             <FileText size={15} className="text-rose-500" />
             Download PDF
@@ -58,7 +58,7 @@ export default function ReportExportMenu({
           <button
             type="button"
             onClick={() => handleExport(onExportExcel)}
-            className="flex w-full items-center gap-2 rounded-xl px-3 py-2 text-left text-sm font-semibold text-slate-700 transition-colors hover:bg-slate-50"
+            className="flex cursor-pointer w-full items-center gap-2 rounded-xl px-3 py-2 text-left text-sm font-semibold text-slate-700 transition-colors hover:bg-slate-50"
           >
             <FileSpreadsheet size={15} className="text-emerald-600" />
             Download Excel

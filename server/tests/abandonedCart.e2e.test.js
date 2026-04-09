@@ -8,9 +8,9 @@ const setBaseEnv = () => {
   process.env.FRONTEND_URL =
     process.env.FRONTEND_URL || "http://localhost:3001";
   process.env.ABANDONED_CART_INACTIVITY_MINUTES =
-    process.env.ABANDONED_CART_INACTIVITY_MINUTES || "1";
+    process.env.ABANDONED_CART_INACTIVITY_MINUTES || "20";
   process.env.ABANDONED_CART_FIRST_REMINDER_MINUTES =
-    process.env.ABANDONED_CART_FIRST_REMINDER_MINUTES || "1";
+    process.env.ABANDONED_CART_FIRST_REMINDER_MINUTES || "30";
   process.env.ABANDONED_CART_DISCOUNT_PERCENT =
     process.env.ABANDONED_CART_DISCOUNT_PERCENT || "10";
   process.env.ABANDONED_CART_COUPON_CODE =

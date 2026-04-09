@@ -9,9 +9,9 @@ const setBaseEnv = () => {
   process.env.FRONTEND_URL =
     process.env.FRONTEND_URL || "http://localhost:3001";
   process.env.ABANDONED_CART_INACTIVITY_MINUTES =
-    process.env.ABANDONED_CART_INACTIVITY_MINUTES || "1";
+    process.env.ABANDONED_CART_INACTIVITY_MINUTES || "20";
   process.env.ABANDONED_CART_FIRST_REMINDER_MINUTES =
-    process.env.ABANDONED_CART_FIRST_REMINDER_MINUTES || "1";
+    process.env.ABANDONED_CART_FIRST_REMINDER_MINUTES || "30";
   process.env.ABANDONED_CART_DISCOUNT_PERCENT =
     process.env.ABANDONED_CART_DISCOUNT_PERCENT || "10";
   process.env.ABANDONED_CART_COUPON_CODE =
@@ -66,8 +66,9 @@ test("queue helpers build stable job ids and checkout urls", async () => {
       source: "email",
       stage: 1,
       cycleId: "cycle-9",
+      couponCode: "SAVE10",
     }),
-    "http://localhost:3001/checkout?cartId=cart-1&recoverySource=email&recoveryStage=1&recoveryCycleId=cycle-9",
+    "http://localhost:3001/checkout?cartId=cart-1&recoverySource=email&recoveryStage=1&recoveryCycleId=cycle-9&couponCode=SAVE10",
   );
 });
 
@@ -177,6 +178,68 @@ test("cart tracking ids are derived from created and updated timestamps", async 
   );
 });
 
+test("abandoned-cart coupon discount follows the current cart total without a cap", async () => {
+  setBaseEnv();
+
+  const { default: AbandonedCartCoupon } = await import(
+    "../models/abandonedcartcoupon.model.js?discount-no-cap-test=1"
+  );
+
+  const coupon = new AbandonedCartCoupon({
+    code: "SAVE10",
+    userId: "user-1",
+    cartId: "cart-1",
+    cycleId: "cycle-1",
+    discountPercent: 10,
+    snapshotTotal: 1000,
+    currentDiscount: 100,
+    status: "issued",
+    expiresAt: new Date(Date.now() + 60 * 60 * 1000),
+  });
+
+  assert.equal(coupon.computeDiscount(2500), 250);
+  assert.equal(coupon.computeDiscount(99.99), 10);
+});
+
+test("eligible abandoned-cart coupon lookup returns only a still-valid user coupon", async () => {
+  setBaseEnv();
+
+  const { getValidAbandonedCartCouponForUser } = await import(
+    "../services/abandonedcartcoupon.service.js?lookup-test=1"
+  );
+  const { default: AbandonedCartCoupon } = await import(
+    "../models/abandonedcartcoupon.model.js?lookup-test=1"
+  );
+
+  const originalCouponFindOne = AbandonedCartCoupon.findOne;
+  const couponRecord = {
+    _id: "coupon-lookup-1",
+    code: "SAVE10",
+    discountPercent: 10,
+    currentDiscount: 120,
+    expiresAt: new Date(Date.now() + 60 * 60 * 1000),
+    cartId: { toString: () => "cart-lookup-1" },
+    cycleId: "cycle-lookup-1",
+    status: "issued",
+    isUsable: () => true,
+  };
+
+  AbandonedCartCoupon.findOne = () => ({
+    sort: async () => couponRecord,
+  });
+
+  try {
+    const result = await getValidAbandonedCartCouponForUser({
+      userId: "user-lookup-1",
+    });
+
+    assert.equal(result.code, "SAVE10");
+    assert.equal(result.currentDiscount, 120);
+  } finally {
+    AbandonedCartCoupon.findOne = originalCouponFindOne;
+  }
+});
+
 test("abandoned-cart recovered revenue excludes cancelled and returned orders", async () => {
   setBaseEnv();
 
@@ -236,5 +299,239 @@ test("abandoned-cart recovered revenue excludes cancelled and returned orders", 
   } finally {
     mockedAggregate.mock.restore();
     mockedCartFind.mock.restore();
+  }
+});
+
+test("abandoned-cart coupon applies only for the matching authenticated user and cart", async () => {
+  setBaseEnv();
+
+  const { validateAndApplyAbandonedCartCoupon } = await import(
+    "../services/abandonedcartcoupon.service.js?apply-match-test=1"
+  );
+  const { default: AbandonedCartCoupon } = await import(
+    "../models/abandonedcartcoupon.model.js?apply-match-test=1"
+  );
+  const { default: Cart } = await import("../models/cart.model.js?apply-match-test=1");
+
+  const couponRecord = {
+    _id: "coupon-1",
+    code: "SAVE10",
+    userId: "user-1",
+    cartId: {
+      toString: () => "cart-1",
+    },
+    cycleId: "cycle-1",
+    discountPercent: 10,
+    currentDiscount: 100,
+    isUsable: () => true,
+    computeDiscount: (currentCartTotal) => currentCartTotal * 0.1,
+    save: async function save() {
+      return this;
+    },
+  };
+
+  const cartDoc = {
+    _id: "cart-1",
+    user: "user-1",
+    abandonmentStatus: "abandoned",
+    abandonmentCycleId: "cycle-1",
+    items: [{ price: 500, quantity: 1 }],
+    appliedAbandonedCoupon: null,
+    save: async function save() {
+      return this;
+    },
+  };
+
+  const originalCouponFindOne = AbandonedCartCoupon.findOne;
+  const originalCartFindOne = Cart.findOne;
+
+  AbandonedCartCoupon.findOne = () => ({
+    sort: async () => couponRecord,
+  });
+  Cart.findOne = () => cartDoc;
+
+  try {
+    const success = await validateAndApplyAbandonedCartCoupon({
+      code: "SAVE10",
+      userId: "user-1",
+      cartId: "cart-1",
+    });
+
+    assert.equal(success.success, true);
+    assert.equal(success.discount, 50);
+    assert.equal(cartDoc.appliedAbandonedCoupon.code, "SAVE10");
+
+    const wrongUser = await validateAndApplyAbandonedCartCoupon({
+      code: "SAVE10",
+      userId: "user-2",
+      cartId: "cart-1",
+    });
+
+    assert.equal(wrongUser.success, false);
+    assert.equal(wrongUser.message, "This coupon is not valid for your account");
+  } finally {
+    AbandonedCartCoupon.findOne = originalCouponFindOne;
+    Cart.findOne = originalCartFindOne;
+  }
+});
+
+test("the same abandoned-cart code can be redeemed by another eligible recipient", async () => {
+  setBaseEnv();
+
+  const { validateAndApplyAbandonedCartCoupon } = await import(
+    "../services/abandonedcartcoupon.service.js?shared-code-test=1"
+  );
+  const { default: AbandonedCartCoupon } = await import(
+    "../models/abandonedcartcoupon.model.js?shared-code-test=1"
+  );
+  const { default: Cart } = await import("../models/cart.model.js?shared-code-test=1");
+
+  const couponRecord = {
+    _id: "coupon-2",
+    code: "SAVE10",
+    userId: "user-2",
+    cartId: {
+      toString: () => "cart-2",
+    },
+    cycleId: "cycle-2",
+    discountPercent: 10,
+    currentDiscount: 80,
+    isUsable: () => true,
+    computeDiscount: (currentCartTotal) => currentCartTotal * 0.1,
+    save: async function save() {
+      return this;
+    },
+  };
+
+  const cartDoc = {
+    _id: "cart-2",
+    user: "user-2",
+    abandonmentStatus: "abandoned",
+    abandonmentCycleId: "cycle-2",
+    items: [{ price: 800, quantity: 1 }],
+    appliedAbandonedCoupon: null,
+    save: async function save() {
+      return this;
+    },
+  };
+
+  const originalCouponFindOne = AbandonedCartCoupon.findOne;
+  const originalCartFindOne = Cart.findOne;
+
+  AbandonedCartCoupon.findOne = () => ({
+    sort: async () => couponRecord,
+  });
+  Cart.findOne = () => cartDoc;
+
+  try {
+    const result = await validateAndApplyAbandonedCartCoupon({
+      code: "SAVE10",
+      userId: "user-2",
+      cartId: "cart-2",
+    });
+
+    assert.equal(result.success, true);
+    assert.equal(result.discount, 80);
+    assert.equal(cartDoc.appliedAbandonedCoupon.code, "SAVE10");
+  } finally {
+    AbandonedCartCoupon.findOne = originalCouponFindOne;
+    Cart.findOne = originalCartFindOne;
+  }
+});
+
+test("generic coupon lookup is skipped for abandoned-cart code without ownership", async () => {
+  setBaseEnv();
+
+  const { applyCouponService } = await import(
+    "../services/coupon.service.js?skip-fallback-test=1"
+  );
+  const { default: AbandonedCartCoupon } = await import(
+    "../models/abandonedcartcoupon.model.js?skip-fallback-test=1"
+  );
+  const { default: Cart } = await import("../models/cart.model.js?skip-fallback-test=1");
+  const { default: Coupon } = await import("../models/coupon.model.js?skip-fallback-test=1");
+
+  const originalCouponFindOne = AbandonedCartCoupon.findOne;
+  const originalCartFindOne = Cart.findOne;
+  const originalGenericCouponFindOne = Coupon.findOne;
+
+  AbandonedCartCoupon.findOne = () => ({
+    sort: async () => null,
+  });
+  Cart.findOne = () => null;
+  Coupon.findOne = () => {
+    throw new Error("generic coupon lookup should not be reached");
+  };
+
+  try {
+    const result = await applyCouponService({
+      code: "SAVE10",
+      userId: "user-99",
+      orderAmount: 1000,
+      cartItems: [],
+      cartId: "cart-99",
+    });
+
+    assert.equal(result.success, false);
+    assert.equal(result.statusCode, 400);
+    assert.equal(result.message, "This coupon is not valid for your account");
+  } finally {
+    AbandonedCartCoupon.findOne = originalCouponFindOne;
+    Cart.findOne = originalCartFindOne;
+    Coupon.findOne = originalGenericCouponFindOne;
+  }
+});
+
+test("completed abandoned carts reject coupon application", async () => {
+  setBaseEnv();
+
+  const { validateAndApplyAbandonedCartCoupon } = await import(
+    "../services/abandonedcartcoupon.service.js?completed-cart-test=1"
+  );
+  const { default: AbandonedCartCoupon } = await import(
+    "../models/abandonedcartcoupon.model.js?completed-cart-test=1"
+  );
+  const { default: Cart } = await import("../models/cart.model.js?completed-cart-test=1");
+
+  const originalCouponFindOne = AbandonedCartCoupon.findOne;
+  const originalCartFindOne = Cart.findOne;
+
+  AbandonedCartCoupon.findOne = () => ({
+    sort: async () => ({
+      _id: "coupon-2",
+      code: "SAVE10",
+      userId: "user-1",
+      cartId: { toString: () => "cart-2" },
+      cycleId: "cycle-2",
+      isUsable: () => true,
+      computeDiscount: () => 50,
+      save: async function save() {
+        return this;
+      },
+    }),
+  });
+  Cart.findOne = () => ({
+    _id: "cart-2",
+    user: "user-1",
+    abandonmentStatus: "completed",
+    abandonmentCycleId: "cycle-2",
+    items: [{ price: 500, quantity: 1 }],
+    save: async function save() {
+      return this;
+    },
+  });
+
+  try {
+    const result = await validateAndApplyAbandonedCartCoupon({
+      code: "SAVE10",
+      userId: "user-1",
+      cartId: "cart-2",
+    });
+
+    assert.equal(result.success, false);
+    assert.equal(result.message, "Your cart has already been checked out");
+  } finally {
+    AbandonedCartCoupon.findOne = originalCouponFindOne;
+    Cart.findOne = originalCartFindOne;
   }
 });

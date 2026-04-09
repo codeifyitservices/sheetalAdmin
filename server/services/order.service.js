@@ -7,6 +7,7 @@ import { createShiprocketOrder } from "./shiprocket.service.js";
 import { sendOrderConfirmationEmail } from "./order.email.service.js";
 import { completeAbandonedCartFlow } from "./abandonedCart.service.js";
 import { confirmCouponUsageForOrder } from "./coupon.service.js";
+import { redeemAbandonedCartCoupon } from "./abandonedcartcoupon.service.js";
 
 // --- CREATE NEW ORDER ---
 export const createOrderService = async (data, userId) => {
@@ -25,8 +26,7 @@ export const createOrderService = async (data, userId) => {
   const user = await User.findById(userId).lean();
   const isBuyNow = Array.isArray(buyNowItems) && buyNowItems.length > 0;
 
-  // 1. Stock Check aur Update Logic
-  // Hum har item par loop chalayenge taaki inventory update ho sake
+  // 1. Stock check and update
   for (const item of orderItems) {
     const product = await Product.findById(item.product);
 
@@ -44,16 +44,28 @@ export const createOrderService = async (data, userId) => {
       );
     }
 
-    // Product stock kam karein
     product.stock -= item.quantity;
-
     product.orderStats.totalOrders += item.quantity;
     product.orderStats.totalRevenue += item.quantity * item.price;
 
     await product.save({ validateBeforeSave: false });
   }
 
-  // 2. Data Formatting (Schema ke hisaab se)
+  // 2. Resolve the abandoned-cart coupon record id from the user's cart so we
+  //    can redeem it after the order is persisted. We look this up before
+  //    creating the order because completeAbandonedCartFlow() clears the cart.
+  let abandonedCartCouponRecordId = null;
+  if (!isBuyNow) {
+    try {
+      const cart = await Cart.findOne({ user: userId }).lean();
+      abandonedCartCouponRecordId =
+        cart?.appliedAbandonedCoupon?.couponRecordId ?? null;
+    } catch {
+      // Non-fatal — order creation proceeds even if we can't read the cart.
+    }
+  }
+
+  // 3. Build order document
   const finalOrderData = {
     user: userId,
     orderItems,
@@ -77,7 +89,7 @@ export const createOrderService = async (data, userId) => {
       country: billingAddress?.country || shippingAddress.country || "India",
     },
     paymentInfo: {
-      id: paymentInfo?.id || `manual_${Date.now()}`, // Admin order ke liye manual ID
+      id: paymentInfo?.id || `manual_${Date.now()}`,
       status: paymentInfo?.status || "Pending",
       method: paymentInfo?.method || "COD",
     },
@@ -94,14 +106,14 @@ export const createOrderService = async (data, userId) => {
     recoveryCycleId: recoveryCycleId || null,
     recoveredAt: recoverySource ? new Date() : null,
     purchaseSource: isBuyNow ? "buyNow" : "cart",
-    orderStatus: "Processing", // Default status as per your schema
+    orderStatus: "Processing",
     paidAt: paymentInfo?.method === "Online" ? Date.now() : null,
   };
 
-  // 3. Database mein save karein
+  // 4. Persist
   const order = await Order.create(finalOrderData);
 
-  // 4. Push order reference into the user's orders array
+  // 5. Push order reference into user
   try {
     await User.findByIdAndUpdate(userId, { $push: { orders: order._id } });
   } catch (userUpdateErr) {
@@ -111,12 +123,29 @@ export const createOrderService = async (data, userId) => {
     );
   }
 
-  // 5. COD: Push to Shiprocket immediately + clear cart
-  //    Online orders are pushed via the Razorpay webhook AFTER payment is confirmed.
+  // 6. COD post-creation flow
   if (order.paymentInfo?.method === "COD") {
-    await confirmCouponUsageForOrder(order);
+    // 6a. Redeem abandoned-cart coupon (if one was applied).
+    //     Must happen before confirmCouponUsageForOrder so both paths don't
+    //     double-count the same discount.
+    if (abandonedCartCouponRecordId) {
+      try {
+        await redeemAbandonedCartCoupon({
+          couponRecordId: abandonedCartCouponRecordId,
+          orderId: order._id,
+        });
+      } catch (couponErr) {
+        console.error(
+          `[AbandonedCartCoupon] Failed to redeem coupon for order ${order._id}:`,
+          couponErr.message,
+        );
+      }
+    } else {
+      // 6b. Regular coupon usage confirmation.
+      await confirmCouponUsageForOrder(order);
+    }
 
-    // Clear cart
+    // 6c. Clear cart
     if (!isBuyNow) {
       try {
         await Cart.findOneAndUpdate({ user: userId }, { $set: { items: [] } });
@@ -128,7 +157,7 @@ export const createOrderService = async (data, userId) => {
       }
     }
 
-    // Push to Shiprocket
+    // 6d. Push to Shiprocket
     try {
       const { shiprocketOrderId, shipmentId } = await createShiprocketOrder(
         order,
@@ -147,6 +176,7 @@ export const createOrderService = async (data, userId) => {
       );
     }
 
+    // 6e. Complete abandoned-cart flow (cancels any remaining reminders)
     try {
       await completeAbandonedCartFlow({ userId });
     } catch (abandonErr) {
@@ -182,7 +212,6 @@ export const updateOrderStatusService = async (
     throw new ErrorResponse("Ye order pehle hi deliver ho chuka hai", 400);
   }
 
-  // Agar Cancelled ya Returned ho raha hai, toh stock wapas add karo
   if (status === "Cancelled" || status === "Returned") {
     for (const item of order.orderItems) {
       const product = await Product.findById(item.product);
@@ -199,7 +228,6 @@ export const updateOrderStatusService = async (
         await product.save();
       }
     }
-    // Remove order reference from user's orders array
     try {
       await User.findByIdAndUpdate(order.user, {
         $pull: { orders: order._id },
@@ -227,52 +255,36 @@ export const getMyOrdersService = async (userId) => {
   return await Order.find({ user: userId }).sort("-createdAt");
 };
 
-// --- GET SINGLE ORDER (User — must own the order) ---
-/**
- * Fetches a single order by ID. Throws 404 if not found and 403 if the
- * requesting user does not own the order.
- * @param {string} orderId - MongoDB ObjectId of the order
- * @param {string} userId  - ObjectId of the authenticated user
- */
+// --- GET SINGLE ORDER ---
 export const getSingleOrderService = async (orderId, userId) => {
   const order = await Order.findById(orderId).populate(
     "orderItems.product",
     "name mainImage slug",
   );
   if (!order) throw new ErrorResponse("Order not found", 404);
-  // Make sure this order belongs to the requesting user
   if (order.user.toString() !== userId.toString()) {
     throw new ErrorResponse("You are not authorised to view this order", 403);
   }
   return order;
 };
 
-// --- GET ALL ORDERS (Admin / User with Pagination) ---
+// --- GET ALL ORDERS ---
 export const getAllOrdersService = async (queryStr, userId = null) => {
-  // 1. Pagination Params
   const page = parseInt(queryStr.page) || 1;
   const limit = parseInt(queryStr.limit) || 10;
   const skip = (page - 1) * limit;
 
-  // 2. Filter Logic
   let filter = {};
-
-  // Agar userId hai toh sirf us user ke orders (Profile page ke liye)
-  // Agar userId null hai toh saare orders (Admin Dashboard ke liye)
   if (userId) filter.user = userId;
-
-  // Status filter (e.g., status=Processing)
   if (queryStr.status) filter.orderStatus = queryStr.status;
 
   if (queryStr.startDate || queryStr.endDate) {
     filter.createdAt = {};
-
     if (queryStr.startDate) {
       const start = new Date(queryStr.startDate);
       start.setHours(0, 0, 0, 0);
       filter.createdAt.$gte = start;
     }
-
     if (queryStr.endDate) {
       const end = new Date(queryStr.endDate);
       end.setHours(23, 59, 59, 999);
@@ -280,15 +292,13 @@ export const getAllOrdersService = async (queryStr, userId = null) => {
     }
   }
 
-  // 3. Query Execute
   const orders = await Order.find(filter)
     .populate("user", "name email")
-    .sort("-createdAt") // Newest orders first
+    .sort("-createdAt")
     .skip(skip)
     .limit(limit)
     .lean();
 
-  // 4. Total Count for frontend logic
   const totalOrders = await Order.countDocuments(filter);
 
   return {

@@ -28,7 +28,6 @@ import {
 
 export default function CustomerTable({
   dateRange,
-  onDateRangeChange,
 }) {
   const [users, setUsers] = useState([]);
   const [loading, setLoading] = useState(false);
@@ -179,43 +178,6 @@ export default function CustomerTable({
             <option value="Active">Active</option>
             <option value="Inactive">Inactive</option>
           </select>
-
-          <input
-            type="date"
-            value={dateRange?.startDate || ""}
-            onChange={(e) =>
-              onDateRangeChange?.((prev) => ({
-                ...prev,
-                startDate: e.target.value,
-              }))
-            }
-            className="border border-slate-300 rounded px-3 py-2 text-sm font-medium text-slate-700 bg-white outline-none cursor-pointer hover:border-slate-400 transition-colors"
-          />
-
-          <input
-            type="date"
-            value={dateRange?.endDate || ""}
-            min={dateRange?.startDate || undefined}
-            onChange={(e) =>
-              onDateRangeChange?.((prev) => ({
-                ...prev,
-                endDate: e.target.value,
-              }))
-            }
-            className="border border-slate-300 rounded px-3 py-2 text-sm font-medium text-slate-700 bg-white outline-none cursor-pointer hover:border-slate-400 transition-colors"
-          />
-
-          {(dateRange?.startDate || dateRange?.endDate) && (
-            <button
-              type="button"
-              onClick={() =>
-                onDateRangeChange?.({ startDate: "", endDate: "" })
-              }
-              className="px-3 py-2 text-sm font-bold text-slate-500 hover:text-slate-900 hover:bg-slate-100 rounded transition-colors"
-            >
-              Clear Dates
-            </button>
-          )}
 
           <button
             onClick={() => fetchUsers(true)}

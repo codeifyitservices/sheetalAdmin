@@ -58,12 +58,12 @@ export const getAllCouponsAdmin = async (req, res, next) => {
 export const applyCoupon = async (req, res, next) => {
   try {
     const { code, cartTotal, cartItems } = req.body;
-    const result = await couponService.applyCouponService(
+    const result = await couponService.applyCouponService({
       code,
-      cartTotal,
-      req.user._id,
+      orderAmount: cartTotal,
+      userId: req.user._id,
       cartItems,
-    );
+    });
     if (!result.success) return res.status(result.statusCode).json(result);
     return successResponse(res, 200, result.data, "Coupon applied successfully");
   } catch (error) {

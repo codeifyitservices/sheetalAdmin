@@ -78,8 +78,26 @@ export const getSalesData = async ({ period, startDate, endDate, refDate } = {})
   return handleResponse(res);
 };
 
-export const getAbandonedCarts = async (limit = 10) => {
-  const res = await fetch(`${API_BASE_URL}/sales/abandoned-carts?limit=${limit}`, {
+export const getAbandonedCarts = async (
+  limitOrOptions = 10,
+  includeRecovered = false,
+) => {
+  const options =
+    typeof limitOrOptions === "object" && limitOrOptions !== null
+      ? limitOrOptions
+      : { limit: limitOrOptions, includeRecovered };
+
+  const query = new URLSearchParams();
+  if (options.limit != null) query.set("limit", options.limit);
+  if (options.includeRecovered) query.set("includeRecovered", "true");
+  if (options.startDate) query.set("startDate", options.startDate);
+  if (options.endDate) query.set("endDate", options.endDate);
+
+  const url = query.toString()
+    ? `${API_BASE_URL}/sales/abandoned-carts?${query}`
+    : `${API_BASE_URL}/sales/abandoned-carts`;
+
+  const res = await fetch(url, {
     method: "GET",
     credentials: "include",
   });

@@ -30,6 +30,7 @@ import lookbookRoutes from "./routes/lookbook.routes.js";
 import pagesRoutes from "./routes/pages.routes.js";
 import paymentRoutes from "./routes/payment.routes.js";
 import webhookRoutes from "./routes/webhook.routes.js";
+import abandonedCartRoutes from "./routes/abandonedCart.routes.js";
 import salesRouter from './routes/sales.routes.js'
 import instaRouter from './routes/instagram.routes.js'
 import testimonialRouter from './routes/testimonial.routes.js'
@@ -163,6 +164,7 @@ app.use("/api/v1/basic-info", basicInfoRoutes);
 app.use("/api/v1/lookbooks", lookbookRoutes);
 app.use("/api/v1/pages", pagesRoutes);
 app.use("/api/v1/payment", paymentRoutes);
+app.use("/api/v1/abandoned-cart", abandonedCartRoutes);
 app.use('/api/v1/sales', salesRouter)
 app.use('/api/v1/instacards', instaRouter)
 app.use('/api/v1/testimonials', testimonialRouter)

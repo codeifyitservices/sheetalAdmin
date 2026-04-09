@@ -202,7 +202,7 @@ export default function EnquiriesPage() {
           onCustomStartDateChange={setCustomStartDate}
           onCustomEndDateChange={setCustomEndDate}
         />
-        <div className="inline-flex items-center rounded-full border border-slate-200 bg-slate-50 px-4 py-2 text-sm font-medium text-slate-600">
+        <div className="inline-flex items-center rounded-full border border-slate-200 bg-slate-50 px-4 h-auto text-sm font-medium text-slate-600">
           {dateRangeLabel}
         </div>
       </div>

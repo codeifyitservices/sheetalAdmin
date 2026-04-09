@@ -20,6 +20,7 @@ import {
   updateReviewStatus,
   getMostViewedProducts,
   getCollectionProducts,
+  toggleStarProduct,
 } from "../controllers/product.controller.js";
 
 import { isAuthenticated, isAdmin } from "../middlewares/auth.middleware.js";
@@ -42,6 +43,7 @@ router.get("/admin/sample-excel", isAuthenticated, isAdmin, getSampleExcel);
 router.get("/admin/reviews", isAuthenticated, isAdmin, getAllReviews);
 router.get("/admin/low-stock", isAuthenticated, isAdmin, getLowStockProducts);
 router.get("/admin/most-viewed", isAuthenticated, isAdmin, getMostViewedProducts);
+router.patch("/admin/:id/star", isAuthenticated, isAdmin, toggleStarProduct);
 
 router.post(
   "/admin/import",

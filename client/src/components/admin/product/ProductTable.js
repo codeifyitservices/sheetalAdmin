@@ -2,10 +2,8 @@
 
 import { useEffect, useState } from "react";
 import {
-  Eye,
   Edit3,
   Trash2,
-  ArrowUpDown,
   Search,
   RefreshCw,
   ChevronLeft,
@@ -13,6 +11,12 @@ import {
   ImageIcon,
   Settings as SettingsIcon,
   UploadCloud,
+  CheckSquare,
+  Square,
+  Minus,
+  ListChecks,
+  X,
+  Star,
 } from "lucide-react";
 import toast from "react-hot-toast";
 
@@ -22,7 +26,11 @@ import DeleteConfirmModal from "../common/DeleteConfirmModal";
 import SettingsModal from "./SettingsModal";
 import BulkImportModal from "./BulkImportModal";
 
-import { getProducts, deleteProduct } from "@/services/productService";
+import {
+  getProducts,
+  deleteProduct,
+  starProduct,
+} from "@/services/productService";
 import { getCategories } from "@/services/categoryService";
 import { useProductModal } from "@/hooks/useProductModal";
 
@@ -38,8 +46,8 @@ export default function ProductTable({ refreshStats }) {
   const [currentPage, setCurrentPage] = useState(1);
 
   const [sortConfig, setSortConfig] = useState({
-    key: "name",
-    direction: "asc",
+    key: "createdAt",
+    direction: "desc",
   });
 
   const [showModal, setShowModal] = useState(false);
@@ -47,17 +55,26 @@ export default function ProductTable({ refreshStats }) {
   const [viewProduct, setViewProduct] = useState(null);
   const [showDrawer, setShowDrawer] = useState(false);
   const [deleteId, setDeleteId] = useState(null);
-  const [selectedProductName, setSelectedProductName] = useState(null); // New state for selected product name
+  const [selectedProductName, setSelectedProductName] = useState(null);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [showSettingsModal, setShowSettingsModal] = useState(false);
   const [showBulkImportModal, setShowBulkImportModal] = useState(false);
+
+  // ── Multiselect state ──
+  const [selectMode, setSelectMode] = useState(false);
+  const [selectedIds, setSelectedIds] = useState(new Set());
+  const [showBulkDeleteModal, setShowBulkDeleteModal] = useState(false);
+  const [bulkDeleting, setBulkDeleting] = useState(false);
+
+  // ── Star state ──
+  const [starringId, setStarringId] = useState(null);
+  const [bulkStarring, setBulkStarring] = useState(false);
 
   const { openProductId, closeModal } = useProductModal();
 
   useEffect(() => {
     if (!openProductId) return;
-    if (products.length === 0) return; // wait for products to load
-
+    if (products.length === 0) return;
     const product = products.find((p) => p._id === openProductId);
     if (product) {
       setEditData(product);
@@ -70,7 +87,6 @@ export default function ProductTable({ refreshStats }) {
     const timer = setTimeout(() => {
       fetchProducts();
     }, 300);
-
     return () => clearTimeout(timer);
   }, [currentPage, rowsPerPage, search, selectedCategory, sortConfig]);
 
@@ -78,24 +94,29 @@ export default function ProductTable({ refreshStats }) {
     const fetchCategories = async () => {
       try {
         const res = await getCategories(1, 1000, "");
-        if (res.success) {
-          setCategories(res.data?.categories || []);
-        }
+        if (res.success) setCategories(res.data?.categories || []);
       } catch (err) {
         console.error("Failed to fetch categories:", err);
       }
     };
-
     fetchCategories();
   }, []);
+
+  // Clear selection when page/filters change
+  useEffect(() => {
+    setSelectedIds(new Set());
+  }, [currentPage, rowsPerPage, search, selectedCategory, sortConfig]);
+
+  const exitSelectMode = () => {
+    setSelectMode(false);
+    setSelectedIds(new Set());
+  };
 
   const fetchProducts = async (isRefresh = false) => {
     setLoading(true);
     try {
       const sortParam =
-        sortConfig.direction === "desc"
-          ? `-${sortConfig.key}`
-          : sortConfig.key;
+        sortConfig.direction === "desc" ? `-${sortConfig.key}` : sortConfig.key;
       const res = await getProducts(
         currentPage,
         rowsPerPage,
@@ -103,11 +124,9 @@ export default function ProductTable({ refreshStats }) {
         selectedCategory,
         sortParam,
       );
-
       if (res.success) {
         setProducts(res.products || []);
         setTotalProducts(res.totalProducts || 0);
-
         if (refreshStats) refreshStats();
         if (isRefresh) toast.success("Inventory synchronized!");
       }
@@ -124,19 +143,118 @@ export default function ProductTable({ refreshStats }) {
     try {
       const res = await deleteProduct(deleteId);
       if (res.success) {
-        if (products.length === 1 && currentPage > 1) {
+        if (products.length === 1 && currentPage > 1)
           setCurrentPage((prev) => prev - 1);
-        } else {
-          fetchProducts();
-        }
+        else fetchProducts();
         toast.success("Product deleted successfully", { id: loadingToast });
       }
     } catch (err) {
       toast.error("Failed to delete", { id: loadingToast });
     } finally {
       setDeleteId(null);
-      setSelectedProductName(null); // Clear selected product name
+      setSelectedProductName(null);
       setShowDeleteModal(false);
+    }
+  };
+
+  const handleBulkDeleteConfirm = async () => {
+    setBulkDeleting(true);
+    const ids = [...selectedIds];
+    const loadingToast = toast.loading(`Deleting ${ids.length} products…`);
+    let failed = 0;
+
+    try {
+      await Promise.all(
+        ids.map((id) =>
+          deleteProduct(id).catch(() => {
+            failed++;
+          }),
+        ),
+      );
+      const succeeded = ids.length - failed;
+      if (succeeded > 0)
+        toast.success(
+          `${succeeded} product${succeeded > 1 ? "s" : ""} deleted`,
+          { id: loadingToast },
+        );
+      if (failed > 0)
+        toast.error(`${failed} deletion${failed > 1 ? "s" : ""} failed`);
+
+      exitSelectMode();
+      if (products.length - succeeded <= 0 && currentPage > 1)
+        setCurrentPage((prev) => prev - 1);
+      else fetchProducts();
+      if (refreshStats) refreshStats();
+    } catch (err) {
+      toast.error("Bulk delete failed", { id: loadingToast });
+    } finally {
+      setBulkDeleting(false);
+      setShowBulkDeleteModal(false);
+    }
+  };
+
+  // ── Single star toggle (no explicit state → backend toggles) ──
+  const handleStar = async (e, id) => {
+    e.stopPropagation();
+    setStarringId(id);
+    try {
+      const res = await starProduct(id);
+      if (res.success) {
+        setProducts((prev) =>
+          prev.map((p) =>
+            p._id === id ? { ...p, isStarred: res.data.isStarred } : p,
+          ),
+        );
+        toast.success(res.data.isStarred ? "Product starred!" : "Star removed");
+      }
+    } catch {
+      toast.error("Failed to update star");
+    } finally {
+      setStarringId(null);
+    }
+  };
+
+  // ── Bulk star: pass explicit `starred` boolean so all items are SET, not toggled ──
+  const handleBulkStar = async (starred) => {
+    setBulkStarring(true);
+    const ids = [...selectedIds];
+    const loadingToast = toast.loading(
+      `${starred ? "Starring" : "Unstarring"} ${ids.length} products…`,
+    );
+    let failed = 0;
+
+    try {
+      // Pass the explicit `starred` boolean so all items are SET, not toggled
+      const results = await Promise.allSettled(
+        ids.map((id) => starProduct(id, starred)),
+      );
+
+      results.forEach((result) => {
+        if (result.status === "rejected") failed++;
+      });
+
+      const succeeded = ids.length - failed;
+
+      if (succeeded > 0) {
+        toast.success(
+          `${succeeded} product${succeeded > 1 ? "s" : ""} ${starred ? "starred" : "unstarred"}`,
+          { id: loadingToast },
+        );
+        // Optimistically update local state
+        setProducts((prev) =>
+          prev.map((p) =>
+            selectedIds.has(p._id) ? { ...p, isStarred: starred } : p,
+          ),
+        );
+      }
+      if (failed > 0)
+        toast.error(`${failed} update${failed > 1 ? "s" : ""} failed`);
+
+      exitSelectMode();
+    } catch {
+      toast.error("Bulk star failed", { id: loadingToast });
+    } finally {
+      setBulkStarring(false);
     }
   };
 
@@ -153,9 +271,92 @@ export default function ProductTable({ refreshStats }) {
 
   const totalPages = Math.max(1, Math.ceil(totalProducts / rowsPerPage));
 
+  const allCurrentSelected =
+    products.length > 0 && products.every((p) => selectedIds.has(p._id));
+  const someSelected =
+    products.some((p) => selectedIds.has(p._id)) && !allCurrentSelected;
+
+  // ── Are ALL selected products currently starred? ──
+  const allSelectedStarred =
+    selectedIds.size > 0 &&
+    [...selectedIds].every((id) => {
+      const p = products.find((p) => p._id === id);
+      return p?.isStarred;
+    });
+
+  const toggleSelectAll = () => {
+    if (allCurrentSelected) {
+      setSelectedIds((prev) => {
+        const next = new Set(prev);
+        products.forEach((p) => next.delete(p._id));
+        return next;
+      });
+    } else {
+      setSelectedIds((prev) => {
+        const next = new Set(prev);
+        products.forEach((p) => next.add(p._id));
+        return next;
+      });
+    }
+  };
+
+  const toggleSelectOne = (id) => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      next.has(id) ? next.delete(id) : next.add(id);
+      return next;
+    });
+  };
+
+  const starredProducts = products.filter((p) => p.isStarred);
+  const normalProducts = products.filter((p) => !p.isStarred);
+  const orderedProducts = [...starredProducts, ...normalProducts];
+
   return (
     <div className="bg-white border border-slate-200 rounded-lg shadow-sm text-slate-900 overflow-hidden">
-      {/* Toolbar - EXACT COPY OF CATEGORY */}
+      {/* ── Bulk action bar (only in select mode with selections) ── */}
+      {selectMode && selectedIds.size > 0 && (
+        <div className="px-4 py-2.5 bg-slate-950 flex items-center justify-between gap-4">
+          <span className="text-sm font-bold text-white">
+            {selectedIds.size} product{selectedIds.size > 1 ? "s" : ""} selected
+          </span>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => setSelectedIds(new Set())}
+              className="px-3 py-1.5 text-xs font-bold text-slate-300 hover:text-white border border-slate-700 rounded-lg transition-colors"
+            >
+              Clear
+            </button>
+
+            {/* ── Bulk star / unstar ── */}
+            <button
+              disabled={bulkStarring}
+              onClick={() => handleBulkStar(!allSelectedStarred)}
+              className={`px-3 py-1.5 text-xs font-bold rounded-lg flex items-center gap-1.5 transition-colors disabled:opacity-40 ${
+                allSelectedStarred
+                  ? "bg-amber-500 hover:bg-amber-400 text-white"
+                  : "bg-amber-500/20 hover:bg-amber-500 text-amber-300 hover:text-white border border-amber-500/40"
+              }`}
+            >
+              <Star
+                size={13}
+                className={allSelectedStarred ? "fill-white" : ""}
+              />
+              {allSelectedStarred ? "Unstar" : "Star"} {selectedIds.size}
+            </button>
+
+            <button
+              onClick={() => setShowBulkDeleteModal(true)}
+              className="px-3 py-1.5 text-xs font-bold bg-rose-600 hover:bg-rose-500 text-white rounded-lg flex items-center gap-1.5 transition-colors"
+            >
+              <Trash2 size={13} />
+              Delete {selectedIds.size}
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* ── Toolbar ── */}
       <div className="p-4 flex justify-between items-center gap-4 border-b border-slate-100">
         <div className="flex gap-3 flex-1 items-center">
           <div className="relative max-w-md w-full">
@@ -163,7 +364,6 @@ export default function ProductTable({ refreshStats }) {
               size={16}
               className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500"
             />
-
             <input
               className="w-full pl-10 pr-3 py-2 border border-slate-300 rounded text-sm focus:ring-2 focus:ring-slate-200 outline-none"
               placeholder="Search products..."
@@ -188,6 +388,22 @@ export default function ProductTable({ refreshStats }) {
             ))}
           </select>
 
+          {/* ── Sort dropdown ── */}
+          <select
+            value={`${sortConfig.key}_${sortConfig.direction}`}
+            onChange={(e) => {
+              const [key, direction] = e.target.value.split("_");
+              setSortConfig({ key, direction });
+              setCurrentPage(1);
+            }}
+            className="min-w-[180px] border border-slate-300 rounded px-3 py-2 text-sm bg-white text-slate-700 focus:ring-2 focus:ring-slate-200 outline-none"
+          >
+            <option value="name_asc">Name: A → Z</option>
+            <option value="name_desc">Name: Z → A</option>
+            <option value="createdAt_desc">Date: Newest First</option>
+            <option value="createdAt_asc">Date: Oldest First</option>
+          </select>
+
           <button
             onClick={() => fetchProducts(true)}
             disabled={loading}
@@ -203,6 +419,19 @@ export default function ProductTable({ refreshStats }) {
           title="Global Settings"
         >
           <SettingsIcon size={18} />
+        </button>
+
+        {/* ── Select mode toggle ── */}
+        <button
+          onClick={() => (selectMode ? exitSelectMode() : setSelectMode(true))}
+          title={selectMode ? "Exit select mode" : "Select multiple"}
+          className={`p-2.5 rounded-lg transition-all cursor-pointer ${
+            selectMode
+              ? "bg-slate-900 text-white hover:bg-slate-700"
+              : "text-slate-500 hover:text-slate-900 hover:bg-slate-100"
+          }`}
+        >
+          {selectMode ? <X size={18} /> : <ListChecks size={18} />}
         </button>
 
         <button
@@ -224,25 +453,30 @@ export default function ProductTable({ refreshStats }) {
         </button>
       </div>
 
-      {/* Table Section */}
+      {/* ── Table ── */}
       <div className="overflow-x-auto min-h-[300px]">
         <table className="w-full text-sm text-left">
           <thead className="bg-slate-50 text-slate-900 font-bold border-b border-slate-200 uppercase text-[11px] tracking-wider">
             <tr>
+              {selectMode && (
+                <th className="px-4 py-4 w-10">
+                  <button
+                    onClick={toggleSelectAll}
+                    className="flex items-center justify-center text-slate-400 hover:text-slate-700 transition-colors"
+                  >
+                    {allCurrentSelected ? (
+                      <CheckSquare size={16} className="text-slate-900" />
+                    ) : someSelected ? (
+                      <Minus size={16} className="text-slate-500" />
+                    ) : (
+                      <Square size={16} />
+                    )}
+                  </button>
+                </th>
+              )}
               <th className="px-4 py-4 w-12 text-center">#</th>
               <th className="px-4 py-4 w-16 text-center">Image</th>
-              <th
-                className="px-4 py-4 cursor-pointer group"
-                onClick={() => handleSort("name")}
-              >
-                <div className="flex items-center gap-1">
-                  Product Details{" "}
-                  <ArrowUpDown
-                    size={14}
-                    className="opacity-50 group-hover:opacity-100"
-                  />
-                </div>
-              </th>
+              <th className="px-4 py-4">Product Details</th>
               <th className="px-4 py-4">Tags</th>
               <th className="px-4 py-4">Category</th>
               <th className="px-4 py-4">Sub Category</th>
@@ -251,147 +485,199 @@ export default function ProductTable({ refreshStats }) {
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-100">
-            {products.length > 0 ? (
-              products.map((p, i) => (
-                <tr
-                  key={p._id}
-                  className="hover:bg-slate-50/80 transition-colors"
-                >
-                  <td className="px-4 py-4 text-slate-500 font-medium text-center">
-                    {(currentPage - 1) * rowsPerPage + i + 1}
-                  </td>
-
-                  <td className="px-4 py-4">
-                    <div
-                      className="w-10 h-10 mx-auto rounded-lg bg-slate-100 border border-slate-200 overflow-hidden flex items-center justify-center cursor-pointer"
-                      onClick={() => {
-                        setViewProduct(p);
-                        setShowDrawer(true);
-                      }}
-                    >
-                      {p.images?.[0]?.url || p.mainImage?.url ? (
-                        <img
-                          src={(p.images?.[0]?.url || p.mainImage?.url).replace(
-                            /\\/g,
-                            "/",
+            {orderedProducts.length > 0 ? (
+              orderedProducts.map((product, i) => {
+                const isSelected = selectedIds.has(product._id);
+                return (
+                  <tr
+                    key={product._id}
+                    onClick={
+                      selectMode
+                        ? () => toggleSelectOne(product._id)
+                        : undefined
+                    }
+                    className={`transition-colors ${
+                      selectMode ? "cursor-pointer" : ""
+                    } ${isSelected ? "bg-slate-50" : "hover:bg-slate-50/80"}`}
+                  >
+                    {selectMode && (
+                      <td
+                        className="px-4 py-4"
+                        onClick={(e) => e.stopPropagation()}
+                      >
+                        <button
+                          onClick={() => toggleSelectOne(product._id)}
+                          className="flex items-center justify-center text-slate-400 hover:text-slate-700 transition-colors"
+                        >
+                          {isSelected ? (
+                            <CheckSquare size={16} className="text-slate-900" />
+                          ) : (
+                            <Square size={16} />
                           )}
-                          alt=""
-                          className="w-full h-full object-cover"
-                        />
-                      ) : (
-                        <ImageIcon size={16} className="text-slate-300" />
-                      )}
-                    </div>
-                  </td>
-
-                  <td className="px-4 py-4">
-                    <div className="flex flex-col">
-                      <span className="font-bold text-slate-900">{p.name}</span>
-                      <span className="text-[10px] text-slate-400 uppercase font-black tracking-tighter">
-                        SKU: {p.sku || "N/A"}
-                      </span>
-                    </div>
-                  </td>
-
-                  <td className="px-4 py-4">
-                    <div className="flex flex-wrap gap-1 max-w-xs">
-                      {p.wearType?.slice(0, 2).map((tag, idx) => (
-                        <span
-                          key={idx}
-                          className="bg-purple-100 text-purple-700 text-[9px] font-bold px-1.5 py-0.5 rounded uppercase"
-                        >
-                          {tag}
-                        </span>
-                      ))}
-                      {p.occasion?.slice(0, 2).map((tag, idx) => (
-                        <span
-                          key={idx}
-                          className="bg-pink-100 text-pink-700 text-[9px] font-bold px-1.5 py-0.5 rounded uppercase"
-                        >
-                          {tag}
-                        </span>
-                      ))}
-                      {p.tags?.slice(0, 1).map((tag, idx) => (
-                        <span
-                          key={idx}
-                          className="bg-slate-100 text-slate-700 text-[9px] font-bold px-1.5 py-0.5 rounded uppercase"
-                        >
-                          {tag}
-                        </span>
-                      ))}
-                      {(p.wearType?.length > 2 ||
-                        p.occasion?.length > 2 ||
-                        p.tags?.length > 1) && (
-                        <span className="text-[9px] text-slate-400 font-medium">
-                          +more
-                        </span>
-                      )}
-                    </div>
-                  </td>
-
-                  <td className="px-4 py-4 text-slate-600 font-medium">
-                    {p.category?.name || (
-                      <span className="text-slate-400 text-xs italic">
-                        Uncategorized
-                      </span>
+                        </button>
+                      </td>
                     )}
-                  </td>
 
-                  <td className="px-4 py-4 text-slate-600 font-medium">
-                    {p.subCategory || (
-                      <span className="text-slate-400 text-xs">-</span>
-                    )}
-                  </td>
+                    <td className="px-4 py-4 text-slate-500 font-medium text-center">
+                      {(currentPage - 1) * rowsPerPage + i + 1}
+                    </td>
 
-                  <td className="px-4 py-4">
-                    {p.lowStockVariantCount > 0 ? (
-                      <span className="bg-red-100 text-red-800 text-xs font-medium px-2.5 py-0.5 rounded-full">
-                        {p.lowStockVariantCount} Variant
-                        {p.lowStockVariantCount > 1 ? "s" : ""} Low Stock
-                        {p.lowStockThreshold !== undefined && (
-                          <span className="ml-1 text-red-600 font-normal">
-                            (≤{p.lowStockThreshold})
+                    <td className="px-4 py-4">
+                      <div
+                        className="w-10 h-10 mx-auto rounded-lg bg-slate-100 border border-slate-200 overflow-hidden flex items-center justify-center cursor-pointer"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setViewProduct(product);
+                          setShowDrawer(true);
+                        }}
+                      >
+                        {product.images?.[0]?.url || product.mainImage?.url ? (
+                          <img
+                            src={(
+                              product.images?.[0]?.url || product.mainImage?.url
+                            ).replace(/\\/g, "/")}
+                            alt=""
+                            className="w-full h-full object-cover"
+                          />
+                        ) : (
+                          <ImageIcon size={16} className="text-slate-300" />
+                        )}
+                      </div>
+                    </td>
+
+                    <td className="px-4 py-4">
+                      <div className="flex flex-col">
+                        <div className="flex items-center gap-1.5">
+                          <span className="font-bold text-slate-900">
+                            {product.name}
+                          </span>
+                        </div>
+                        <span className="text-[10px] text-slate-400 uppercase font-black tracking-tighter">
+                          SKU: {product.sku || "N/A"}
+                        </span>
+                      </div>
+                    </td>
+
+                    <td className="px-4 py-4">
+                      <div className="flex flex-wrap gap-1 max-w-xs">
+                        {product.wearType?.slice(0, 2).map((tag, idx) => (
+                          <span
+                            key={idx}
+                            className="bg-purple-100 text-purple-700 text-[9px] font-bold px-1.5 py-0.5 rounded uppercase"
+                          >
+                            {tag}
+                          </span>
+                        ))}
+                        {product.occasion?.slice(0, 2).map((tag, idx) => (
+                          <span
+                            key={idx}
+                            className="bg-pink-100 text-pink-700 text-[9px] font-bold px-1.5 py-0.5 rounded uppercase"
+                          >
+                            {tag}
+                          </span>
+                        ))}
+                        {product.tags?.slice(0, 1).map((tag, idx) => (
+                          <span
+                            key={idx}
+                            className="bg-slate-100 text-slate-700 text-[9px] font-bold px-1.5 py-0.5 rounded uppercase"
+                          >
+                            {tag}
+                          </span>
+                        ))}
+                        {(product.wearType?.length > 2 ||
+                          product.occasion?.length > 2 ||
+                          product.tags?.length > 1) && (
+                          <span className="text-[9px] text-slate-400 font-medium">
+                            +more
                           </span>
                         )}
-                      </span>
-                    ) : (
-                      <span className="text-slate-300 text-xs">—</span>
-                    )}
-                  </td>
+                      </div>
+                    </td>
 
-                  <td className="px-4 py-4 text-right">
-                    <div className="flex justify-end gap-4 text-slate-400">
-                      {/* <button title="View" className="hover:text-slate-900 transition-colors" onClick={() => { setViewProduct(p); setShowDrawer(true); }}>
-                        <Eye size={18} />
-                      </button> */}
-                      <button
-                        title="Edit"
-                        className="hover:text-blue-600 cursor-pointer transition-colors"
-                        onClick={() => {
-                          setEditData(p);
-                          setShowModal(true);
-                        }}
-                      >
-                        <Edit3 size={18} />
-                      </button>
-                      <button
-                        title="Delete"
-                        className="hover:text-rose-600 cursor-pointer transition-colors"
-                        onClick={() => {
-                          setDeleteId(p._id);
-                          setShowDeleteModal(true);
-                        }}
-                      >
-                        <Trash2 size={18} />
-                      </button>
-                    </div>
-                  </td>
-                </tr>
-              ))
+                    <td className="px-4 py-4 text-slate-600 font-medium">
+                      {product.category?.name || (
+                        <span className="text-slate-400 text-xs italic">
+                          Uncategorized
+                        </span>
+                      )}
+                    </td>
+
+                    <td className="px-4 py-4 text-slate-600 font-medium">
+                      {product.subCategory || (
+                        <span className="text-slate-400 text-xs">-</span>
+                      )}
+                    </td>
+
+                    <td className="px-4 py-4">
+                      {product.lowStockVariantCount > 0 ? (
+                        <span className="bg-red-100 text-red-800 text-xs font-medium px-2.5 py-0.5 rounded-full">
+                          {product.lowStockVariantCount} Variant
+                          {product.lowStockVariantCount > 1 ? "s" : ""} Low
+                          Stock
+                          {product.lowStockThreshold !== undefined && (
+                            <span className="ml-1 text-red-600 font-normal">
+                              (≤{product.lowStockThreshold})
+                            </span>
+                          )}
+                        </span>
+                      ) : (
+                        <span className="text-slate-300 text-xs">—</span>
+                      )}
+                    </td>
+
+                    <td
+                      className="px-4 py-4 text-right"
+                      onClick={(e) => e.stopPropagation()}
+                    >
+                      <div className="flex justify-end gap-4 text-slate-400">
+                        {/* ── Star toggle ── */}
+                        <button
+                          title={product.isStarred ? "Unstar" : "Star"}
+                          disabled={starringId === product._id}
+                          onClick={(e) => handleStar(e, product._id)}
+                          className={`transition-colors cursor-pointer disabled:opacity-40 ${
+                            product.isStarred
+                              ? "text-amber-400 hover:text-slate-400"
+                              : "hover:text-amber-400"
+                          }`}
+                        >
+                          <Star
+                            size={18}
+                            className={
+                              product.isStarred ? "fill-amber-400" : ""
+                            }
+                          />
+                        </button>
+
+                        <button
+                          title="Edit"
+                          className="hover:text-blue-600 cursor-pointer transition-colors"
+                          onClick={() => {
+                            setEditData(product);
+                            setShowModal(true);
+                          }}
+                        >
+                          <Edit3 size={18} />
+                        </button>
+                        <button
+                          title="Delete"
+                          className="hover:text-rose-600 cursor-pointer transition-colors"
+                          onClick={() => {
+                            setDeleteId(product._id);
+                            setShowDeleteModal(true);
+                          }}
+                        >
+                          <Trash2 size={18} />
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                );
+              })
             ) : (
               <tr>
                 <td
-                  colSpan="7"
+                  colSpan={selectMode ? 9 : 8}
                   className="px-4 py-20 text-center text-slate-500 font-medium italic"
                 >
                   {loading ? "Syncing data..." : "No products found."}
@@ -402,6 +688,7 @@ export default function ProductTable({ refreshStats }) {
         </table>
       </div>
 
+      {/* ── Pagination ── */}
       <div className="p-4 border-t border-slate-100 flex flex-col md:flex-row items-center justify-between bg-slate-50/50 gap-4">
         <div className="flex items-center gap-3">
           <span className="text-[10px] font-bold text-slate-400 uppercase tracking-tighter">
@@ -479,6 +766,7 @@ export default function ProductTable({ refreshStats }) {
         </div>
       </div>
 
+      {/* ── Modals ── */}
       <ProductModal
         isOpen={showModal}
         onClose={() => setShowModal(false)}
@@ -496,6 +784,14 @@ export default function ProductTable({ refreshStats }) {
         onConfirm={handleDeleteConfirm}
         entityName="product"
         itemName={selectedProductName}
+      />
+      <DeleteConfirmModal
+        isOpen={showBulkDeleteModal}
+        onClose={() => setShowBulkDeleteModal(false)}
+        onConfirm={handleBulkDeleteConfirm}
+        entityName="products"
+        itemName={`${selectedIds.size} selected product${selectedIds.size > 1 ? "s" : ""}`}
+        loading={bulkDeleting}
       />
       <SettingsModal
         isOpen={showSettingsModal}

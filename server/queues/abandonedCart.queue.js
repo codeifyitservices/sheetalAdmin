@@ -71,6 +71,10 @@ export const buildAbandonedCartOrderUrl = (cartId, recoveryMeta = {}) => {
     checkoutUrl.searchParams.set("recoveryCycleId", recoveryMeta.cycleId);
   }
 
+  if (recoveryMeta.couponCode) {
+    checkoutUrl.searchParams.set("couponCode", recoveryMeta.couponCode);
+  }
+
   return checkoutUrl.toString();
 };
 
