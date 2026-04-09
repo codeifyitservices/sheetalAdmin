@@ -53,6 +53,11 @@ const categorySchema = new mongoose.Schema(
     wearType: { type: [String], default: [], index: true },
     occasion: { type: [String], default: [], index: true },
     byPrice: { type: [String], default: [], index: true },
+    sizeChart: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "SizeChart",
+      default: null,
+    },
   },
   { timestamps: true },
 );

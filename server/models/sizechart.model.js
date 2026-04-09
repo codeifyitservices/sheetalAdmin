@@ -2,6 +2,11 @@ import mongoose from "mongoose";
 
 const sizeChartSchema = new mongoose.Schema(
   {
+    name: {
+      type: String,
+      default: "Untitled Size Chart",
+      trim: true,
+    },
     table: [
       {
         label: { type: String, required: true },
