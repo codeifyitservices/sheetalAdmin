@@ -167,7 +167,6 @@ export const getAllProductsService = async (queryStr) => {
   }
 
   if (category && category !== "All") {
-    // Convert string to ObjectId for proper MongoDB comparison
     filter.category = new mongoose.Types.ObjectId(category);
   }
 
@@ -208,7 +207,6 @@ export const getAllProductsService = async (queryStr) => {
   }
 
   if (fabric) {
-    // Case-insensitive fabric match — handles "silk", "Silk", "SILK" etc.
     const fabricList = Array.isArray(fabric) ? fabric : [fabric];
     filter.fabric = {
       $in: fabricList.map((f) => new RegExp(`^${f.trim()}$`, "i")),
@@ -220,16 +218,14 @@ export const getAllProductsService = async (queryStr) => {
     if (minPrice != null) sizeCondition.$gte = Number(minPrice);
     if (maxPrice != null) sizeCondition.$lte = Number(maxPrice);
 
-    filter.variants = {
+    ((filter.variants = {
       $elemMatch: {
         sizes: {
           $elemMatch: {
             $or: [
-              // Has a discount price — filter on that
               {
                 discountPrice: { $gt: 0, ...sizeCondition },
               },
-              // No discount price — fall back to regular price
               {
                 discountPrice: 0,
                 price: sizeCondition,
@@ -238,7 +234,23 @@ export const getAllProductsService = async (queryStr) => {
           },
         },
       },
-    };
+    }),
+      {
+        $sort: (() => {
+          const userSort = (() => {
+            if (!sort) return { createdAt: -1 };
+            if (typeof sort === "object") return sort;
+            if (sort === "newest") return { createdAt: -1 };
+            if (sort === "price_asc") return { "variants.sizes.price": 1 };
+            if (sort === "price_desc") return { "variants.sizes.price": -1 };
+            if (sort === "popularity") return { averageRating: -1 };
+            if (sort.startsWith("-")) return { [sort.substring(1)]: -1 };
+            return { [sort]: 1 };
+          })();
+
+          return { isStarred: -1, ...userSort };
+        })(),
+      });
   }
 
   if (productType) {
@@ -257,7 +269,6 @@ export const getAllProductsService = async (queryStr) => {
     { $match: filter },
     {
       $addFields: {
-        // Use the product's own threshold, falling back to 5 if not set
         _threshold: { $ifNull: ["$lowStockThreshold", 5] },
       },
     },
@@ -483,21 +494,19 @@ export const createProductService = async (data, files, userId) => {
     ];
     const uploadedVariantVideoFiles = files?.["variantVideos"] || [];
     parsedData.variants = parsedData.variants.map((v) => {
-      // Process sizes to ensure numerical types for stock, price, and discountPrice
       const processedSizes = v.sizes.map((s) => ({
         ...s,
-        name: s.name, // Keep name as is
+        name: s.name,
         stock: Number(s.stock || 0),
-        price: Number(s.price || 0), // Explicitly convert to Number
-        discountPrice: Number(s.discountPrice || 0), // Explicitly convert to Number
+        price: Number(s.price || 0),
+        discountPrice: Number(s.discountPrice || 0),
       }));
 
-      // Calculate stock for each variant based on its processed sizes
       const variantStock = processedSizes.reduce(
         (sum, s) => sum + (s.stock || 0),
         0,
       );
-      totalStock += variantStock; // Add to master stock
+      totalStock += variantStock;
 
       const gallery = normaliseVariantGallery(
         v,
@@ -531,7 +540,7 @@ export const createProductService = async (data, files, userId) => {
             ? buildUploadedVideo(uploadedVariantVideoFiles.shift())
             : rest.v_video || null,
         gallery,
-      }; // Return variant with processed sizes
+      };
     });
   }
 
@@ -548,11 +557,10 @@ export const createProductService = async (data, files, userId) => {
           public_id: files.video[0].key || files.video[0].filename,
         }
       : null,
-    stock: totalStock, // Set master stock
+    stock: totalStock,
     createdBy: userId,
   });
 
-  // Sync to n-gram search index
   await syncToIndex(product, "product");
 
   return { success: true, product: sanitizeProductRecord(product) };
@@ -627,7 +635,6 @@ export const updateProductService = async (id, data, files) => {
   }
 
   if (files && files["mainImage"]?.[0]) {
-    // Delete old
     if (product.mainImage?.public_id)
       await deleteS3File(product.mainImage.public_id);
     else if (
@@ -646,7 +653,6 @@ export const updateProductService = async (id, data, files) => {
   }
 
   if (files && files["hoverImage"]?.[0]) {
-    // Delete old
     if (product.hoverImage?.public_id)
       await deleteS3File(product.hoverImage.public_id);
     else if (
@@ -694,21 +700,19 @@ export const updateProductService = async (id, data, files) => {
     const uploadedVariantVideoFiles = files?.["variantVideos"] || [];
 
     parsedData.variants = parsedData.variants.map((v) => {
-      // Process sizes to ensure numerical types for stock, price, and discountPrice
       const processedSizes = v.sizes.map((s) => ({
         ...s,
-        name: s.name, // Keep name as is
+        name: s.name,
         stock: Number(s.stock || 0),
-        price: Number(s.price || 0), // Explicitly convert to Number
-        discountPrice: Number(s.discountPrice || 0), // Explicitly convert to Number
+        price: Number(s.price || 0),
+        discountPrice: Number(s.discountPrice || 0),
       }));
 
-      // Calculate stock for each variant based on its processed sizes
       const variantStock = processedSizes.reduce(
         (sum, s) => sum + (s.stock || 0),
         0,
       );
-      totalStock += variantStock; // Add to master stock
+      totalStock += variantStock;
 
       const gallery = normaliseVariantGallery(
         v,
@@ -742,7 +746,7 @@ export const updateProductService = async (id, data, files) => {
             ? buildUploadedVideo(uploadedVariantVideoFiles.shift())
             : rest.v_video || null,
         gallery,
-      }; // Return variant with processed sizes
+      };
     });
   }
 
@@ -780,10 +784,8 @@ export const updateProductService = async (id, data, files) => {
     { new: true, runValidators: true },
   );
 
-  // Sync to n-gram search index
   await syncToIndex(updatedProduct, "product");
 
-  // Handle back-in-stock notifications
   try {
     const previousSizes = new Map();
     if (product.variants && Array.isArray(product.variants)) {
@@ -825,19 +827,18 @@ export const updateProductService = async (id, data, files) => {
       }
     }
 
-      if (backInStockSizeNames.length > 0) {
-        const unrepliedEnquiries = await Enquiry.find({
-          $or: [
-            { product: updatedProduct._id },
-            { product: null, productName: updatedProduct.name },
-          ],
-          size: { $in: backInStockSizeNames },
-          status: { $ne: "replied" },
-        });
+    if (backInStockSizeNames.length > 0) {
+      const unrepliedEnquiries = await Enquiry.find({
+        $or: [
+          { product: updatedProduct._id },
+          { product: null, productName: updatedProduct.name },
+        ],
+        size: { $in: backInStockSizeNames },
+        status: { $ne: "replied" },
+      });
 
       for (const enquiry of unrepliedEnquiries) {
         try {
-          // Send email
           await sendAvailabilityEmail({
             name: enquiry.name,
             email: enquiry.email,
@@ -845,7 +846,6 @@ export const updateProductService = async (id, data, files) => {
             size: enquiry.size,
           });
 
-          // Only update if email actually succeeds
           enquiry.status = "replied";
           await enquiry.save();
         } catch (err) {
@@ -899,15 +899,26 @@ export const deleteProductService = async (id) => {
 
   await product.deleteOne();
 
-  // Remove from n-gram search index
   await deleteFromIndex(id);
 
   return { success: true };
 };
 
+// ── Updated: accepts an explicit `starred` boolean to SET state, or toggles if undefined ──
+export const toggleStarProductService = async (id, starred) => {
+  const product = await Product.findById(id);
+  if (!product)
+    return { success: false, statusCode: 404, message: "Product not found" };
+
+  // If a specific state is passed, use it; otherwise toggle
+  product.isStarred = starred !== undefined ? starred : !product.isStarred;
+  await product.save();
+
+  return { success: true, isStarred: product.isStarred };
+};
+
 export const getLowStockProductsService = async () => {
   const lowStockProducts = await Product.aggregate([
-    // Carry the product-level threshold through the pipeline
     {
       $addFields: {
         threshold: { $ifNull: ["$lowStockThreshold", 5] },
@@ -916,7 +927,6 @@ export const getLowStockProductsService = async () => {
     { $unwind: "$variants" },
     { $unwind: "$variants.sizes" },
     {
-      // Match sizes where stock is at or below the product's own threshold
       $match: {
         $expr: {
           $and: [
@@ -1414,11 +1424,6 @@ const bulkImportRowBasedService = async (files, userId) => {
         "FullDescription",
         "Full Description",
       );
-      // console.log("=== CELL DEBUG row", rowIndex, "===");
-      // console.log("cell.v:", descCell?.v);
-      // console.log("cell.r:", JSON.stringify(descCell?.r, null, 2));
-      // console.log("cell.s:", JSON.stringify(descCell?.s, null, 2));
-      // console.log("==============================");
 
       const item = {
         Name: getRowValue(rowValues, "Name"),
@@ -1668,314 +1673,6 @@ const bulkImportRowBasedService = async (files, userId) => {
 
 export const bulkImportService = async (files, userId) => {
   return bulkImportRowBasedService(files, userId);
-
-  const excelFile = files.file ? files.file[0] : null;
-  const imageFiles = files.images || [];
-
-  if (!excelFile) {
-    throw new Error("Excel file is required");
-  }
-
-  const workbook = xlsx.readFile(excelFile.path);
-  const rawData = xlsx.utils.sheet_to_json(
-    workbook.Sheets[workbook.SheetNames[0]],
-  );
-
-  const productsToInsert = [];
-  const errors = [];
-
-  // Filename -> File Object
-  const imageMap = new Map();
-  imageFiles.forEach((file) => {
-    imageMap.set(file.originalname.trim().toLowerCase(), file);
-  });
-
-  // Pre-fetch all categories to avoid N+1 queries
-  const allCategories = await Category.find({}).lean();
-  const categoryMap = new Map();
-  allCategories.forEach((c) => {
-    categoryMap.set(c.name.toLowerCase().trim(), c._id);
-  });
-
-  // Pre-fetch existing slugs and SKUs to handle uniqueness without DB round-trips per row
-  const existingSlugs = new Set(
-    (await Product.find({}, { slug: 1 }).lean()).map((p) => p.slug),
-  );
-  const existingSkus = new Set(
-    (await Product.find({}, { sku: 1 }).lean()).map((p) => p.sku),
-  );
-  // Also track slugs/SKUs added in this batch to catch intra-batch duplicates
-  const batchSlugs = new Set();
-  const batchSkus = new Set();
-
-  for (let i = 1; i < rawRows.length; i++) {
-    const rowValues = rawRows[i] || [];
-    const rowNumber = i + 1;
-    const item = {
-      Name: getRowValue(rowValues, "Name"),
-      SKU: getRowValue(rowValues, "SKU"),
-      Description: spreadsheetCellToHtml(
-        getCellByHeader(
-          rowNumber,
-          "Description",
-          "FullDescription",
-          "Full Description",
-        ),
-      ),
-      ShortDescription: getRowValue(
-        rowValues,
-        "ShortDescription",
-        "Short Description",
-      ),
-      MaterialCare: spreadsheetCellToHtml(
-        getCellByHeader(
-          rowNumber,
-          "MaterialCare",
-          "Material Care",
-          "Material & Care",
-        ),
-      ),
-      Category: getRowValue(rowValues, "Category"),
-      SubCategory: getRowValue(rowValues, "SubCategory", "Sub Category"),
-      Status: getRowValue(rowValues, "Status"),
-      Tags: getRowValue(rowValues, "Tags"),
-      WearType: getRowValue(rowValues, "WearType", "Wear Type"),
-      Occasion: getRowValue(rowValues, "Occasion"),
-      Style: getRowValue(rowValues, "Style"),
-      Work: getRowValue(rowValues, "Work"),
-      Fabric: getRowValue(rowValues, "Fabric"),
-      Type: getRowValue(rowValues, "Type"),
-      ByPrice: getRowValue(rowValues, "ByPrice", "By Price"),
-      MainImage: getRowValue(rowValues, "MainImage", "Main Image"),
-      HoverImage: getRowValue(rowValues, "HoverImage", "Hover Image"),
-      Variants: getRowValue(rowValues, "Variants"),
-    };
-    const rowIndex = i + 1;
-
-    try {
-      // ── 0. Skip completely empty rows (xlsx trailing row artefacts) ─────────
-      const hasAnyValue = Object.values(item).some(
-        (v) => v !== null && v !== undefined && v.toString().trim() !== "",
-      );
-      if (!hasAnyValue) continue;
-      // ── 1. Required field validation ──────────────────────────────────────
-      const name = item.Name?.trim();
-      const sku = item.SKU?.toString().trim().toUpperCase();
-
-      if (!name || !sku) {
-        errors.push(`Row ${rowIndex}: Name or SKU missing — row skipped`);
-        continue;
-      }
-
-      if (!item.Description) {
-        errors.push(
-          `Row ${rowIndex} (${name}): Description is required — row skipped`,
-        );
-        continue;
-      }
-
-      if (!item.MaterialCare) {
-        errors.push(
-          `Row ${rowIndex} (${name}): MaterialCare is required — row skipped`,
-        );
-        continue;
-      }
-
-      // ── 2. SKU uniqueness ─────────────────────────────────────────────────
-      if (existingSkus.has(sku) || batchSkus.has(sku)) {
-        errors.push(
-          `Row ${rowIndex} (${name}): SKU "${sku}" already exists — row skipped`,
-        );
-        continue;
-      }
-
-      // ── 3. Category lookup ────────────────────────────────────────────────
-      let categoryId = null;
-      if (item.Category) {
-        const catName = item.Category.trim().toLowerCase();
-        categoryId = categoryMap.get(catName);
-        if (!categoryId) {
-          errors.push(
-            `Row ${rowIndex} (${name}): Category "${item.Category}" not found — row skipped`,
-          );
-          continue;
-        }
-      } else {
-        errors.push(
-          `Row ${rowIndex} (${name}): Category is required — row skipped`,
-        );
-        continue;
-      }
-
-      // ── 4. Image processing ───────────────────────────────────────────────
-      const uploadedImageCache = new Map();
-
-      const processImage = async (filename, folder = "products") => {
-        if (!filename) return null;
-        const normalized = filename.toString().trim().toLowerCase();
-        const cached = uploadedImageCache.get(normalized);
-        if (cached) return cached;
-
-        const file = imageMap.get(normalized);
-        if (!file) return null;
-        const s3Result = await uploadS3File(file.path, folder);
-        const uploaded = { url: s3Result.url, public_id: s3Result.public_id };
-        uploadedImageCache.set(normalized, uploaded);
-        return uploaded;
-      };
-
-      const mainImage = await processImage(item.MainImage);
-
-      // ── 5. mainImage is required — skip row if missing ────────────────────
-      if (!mainImage || !mainImage.url) {
-        errors.push(
-          `Row ${rowIndex} (${name}): mainImage is required but "${item.MainImage || "no filename provided"}" was not found in uploaded images — row skipped`,
-        );
-        continue;
-      }
-
-      const hoverImage = await processImage(item.HoverImage);
-
-      // ── 6. Gallery images ─────────────────────────────────────────────────
-      const safeSplit = (val) => {
-        if (val == null) return [];
-        return val
-          .toString()
-          .split(",")
-          .map((s) => s.trim())
-          .filter(Boolean);
-      };
-
-      // ── 7. Variants ───────────────────────────────────────────────────────
-      const variants = [];
-      if (item.Variants) {
-        try {
-          let vStr = item.Variants.toString().trim().replace(/[""]/g, '"');
-          if (vStr.includes("'") && !vStr.includes('"')) {
-            vStr = vStr.replace(/'/g, '"');
-          }
-          const parsedVariants = JSON.parse(vStr);
-          for (const v of parsedVariants) {
-            let v_image = null;
-            if (v.imageFilename) {
-              v_image = await processImage(v.imageFilename);
-              delete v.imageFilename;
-            }
-            let v_video = null;
-            if (v.videoFilename) {
-              v_video = await processVideo(v.videoFilename);
-              delete v.videoFilename;
-            }
-            variants.push({
-              ...v,
-              ...(v_image && { v_image }),
-              ...(v_video && { v_video }),
-            });
-          }
-        } catch (e) {
-          errors.push(
-            `Row ${rowIndex} (${name}): Invalid Variants JSON — ${e.message}`,
-          );
-          // Don't skip the row — import without variants
-        }
-      }
-
-      // ── 8. Slug generation with uniqueness suffix ─────────────────────────
-      let slug = slugify(name, { lower: true, strict: true });
-      if (existingSlugs.has(slug) || batchSlugs.has(slug)) {
-        const base = slug;
-        let suffix = 1;
-        while (
-          existingSlugs.has(`${base}-${suffix}`) ||
-          batchSlugs.has(`${base}-${suffix}`)
-        ) {
-          suffix++;
-        }
-        slug = `${base}-${suffix}`;
-      }
-
-      // ── 9. Build product object ───────────────────────────────────────────
-      const product = {
-        name,
-        sku,
-        slug,
-        description: sanitizeProductHtml(item.Description || ""),
-        shortDescription: item.ShortDescription || "",
-        materialCare: sanitizeProductHtml(item.MaterialCare || ""),
-        category: categoryId,
-        subCategory: item.SubCategory || null,
-        stock: Number(item.Stock) || 0,
-        status: item.Status || "Active",
-        wearType: safeSplit(item.WearType),
-        occasion: safeSplit(item.Occasion),
-        tags: safeSplit(item.Tags),
-        style: safeSplit(item.Style),
-        work: safeSplit(item.Work),
-        fabric: safeSplit(item.Fabric),
-        productType: safeSplit(item.Type),
-        byPrice: safeSplit(item.ByPrice),
-        mainImage,
-        ...(hoverImage && { hoverImage }),
-        variants,
-        createdBy: userId,
-      };
-
-      productsToInsert.push(product);
-      batchSlugs.add(slug);
-      batchSkus.add(sku);
-    } catch (err) {
-      errors.push(`Row ${rowIndex}: Unexpected error — ${err.message}`);
-    }
-  }
-
-  // ── Insert valid products ─────────────────────────────────────────────────
-  let inserted = [];
-  if (productsToInsert.length > 0) {
-    try {
-      inserted = await Product.insertMany(productsToInsert, { ordered: false });
-    } catch (err) {
-      if (err.insertedDocs) {
-        inserted = err.insertedDocs;
-      }
-      // Extract per-document write errors and surface them
-      if (err.writeErrors?.length) {
-        err.writeErrors.forEach((we) => {
-          const failed = productsToInsert[we.index];
-          errors.push(
-            `DB insert failed for "${failed?.name || `index ${we.index}`}": ${we.errmsg || we.err?.errmsg || "unknown error"}`,
-          );
-        });
-      } else {
-        errors.push(`Database insert error: ${err.message}`);
-      }
-    }
-  }
-
-  // Rebuild search index in background — insertMany bypasses syncToIndex
-  if (inserted.length > 0) {
-    rebuildIndex().catch((err) =>
-      console.error(
-        "[NGramSearch] Auto-rebuild failed after bulk import:",
-        err,
-      ),
-    );
-  }
-
-  // ── Cleanup temp files ────────────────────────────────────────────────────
-  try {
-    const allFiles = [excelFile, ...imageFiles];
-    for (const f of allFiles) {
-      if (f?.path) await deleteFile(f.path);
-    }
-  } catch (e) {
-    console.error("Cleanup error:", e);
-  }
-
-  return {
-    success: true,
-    data: inserted,
-    errors,
-  };
 };
 
 export const addReviewService = async (productId, user, rating, comment) => {
@@ -1990,7 +1687,6 @@ export const addReviewService = async (productId, user, rating, comment) => {
   const product = await Product.findById(prodId);
   if (!product) return { success: false, statusCode: 404 };
 
-  // 1. MUST have purchased the product (Order Status: Delivered)
   const hasPurchased = await Order.findOne({
     user: user._id,
     "orderItems.product": prodId,
@@ -2030,10 +1726,6 @@ export const addReviewService = async (productId, user, rating, comment) => {
   return { success: true, review: newReview };
 };
 
-/**
- * Checks if a user is eligible to review a product.
- * Eligible only if they have a 'Delivered' order containing this product.
- */
 export const canReviewService = async (productId, userId) => {
   console.log(
     `[canReviewService] Checking eligibility for User: ${userId}, Product: ${productId}`,
@@ -2129,7 +1821,6 @@ export const updateReviewStatusService = async (
 
   await review.save();
 
-  // Recalculate product rating
   const product = await Product.findById(review.product);
   if (product) {
     const reviews = await Review.find({
@@ -2153,7 +1844,6 @@ export const deleteReviewService = async (reviewId) => {
 
   await review.deleteOne();
 
-  // Recalculate product rating
   const product = await Product.findById(review.product);
   if (product) {
     const reviews = await Review.find({
@@ -2281,7 +1971,9 @@ export const getMostViewedProductsService = async ({
   endDate,
 } = {}) => {
   const normalizedLimit = Math.min(Math.max(Number(limit) || 10, 1), 50);
-  const viewedAt = getExplicitDateRange(startDate, endDate) || getPeriodDateRange(period, refDate);
+  const viewedAt =
+    getExplicitDateRange(startDate, endDate) ||
+    getPeriodDateRange(period, refDate);
 
   if (!viewedAt) {
     const products = await Product.find({ status: "Active" })
@@ -2395,7 +2087,6 @@ export const fetchCollectionProducts = async () => {
     .lean();
 
   return products.map((p) => {
-    // Derive price/MRP/discount from the first available variant + size
     const firstVariant = p.variants?.[0];
     const firstSize = firstVariant?.sizes?.[0];
 
@@ -2404,7 +2095,6 @@ export const fetchCollectionProducts = async () => {
     const discountPct =
       mrp > 0 && price < mrp ? Math.round(((mrp - price) / mrp) * 100) : 0;
 
-    // A product is sold-out when every size of every variant has stock === 0
     const soldOut =
       p.variants?.every((v) => v.sizes?.every((s) => (s.stock ?? 0) === 0)) ??
       false;

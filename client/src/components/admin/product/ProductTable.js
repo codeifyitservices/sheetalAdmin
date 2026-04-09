@@ -4,7 +4,6 @@ import { useEffect, useState } from "react";
 import {
   Edit3,
   Trash2,
-  ArrowUpDown,
   Search,
   RefreshCw,
   ChevronLeft,
@@ -17,6 +16,7 @@ import {
   Minus,
   ListChecks,
   X,
+  Star,
 } from "lucide-react";
 import toast from "react-hot-toast";
 
@@ -26,7 +26,7 @@ import DeleteConfirmModal from "../common/DeleteConfirmModal";
 import SettingsModal from "./SettingsModal";
 import BulkImportModal from "./BulkImportModal";
 
-import { getProducts, deleteProduct } from "@/services/productService";
+import { getProducts, deleteProduct, starProduct } from "@/services/productService";
 import { getCategories } from "@/services/categoryService";
 import { useProductModal } from "@/hooks/useProductModal";
 
@@ -42,8 +42,8 @@ export default function ProductTable({ refreshStats }) {
   const [currentPage, setCurrentPage] = useState(1);
 
   const [sortConfig, setSortConfig] = useState({
-    key: "name",
-    direction: "asc",
+    key: "createdAt",
+    direction: "desc",
   });
 
   const [showModal, setShowModal] = useState(false);
@@ -61,6 +61,10 @@ export default function ProductTable({ refreshStats }) {
   const [selectedIds, setSelectedIds] = useState(new Set());
   const [showBulkDeleteModal, setShowBulkDeleteModal] = useState(false);
   const [bulkDeleting, setBulkDeleting] = useState(false);
+
+  // ── Star state ──
+  const [starringId, setStarringId] = useState(null);
+  const [bulkStarring, setBulkStarring] = useState(false);
 
   const { openProductId, closeModal } = useProductModal();
 
@@ -185,6 +189,71 @@ export default function ProductTable({ refreshStats }) {
     }
   };
 
+  // ── Single star toggle (no explicit state → backend toggles) ──
+  const handleStar = async (e, id) => {
+    e.stopPropagation();
+    setStarringId(id);
+    try {
+      const res = await starProduct(id);
+      if (res.success) {
+        setProducts((prev) =>
+          prev.map((p) =>
+            p._id === id ? { ...p, isStarred: res.data.isStarred } : p,
+          ),
+        );
+        toast.success(res.data.isStarred ? "Product starred!" : "Star removed");
+      }
+    } catch {
+      toast.error("Failed to update star");
+    } finally {
+      setStarringId(null);
+    }
+  };
+
+  // ── Bulk star: pass explicit `starred` boolean so all items are SET, not toggled ──
+  const handleBulkStar = async (starred) => {
+    setBulkStarring(true);
+    const ids = [...selectedIds];
+    const loadingToast = toast.loading(
+      `${starred ? "Starring" : "Unstarring"} ${ids.length} products…`,
+    );
+    let failed = 0;
+
+    try {
+      // Pass the explicit `starred` boolean so all items are SET, not toggled
+      const results = await Promise.allSettled(
+        ids.map((id) => starProduct(id, starred)),
+      );
+
+      results.forEach((result) => {
+        if (result.status === "rejected") failed++;
+      });
+
+      const succeeded = ids.length - failed;
+
+      if (succeeded > 0) {
+        toast.success(
+          `${succeeded} product${succeeded > 1 ? "s" : ""} ${starred ? "starred" : "unstarred"}`,
+          { id: loadingToast },
+        );
+        // Optimistically update local state
+        setProducts((prev) =>
+          prev.map((p) =>
+            selectedIds.has(p._id) ? { ...p, isStarred: starred } : p,
+          ),
+        );
+      }
+      if (failed > 0)
+        toast.error(`${failed} update${failed > 1 ? "s" : ""} failed`);
+
+      exitSelectMode();
+    } catch {
+      toast.error("Bulk star failed", { id: loadingToast });
+    } finally {
+      setBulkStarring(false);
+    }
+  };
+
   const handleSort = (key) => {
     setSortConfig((prev) => ({
       key,
@@ -202,6 +271,14 @@ export default function ProductTable({ refreshStats }) {
     products.length > 0 && products.every((p) => selectedIds.has(p._id));
   const someSelected =
     products.some((p) => selectedIds.has(p._id)) && !allCurrentSelected;
+
+  // ── Are ALL selected products currently starred? ──
+  const allSelectedStarred =
+    selectedIds.size > 0 &&
+    [...selectedIds].every((id) => {
+      const p = products.find((p) => p._id === id);
+      return p?.isStarred;
+    });
 
   const toggleSelectAll = () => {
     if (allCurrentSelected) {
@@ -242,6 +319,21 @@ export default function ProductTable({ refreshStats }) {
             >
               Clear
             </button>
+
+            {/* ── Bulk star / unstar ── */}
+            <button
+              disabled={bulkStarring}
+              onClick={() => handleBulkStar(!allSelectedStarred)}
+              className={`px-3 py-1.5 text-xs font-bold rounded-lg flex items-center gap-1.5 transition-colors disabled:opacity-40 ${
+                allSelectedStarred
+                  ? "bg-amber-500 hover:bg-amber-400 text-white"
+                  : "bg-amber-500/20 hover:bg-amber-500 text-amber-300 hover:text-white border border-amber-500/40"
+              }`}
+            >
+              <Star size={13} className={allSelectedStarred ? "fill-white" : ""} />
+              {allSelectedStarred ? "Unstar" : "Star"} {selectedIds.size}
+            </button>
+
             <button
               onClick={() => setShowBulkDeleteModal(true)}
               className="px-3 py-1.5 text-xs font-bold bg-rose-600 hover:bg-rose-500 text-white rounded-lg flex items-center gap-1.5 transition-colors"
@@ -283,6 +375,22 @@ export default function ProductTable({ refreshStats }) {
                 {category.name}
               </option>
             ))}
+          </select>
+
+          {/* ── Sort dropdown ── */}
+          <select
+            value={`${sortConfig.key}_${sortConfig.direction}`}
+            onChange={(e) => {
+              const [key, direction] = e.target.value.split("_");
+              setSortConfig({ key, direction });
+              setCurrentPage(1);
+            }}
+            className="min-w-[180px] border border-slate-300 rounded px-3 py-2 text-sm bg-white text-slate-700 focus:ring-2 focus:ring-slate-200 outline-none"
+          >
+            <option value="name_asc">Name: A → Z</option>
+            <option value="name_desc">Name: Z → A</option>
+            <option value="createdAt_desc">Date: Newest First</option>
+            <option value="createdAt_asc">Date: Oldest First</option>
           </select>
 
           <button
@@ -357,18 +465,7 @@ export default function ProductTable({ refreshStats }) {
               )}
               <th className="px-4 py-4 w-12 text-center">#</th>
               <th className="px-4 py-4 w-16 text-center">Image</th>
-              <th
-                className="px-4 py-4 cursor-pointer group"
-                onClick={() => handleSort("name")}
-              >
-                <div className="flex items-center gap-1">
-                  Product Details
-                  <ArrowUpDown
-                    size={14}
-                    className="opacity-50 group-hover:opacity-100"
-                  />
-                </div>
-              </th>
+              <th className="px-4 py-4">Product Details</th>
               <th className="px-4 py-4">Tags</th>
               <th className="px-4 py-4">Category</th>
               <th className="px-4 py-4">Sub Category</th>
@@ -437,9 +534,17 @@ export default function ProductTable({ refreshStats }) {
 
                     <td className="px-4 py-4">
                       <div className="flex flex-col">
-                        <span className="font-bold text-slate-900">
-                          {p.name}
-                        </span>
+                        <div className="flex items-center gap-1.5">
+                          <span className="font-bold text-slate-900">
+                            {p.name}
+                          </span>
+                          {p.isStarred && (
+                            <Star
+                              size={12}
+                              className="fill-amber-400 text-amber-400 shrink-0"
+                            />
+                          )}
+                        </div>
                         <span className="text-[10px] text-slate-400 uppercase font-black tracking-tighter">
                           SKU: {p.sku || "N/A"}
                         </span>
@@ -517,6 +622,23 @@ export default function ProductTable({ refreshStats }) {
                       onClick={(e) => e.stopPropagation()}
                     >
                       <div className="flex justify-end gap-4 text-slate-400">
+                        {/* ── Star toggle ── */}
+                        <button
+                          title={p.isStarred ? "Unstar" : "Star"}
+                          disabled={starringId === p._id}
+                          onClick={(e) => handleStar(e, p._id)}
+                          className={`transition-colors cursor-pointer disabled:opacity-40 ${
+                            p.isStarred
+                              ? "text-amber-400 hover:text-slate-400"
+                              : "hover:text-amber-400"
+                          }`}
+                        >
+                          <Star
+                            size={18}
+                            className={p.isStarred ? "fill-amber-400" : ""}
+                          />
+                        </button>
+
                         <button
                           title="Edit"
                           className="hover:text-blue-600 cursor-pointer transition-colors"

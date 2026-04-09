@@ -319,7 +319,6 @@ export const getCollectionProducts = async (req, res) => {
   }
 };
 
-// GET most viewed products (admin dashboard)
 export const getMostViewedProducts = async (req, res, next) => {
   try {
     const items = await productService.getMostViewedProductsService({
@@ -333,5 +332,22 @@ export const getMostViewedProducts = async (req, res, next) => {
     res.json({ success: true, items });
   } catch (err) {
     next(err);
+  }
+};
+
+// ── Updated: reads `starred` from req.body and passes it to the service ──
+export const toggleStarProduct = async (req, res, next) => {
+  try {
+    // Accept an explicit desired state from body (used by bulk ops).
+    // If not provided (undefined), the service will toggle instead.
+    const { starred } = req.body;
+    const result = await productService.toggleStarProductService(
+      req.params.id,
+      starred,
+    );
+    if (!result.success) return res.status(result.statusCode).json(result);
+    return successResponse(res, 200, { isStarred: result.isStarred }, "Star updated");
+  } catch (error) {
+    next(error);
   }
 };
