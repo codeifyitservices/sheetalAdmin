@@ -20,6 +20,9 @@ const sizeChartSchema = new mongoose.Schema(
   { timestamps: true },
 );
 
-const SizeChart =
-  mongoose.models.SizeChart || mongoose.model("SizeChart", sizeChartSchema);
+if (mongoose.models.SizeChart) {
+  delete mongoose.models.SizeChart;
+}
+
+const SizeChart = mongoose.model("SizeChart", sizeChartSchema);
 export default SizeChart;
