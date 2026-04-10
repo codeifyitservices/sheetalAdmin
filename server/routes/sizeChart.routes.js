@@ -28,4 +28,10 @@ router
   .patch(isAuthenticated, isAdmin, sizeChartController.updateSizeRow)
   .delete(isAuthenticated, isAdmin, sizeChartController.deleteSizeRow);
 
+router
+  .route("/:id")
+  .get(sizeChartController.getSizeChart)
+  .put(isAuthenticated, isAdmin, sizeChartController.updateSize)
+  .delete(isAuthenticated, isAdmin, sizeChartController.deleteSize);
+
 export default router;
