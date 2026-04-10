@@ -513,7 +513,11 @@ export const getAllCouponsService = async ({
   try {
     const baseQuery = isAdmin
       ? {}
-      : { isActive: true, endDate: { $gte: new Date() } };
+      : {
+          isActive: true,
+          endDate: { $gte: new Date() },
+          isAbandonedCartCoupon: false,
+        };
 
     if (search) {
       baseQuery.$or = [
