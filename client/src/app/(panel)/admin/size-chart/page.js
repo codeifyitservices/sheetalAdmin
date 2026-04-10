@@ -25,6 +25,13 @@ export default function SizeChartPage() {
   const [categories, setCategories] = useState([]);
   const [loading, setLoading] = useState(true);
 
+  const normalizeChartPayload = (payload) => {
+    if (Array.isArray(payload?.charts)) return payload.charts;
+    if (Array.isArray(payload)) return payload;
+    if (payload && payload._id) return [payload];
+    return [];
+  };
+
   const fetchData = async () => {
     setLoading(true);
     try {
@@ -32,7 +39,7 @@ export default function SizeChartPage() {
         getSizeCharts(),
         getCategories(1, 1000, ""),
       ]);
-      setSizeCharts(Array.isArray(chartsRes.data?.charts) ? chartsRes.data.charts : []);
+      setSizeCharts(normalizeChartPayload(chartsRes.data));
       setCategories(Array.isArray(categoriesRes.data?.categories) ? categoriesRes.data.categories : []);
     } catch (error) {
       console.error("Failed to fetch size chart data", error);
