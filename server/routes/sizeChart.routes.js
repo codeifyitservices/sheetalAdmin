@@ -33,4 +33,5 @@ router
   .get(sizeChartController.getSizeChart)
   .put(isAuthenticated, isAdmin, sizeChartController.updateSize)
   .delete(isAuthenticated, isAdmin, sizeChartController.deleteSize);
+
 export default router;

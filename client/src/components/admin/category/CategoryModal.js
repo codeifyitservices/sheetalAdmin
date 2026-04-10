@@ -159,10 +159,17 @@ export default function CategoryModal({
     }
   };
 
+  const normalizeChartPayload = (payload) => {
+    if (Array.isArray(payload?.charts)) return payload.charts;
+    if (Array.isArray(payload)) return payload;
+    if (payload && payload._id) return [payload];
+    return [];
+  };
+
   const fetchSizeCharts = async () => {
     try {
       const res = await getSizeCharts();
-      setSizeCharts(Array.isArray(res.data?.charts) ? res.data.charts : []);
+      setSizeCharts(normalizeChartPayload(res.data));
     } catch (err) {
       console.error("Failed to fetch size charts:", err);
       setSizeCharts([]);
