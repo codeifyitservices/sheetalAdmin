@@ -53,6 +53,11 @@ const categorySchema = new mongoose.Schema(
     wearType: { type: [String], default: [], index: true },
     occasion: { type: [String], default: [], index: true },
     byPrice: { type: [String], default: [], index: true },
+    sizeMode: {
+      type: String,
+      enum: ["none", "chart", "free"],
+      default: "none",
+    },
     sizeChart: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "SizeChart",

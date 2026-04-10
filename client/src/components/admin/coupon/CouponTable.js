@@ -12,6 +12,9 @@ import {
   ChevronRight,
   Ticket,
   Zap,
+  ShoppingCart,
+  X,
+  Loader2,
 } from "lucide-react";
 import toast from "react-hot-toast";
 
@@ -19,7 +22,7 @@ import CouponModal from "./CouponModal";
 import ViewCouponDrawer from "./ViewCouponDrawer";
 import DeleteConfirmModal from "../common/DeleteConfirmModal";
 
-import { getCoupons, deleteCoupon } from "@/services/couponService";
+import { getCoupons, deleteCoupon, pushCouponToAbandonedCarts } from "@/services/couponService";
 
 const getCouponStatus = (coupon) => {
   const isExpired = coupon?.endDate
@@ -30,6 +33,110 @@ const getCouponStatus = (coupon) => {
   return coupon?.isActive ? "Live" : "Paused";
 };
 
+// ── Confirmation modal for the abandoned cart push ──────────────────────────
+function PushConfirmModal({ isOpen, onClose, onConfirm, coupon, pushing }) {
+  if (!isOpen || !coupon) return null;
+
+  return (
+    <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-[2px] flex items-center justify-center z-[200] p-4">
+      <div className="bg-white rounded-xl shadow-2xl w-full max-w-md border border-slate-200 overflow-hidden">
+        {/* Header */}
+        <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between bg-slate-50/50">
+          <div className="flex items-center gap-3">
+            <div className="p-2 bg-emerald-600 text-white rounded-lg">
+              <ShoppingCart size={16} />
+            </div>
+            <h2 className="text-base font-bold text-slate-900">
+              Push to Abandoned Carts
+            </h2>
+          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            disabled={pushing}
+            className="text-slate-400 hover:text-slate-900 hover:bg-slate-100 p-1.5 rounded-lg transition disabled:opacity-40"
+          >
+            <X size={18} />
+          </button>
+        </div>
+
+        {/* Body */}
+        <div className="px-6 py-5 space-y-4">
+          <p className="text-sm text-slate-600 leading-relaxed">
+            This will immediately send coupon{" "}
+            <span className="font-black text-slate-900 bg-slate-100 px-1.5 py-0.5 rounded text-xs tracking-wider">
+              {coupon.code || coupon.description}
+            </span>{" "}
+            to all customers currently in an active abandoned cart recovery flow.
+          </p>
+
+          {/* Coupon summary */}
+          <div className="bg-emerald-50 border border-emerald-200 rounded-xl p-4 space-y-1.5">
+            <p className="text-[10px] font-black uppercase tracking-widest text-emerald-600">
+              Coupon Details
+            </p>
+            <p className="text-sm font-bold text-slate-800">
+              {coupon.offerType === "Percentage" && `${coupon.offerValue}% OFF`}
+              {coupon.offerType === "FixedAmount" && `₹${coupon.offerValue} OFF`}
+              {coupon.offerType === "BOGO" &&
+                `Buy ${coupon.buyQuantity} Get ${coupon.getQuantity}`}
+            </p>
+            {coupon.minOrderAmount > 0 && (
+              <p className="text-xs text-slate-500">
+                Min order: ₹{coupon.minOrderAmount}
+              </p>
+            )}
+            <p className="text-xs text-slate-500">
+              Expires:{" "}
+              {new Date(coupon.endDate).toLocaleDateString("en-IN", {
+                day: "2-digit",
+                month: "short",
+                year: "numeric",
+              })}
+            </p>
+          </div>
+
+          <p className="text-xs text-slate-400 leading-relaxed">
+            Each customer will receive a personalised message with this coupon. This
+            action cannot be undone.
+          </p>
+        </div>
+
+        {/* Footer */}
+        <div className="px-6 py-4 border-t border-slate-100 flex gap-3">
+          <button
+            type="button"
+            onClick={onClose}
+            disabled={pushing}
+            className="flex-1 px-4 py-2.5 border border-slate-300 rounded-lg text-sm font-bold text-slate-700 hover:bg-slate-50 transition disabled:opacity-40"
+          >
+            Cancel
+          </button>
+          <button
+            type="button"
+            onClick={onConfirm}
+            disabled={pushing}
+            className="flex-[2] flex items-center justify-center gap-2 px-4 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-sm font-bold transition disabled:opacity-60 active:scale-[0.98]"
+          >
+            {pushing ? (
+              <>
+                <Loader2 size={15} className="animate-spin" />
+                Pushing…
+              </>
+            ) : (
+              <>
+                <ShoppingCart size={15} />
+                Confirm &amp; Push
+              </>
+            )}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ── Main table ───────────────────────────────────────────────────────────────
 export default function CouponTable({ refreshStats }) {
   const [coupons, setCoupons] = useState([]);
   const [loading, setLoading] = useState(false);
@@ -51,9 +158,16 @@ export default function CouponTable({ refreshStats }) {
   const [deleteId, setDeleteId] = useState(null);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
 
+  // Push-to-abandoned-carts state
+  const [pushCoupon, setPushCoupon] = useState(null);
+  const [showPushModal, setShowPushModal] = useState(false);
+  const [pushing, setPushing] = useState(false);
+
   useEffect(() => {
     fetchCoupons();
   }, []);
+
+  
 
   const fetchCoupons = async (isRefresh = false) => {
     setLoading(true);
@@ -84,6 +198,25 @@ export default function CouponTable({ refreshStats }) {
     } finally {
       setDeleteId(null);
       setShowDeleteModal(false);
+    }
+  };
+
+  const handlePushConfirm = async () => {
+    if (!pushCoupon) return;
+    setPushing(true);
+    const loadingToast = toast.loading("Pushing coupon to abandoned carts…");
+    try {
+      const res = await pushCouponToAbandonedCarts(pushCoupon._id);
+      toast.success(
+        res.message || `Coupon pushed to ${res.count ?? "all"} abandoned carts`,
+        { id: loadingToast },
+      );
+      setShowPushModal(false);
+      setPushCoupon(null);
+    } catch (err) {
+      toast.error(err.message || "Push failed", { id: loadingToast });
+    } finally {
+      setPushing(false);
     }
   };
 
@@ -211,7 +344,7 @@ export default function CouponTable({ refreshStats }) {
                     {(currentPage - 1) * rowsPerPage + i + 1}
                   </td>
 
-                  {/* Code Logic: Handle Festive Sale */}
+                  {/* Code / type */}
                   <td className="px-4 py-4">
                     <div className="flex items-center gap-2">
                       <div
@@ -230,17 +363,23 @@ export default function CouponTable({ refreshStats }) {
                         <span className="text-[10px] text-slate-400 uppercase font-medium">
                           {c.couponType}
                         </span>
+                        {/* Abandoned cart badge */}
+                        {c.isAbandonedCartCoupon && (
+                          <span className="mt-0.5 inline-flex items-center gap-1 text-[9px] font-black uppercase tracking-wider text-emerald-700 bg-emerald-50 border border-emerald-200 rounded px-1.5 py-0.5 w-fit">
+                            <ShoppingCart size={9} />
+                            Cart Recovery
+                          </span>
+                        )}
                       </div>
                     </div>
                   </td>
 
-                  {/* Offer Logic: Handle BOGO & Values */}
+                  {/* Offer details */}
                   <td className="px-4 py-4 text-slate-600 font-medium">
                     <div className="flex flex-col">
                       <span className="font-bold text-slate-800">
                         {c.offerType === "Percentage" && `${c.offerValue}% OFF`}
-                        {c.offerType === "FixedAmount" &&
-                          `₹${c.offerValue} OFF`}
+                        {c.offerType === "FixedAmount" && `₹${c.offerValue} OFF`}
                         {c.offerType === "BOGO" &&
                           `Buy ${c.buyQuantity} Get ${c.getQuantity}`}
                       </span>
@@ -270,11 +409,12 @@ export default function CouponTable({ refreshStats }) {
                           style={{
                             width: `${Math.min((c.usedCount / (c.totalUsageLimit || 1)) * 100, 100)}%`,
                           }}
-                        ></div>
+                        />
                       </div>
                     </div>
                   </td>
 
+                  {/* Expiry */}
                   <td className="px-4 py-4">
                     <div className="flex flex-col">
                       <span className="text-slate-600 text-xs font-bold">
@@ -289,6 +429,7 @@ export default function CouponTable({ refreshStats }) {
                     </div>
                   </td>
 
+                  {/* Status */}
                   <td className="px-4 py-4">
                     <span
                       className={`px-2.5 py-1 rounded-md text-[10px] font-black uppercase tracking-wider border ${
@@ -303,8 +444,22 @@ export default function CouponTable({ refreshStats }) {
                     </span>
                   </td>
 
+                  {/* Actions */}
                   <td className="px-4 py-4 text-right">
                     <div className="flex justify-end gap-3 text-slate-400">
+                      {/* Push to abandoned carts — only shown when flagged */}
+                      {c.isAbandonedCartCoupon && (
+                        <button
+                          title="Push to Abandoned Carts"
+                          className="hover:text-emerald-600 transition-colors p-1 cursor-pointer"
+                          onClick={() => {
+                            setPushCoupon(c);
+                            setShowPushModal(true);
+                          }}
+                        >
+                          <ShoppingCart size={18} />
+                        </button>
+                      )}
                       <button
                         title="View"
                         className="hover:text-slate-900 transition-colors p-1 cursor-pointer"
@@ -353,7 +508,7 @@ export default function CouponTable({ refreshStats }) {
         </table>
       </div>
 
-      {/* Footer Pagination: Same as your original logic */}
+      {/* Footer Pagination */}
       <div className="p-4 border-t border-slate-100 flex flex-col md:flex-row items-center justify-between bg-slate-50/50 gap-4">
         <div className="flex items-center gap-3">
           <span className="text-[10px] font-bold text-slate-400 uppercase tracking-tighter">
@@ -432,7 +587,7 @@ export default function CouponTable({ refreshStats }) {
         onClose={() => setShowModal(false)}
         onSuccess={fetchCoupons}
         initialData={editData}
-        allCoupons={coupons} // ← add this
+        allCoupons={coupons}
       />
       <ViewCouponDrawer
         isOpen={showDrawer}
@@ -445,6 +600,18 @@ export default function CouponTable({ refreshStats }) {
         onConfirm={handleDeleteConfirm}
         entityName="coupon"
         itemName={coupons.find((c) => c._id === deleteId)?.code}
+      />
+      <PushConfirmModal
+        isOpen={showPushModal}
+        onClose={() => {
+          if (!pushing) {
+            setShowPushModal(false);
+            setPushCoupon(null);
+          }
+        }}
+        onConfirm={handlePushConfirm}
+        coupon={pushCoupon}
+        pushing={pushing}
       />
     </div>
   );

@@ -7,16 +7,11 @@ const sizeChartSchema = new mongoose.Schema(
       default: "Untitled Size Chart",
       trim: true,
     },
-    table: [
-      {
-        label: { type: String, required: true },
-        bust: { type: String },
-        waist: { type: String },
-        hip: { type: String },
-        shoulder: { type: String },
-        length: { type: String },
-      },
-    ],
+    headers: {
+      type: [String],
+      default: ["Size", "Bust", "Waist"],
+    },
+    table: [{ type: mongoose.Schema.Types.Mixed }],
     howToMeasureImage: {
       url: { type: String, default: "" },
       public_id: { type: String },

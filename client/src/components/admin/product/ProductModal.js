@@ -27,6 +27,32 @@ export default function ProductModal({
   onSuccess,
   initialData = null,
 }) {
+  const getChartSizeLabel = (row) =>
+    String(row?.cells?.[0] || row?.label || "").trim();
+
+  const getSeededSizesFromCategory = (category) => {
+    if (category?.sizeMode === "free") {
+      return [{ name: "Free Size", stock: 0, price: 0, discountPrice: 0 }];
+    }
+
+    const chart = category?.sizeChart;
+    const chartSizes = Array.isArray(chart?.table) ? chart.table : [];
+    const seededFromTable = chartSizes
+      .map((row) => ({
+        name: getChartSizeLabel(row),
+        stock: 0,
+        price: 0,
+        discountPrice: 0,
+      }))
+      .filter((row) => row.name.trim() !== "");
+
+    if (seededFromTable.length > 0) {
+      return seededFromTable;
+    }
+
+    return [];
+  };
+
   const [activeTab, setActiveTab] = useState("basic");
   const [loading, setLoading] = useState(false);
   const [categories, setCategories] = useState([]);
@@ -77,15 +103,10 @@ export default function ProductModal({
     const selectedCategory = categories.find(
       (cat) => cat._id === formData.category,
     );
-    const chartSizes = selectedCategory?.sizeChart?.table;
+    const seededSizes = getSeededSizesFromCategory(selectedCategory);
 
-    if (Array.isArray(chartSizes) && chartSizes.length > 0) {
-      return chartSizes.map((row) => ({
-        name: row.label || "",
-        stock: 0,
-        price: 0,
-        discountPrice: 0,
-      }));
+    if (seededSizes.length > 0) {
+      return seededSizes;
     }
 
     return [{ name: "", stock: 0, price: 0, discountPrice: 0 }];
@@ -177,18 +198,7 @@ export default function ProductModal({
     const selectedCategory = categories.find(
       (cat) => cat._id === formData.category,
     );
-    const seededSizes =
-      Array.isArray(selectedCategory?.sizeChart?.table) &&
-      selectedCategory.sizeChart.table.length > 0
-        ? selectedCategory.sizeChart.table
-            .map((row) => ({
-              name: row.label || "",
-              stock: 0,
-              price: 0,
-              discountPrice: 0,
-            }))
-            .filter((row) => row.name.trim() !== "")
-        : [];
+    const seededSizes = getSeededSizesFromCategory(selectedCategory);
 
     if (seededSizes.length === 0) return;
 
@@ -264,18 +274,7 @@ export default function ProductModal({
     const { name, value, type, checked } = e.target;
     if (name === "category") {
       const selectedCategory = categories.find((cat) => cat._id === value);
-      const seededSizes =
-        Array.isArray(selectedCategory?.sizeChart?.table) &&
-        selectedCategory.sizeChart.table.length > 0
-          ? selectedCategory.sizeChart.table
-              .map((row) => ({
-                name: row.label || "",
-                stock: 0,
-                price: 0,
-                discountPrice: 0,
-              }))
-              .filter((row) => row.name.trim() !== "")
-          : [];
+      const seededSizes = getSeededSizesFromCategory(selectedCategory);
 
       setFormData((prev) => ({
         ...prev,

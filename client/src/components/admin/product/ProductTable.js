@@ -323,7 +323,7 @@ export default function ProductTable({ refreshStats }) {
           <div className="flex items-center gap-2">
             <button
               onClick={() => setSelectedIds(new Set())}
-              className="px-3 py-1.5 text-xs font-bold text-slate-300 hover:text-white border border-slate-700 rounded-lg transition-colors"
+              className="px-3 cursor-pointer py-1.5 text-xs font-bold text-slate-300 hover:text-white border border-slate-700 rounded-lg transition-colors"
             >
               Clear
             </button>
@@ -332,7 +332,7 @@ export default function ProductTable({ refreshStats }) {
             <button
               disabled={bulkStarring}
               onClick={() => handleBulkStar(!allSelectedStarred)}
-              className={`px-3 py-1.5 text-xs font-bold rounded-lg flex items-center gap-1.5 transition-colors disabled:opacity-40 ${
+              className={`px-3 cursor-pointer py-1.5 text-xs font-bold rounded-lg flex items-center gap-1.5 transition-colors disabled:opacity-40 ${
                 allSelectedStarred
                   ? "bg-amber-500 hover:bg-amber-400 text-white"
                   : "bg-amber-500/20 hover:bg-amber-500 text-amber-300 hover:text-white border border-amber-500/40"
@@ -347,7 +347,7 @@ export default function ProductTable({ refreshStats }) {
 
             <button
               onClick={() => setShowBulkDeleteModal(true)}
-              className="px-3 py-1.5 text-xs font-bold bg-rose-600 hover:bg-rose-500 text-white rounded-lg flex items-center gap-1.5 transition-colors"
+              className="px-3 cursor-pointer py-1.5 text-xs font-bold bg-rose-600 hover:bg-rose-500 text-white rounded-lg flex items-center gap-1.5 transition-colors"
             >
               <Trash2 size={13} />
               Delete {selectedIds.size}
@@ -507,7 +507,7 @@ export default function ProductTable({ refreshStats }) {
                       >
                         <button
                           onClick={() => toggleSelectOne(product._id)}
-                          className="flex items-center justify-center text-slate-400 hover:text-slate-700 transition-colors"
+                          className="flex cursor-pointer items-center justify-center text-slate-400 hover:text-slate-700 transition-colors"
                         >
                           {isSelected ? (
                             <CheckSquare size={16} className="text-slate-900" />

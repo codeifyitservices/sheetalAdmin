@@ -10,6 +10,7 @@ import {
   AlertCircle,
   Clock,
   TrendingUp,
+  Eye,
 } from "lucide-react";
 import ReportExportMenu from "@/components/admin/common/ReportExportMenu";
 import DateRangeControl from "@/components/admin/common/DateRangeControl";
@@ -18,6 +19,7 @@ import AbandonedCartDetailsModal from "@/components/admin/sales/AbandonedCartDet
 import AbandonedCartStepsModal from "@/components/admin/sales/AbandonedCartStepsModal";
 import { downloadCsvReport, downloadPdfReport } from "@/utils/reportExport";
 import { getAbandonedCarts } from "@/services/salesService";
+import { getCoupons } from "@/services/couponService";
 import { getPaginationRange } from "@/utils/pagination";
 import { useDateRange } from "@/hooks/useDateRange";
 
@@ -35,6 +37,7 @@ export default function AbandonedCartsPage() {
   );
   const [currentPage, setCurrentPage] = useState(pageFromUrl);
   const [allCarts, setAllCarts] = useState([]);
+  const [coupons, setCoupons] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [selectedCart, setSelectedCart] = useState(null);
@@ -48,6 +51,7 @@ export default function AbandonedCartsPage() {
     recoveredRevenue: 0,
     retentionRate: 0,
   });
+
   const {
     rangeType,
     setRangeType,
@@ -58,6 +62,7 @@ export default function AbandonedCartsPage() {
     dateRange,
     dateRangeLabel,
   } = useDateRange("last_7_days");
+
   const tableDateRange = useMemo(
     () => ({
       startDate: dateRange.startDate.toISOString().split("T")[0],
@@ -65,6 +70,16 @@ export default function AbandonedCartsPage() {
     }),
     [dateRange.endDate, dateRange.startDate],
   );
+
+  // Fetch coupons once on mount so the Steps Modal can show the
+  // active abandoned-cart recovery coupon.
+  useEffect(() => {
+    getCoupons(1, 100, "")
+      .then((res) => {
+        if (res.success) setCoupons(res.data);
+      })
+      .catch(() => {}); // non-critical, modal shows empty state gracefully
+  }, []);
 
   const fetchData = useCallback(async () => {
     setLoading(true);
@@ -85,12 +100,11 @@ export default function AbandonedCartsPage() {
         0,
       );
 
-      console.log(res.recoveredRevenue)
-
       setStats({
         total: Number(res.abandonedCount || 0),
         totalValue: Math.round(totalValue * 100) / 100,
-        recoveredAmount: Math.round(Number(res.recoveredAmount || 0) * 100) / 100,
+        recoveredAmount:
+          Math.round(Number(res.recoveredAmount || 0) * 100) / 100,
         recoveredRevenue:
           Math.round(Number(res.recoveredRevenue || 0) * 100) / 100,
         retentionRate: Number(res.retentionRate || 0),
@@ -136,7 +150,9 @@ export default function AbandonedCartsPage() {
     const totalPages = Math.max(1, Math.ceil(filteredCarts.length / limit));
     if (currentPage > totalPages) {
       setCurrentPage(1);
-      router.replace(`/admin/sales-report/abandoned-carts?limit=${limit}&page=1`);
+      router.replace(
+        `/admin/sales-report/abandoned-carts?limit=${limit}&page=1`,
+      );
     }
   }, [currentPage, filteredCarts.length, limit, router]);
 
@@ -242,7 +258,6 @@ export default function AbandonedCartsPage() {
             onCustomStartDateChange={setCustomStartDate}
             onCustomEndDateChange={setCustomEndDate}
           />
-
           <div className="inline-flex items-center rounded-full border border-slate-200 bg-slate-50 px-4 py-2 text-sm font-medium text-slate-600">
             {dateRangeLabel}
           </div>
@@ -363,24 +378,13 @@ export default function AbandonedCartsPage() {
         ) : (
           <>
             <div className="grid grid-cols-12 px-6 py-3 bg-slate-50 border-b border-slate-100">
-              <div className="col-span-1 text-[10px] font-black text-slate-400 uppercase tracking-widest">
-                #
-              </div>
-              <div className="col-span-3 text-[10px] font-black text-slate-400 uppercase tracking-widest">
-                Customer
-              </div>
-              <div className="col-span-2 text-[10px] font-black text-slate-400 uppercase tracking-widest">
-                Items
-              </div>
-              <div className="col-span-2 text-[10px] font-black text-slate-400 uppercase tracking-widest">
-                Cart Value
-              </div>
-              <div className="col-span-2 text-[10px] font-black text-slate-400 uppercase tracking-widest">
-                Status
-              </div>
-              <div className="col-span-2 text-[10px] font-black text-slate-400 uppercase tracking-widest">
-                Event
-              </div>
+              <div className="col-span-1 text-[10px] font-black text-slate-400 uppercase tracking-widest">#</div>
+              <div className="col-span-3 text-[10px] font-black text-slate-400 uppercase tracking-widest">Customer</div>
+              <div className="col-span-1 text-[10px] font-black text-slate-400 uppercase tracking-widest">Items</div>
+              <div className="col-span-2 text-[10px] font-black text-slate-400 uppercase tracking-widest">Cart Value</div>
+              <div className="col-span-2 text-[10px] font-black text-slate-400 uppercase tracking-widest">Status</div>
+              <div className="col-span-2 text-[10px] font-black text-slate-400 uppercase tracking-widest">Event</div>
+              <div className="col-span-1 text-[10px] font-black text-slate-400 uppercase tracking-widest">Actions</div>
             </div>
 
             {paginatedCarts.map((cart, idx) => (
@@ -455,6 +459,7 @@ export default function AbandonedCartsPage() {
       <AbandonedCartStepsModal
         isOpen={isStepsModalOpen}
         onClose={() => setIsStepsModalOpen(false)}
+        coupons={coupons}
       />
     </div>
   );
@@ -462,11 +467,7 @@ export default function AbandonedCartsPage() {
 
 function CartRow({ cart, index, onOpen }) {
   return (
-    <button
-      type="button"
-      onClick={onOpen}
-      className="grid w-full grid-cols-12 items-center border-b border-slate-50 px-6 py-4 text-left transition-colors hover:bg-slate-50/60"
-    >
+    <div className="grid w-full grid-cols-12 items-center border-b border-slate-50 px-6 py-4 text-left transition-colors hover:bg-slate-50/60">
       <div className="col-span-1">
         <span className="text-xs font-black text-slate-300">
           {String(index).padStart(2, "0")}
@@ -502,7 +503,7 @@ function CartRow({ cart, index, onOpen }) {
         </div>
       </div>
 
-      <div className="col-span-2">
+      <div className="col-span-1">
         <span className="text-xs font-bold text-slate-500">
           {cart.itemCount} item{cart.itemCount !== 1 ? "s" : ""}
         </span>
@@ -535,7 +536,16 @@ function CartRow({ cart, index, onOpen }) {
           {cart.date}
         </span>
       </div>
-    </button>
+
+      <div className="col-span-1">
+        <button
+          onClick={onOpen}
+          className="text-xs font-semibold flex items-center justify-center cursor-pointer text-slate-400"
+        >
+          <Eye color="blue" className="h-5 w-auto" />
+        </button>
+      </div>
+    </div>
   );
 }
 
@@ -567,7 +577,6 @@ function StatCard({ title, value, icon, color }) {
 
 function StatusBadge({ status }) {
   const isRecovered = status === "recovered";
-
   return (
     <span
       className={`inline-flex items-center rounded-full border px-3 py-1 text-[11px] font-black uppercase tracking-widest ${
@@ -580,7 +589,3 @@ function StatusBadge({ status }) {
     </span>
   );
 }
-
-
-
-

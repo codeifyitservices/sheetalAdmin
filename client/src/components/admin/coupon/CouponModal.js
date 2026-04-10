@@ -10,6 +10,7 @@ import {
   Gift,
   Info,
   Search,
+  ShoppingCart,
 } from "lucide-react";
 import { addCoupon, updateCoupon } from "@/services/couponService";
 import { getCategories } from "@/services/categoryService";
@@ -59,6 +60,7 @@ export default function CouponModal({
     status: "Active",
     showOnHomepage: false,
     showOnLoginPage: false,
+    isAbandonedCartCoupon: false,
   });
 
   const [products, setProducts] = useState([]);
@@ -127,6 +129,7 @@ export default function CouponModal({
         status: initialData?.isActive !== false ? "Active" : "Inactive",
         showOnHomepage: initialData?.showOnHomepage || false,
         showOnLoginPage: initialData?.showOnLoginPage || false,
+        isAbandonedCartCoupon: initialData?.isAbandonedCartCoupon || false,
       });
 
       if (initialData?.applicableIds) {
@@ -168,6 +171,7 @@ export default function CouponModal({
       applicableIds: selectedItems.map((i) => i._id),
       showOnHomepage: formData.showOnHomepage,
       showOnLoginPage: formData.showOnLoginPage,
+      isAbandonedCartCoupon: formData.isAbandonedCartCoupon,
     };
 
     try {
@@ -197,7 +201,6 @@ export default function CouponModal({
       aria-labelledby="coupon-modal-title"
     >
       <div className="bg-white rounded-xl shadow-2xl w-full max-w-lg overflow-hidden border border-slate-200">
-
         {/* Header */}
         <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between bg-slate-50/50">
           <div className="flex items-center gap-3">
@@ -250,7 +253,10 @@ export default function CouponModal({
           {/* Show on Homepage toggle */}
           <div className="flex items-center justify-between p-4 bg-slate-50 border border-slate-200 rounded-xl">
             <div className="flex items-center gap-3">
-              <div aria-hidden="true" className="w-8 h-8 rounded-lg bg-slate-100 flex items-center justify-center">
+              <div
+                aria-hidden="true"
+                className="w-8 h-8 rounded-lg bg-slate-100 flex items-center justify-center"
+              >
                 <Gift size={15} className="text-slate-500" />
               </div>
               <div>
@@ -311,7 +317,10 @@ export default function CouponModal({
 
           <div className="flex items-center justify-between p-4 bg-slate-50 border border-slate-200 rounded-xl">
             <div className="flex items-center gap-3">
-              <div aria-hidden="true" className="w-8 h-8 rounded-lg bg-slate-100 flex items-center justify-center">
+              <div
+                aria-hidden="true"
+                className="w-8 h-8 rounded-lg bg-slate-100 flex items-center justify-center"
+              >
                 <Gift size={15} className="text-slate-500" />
               </div>
               <div>
@@ -363,16 +372,80 @@ export default function CouponModal({
             </button>
           </div>
 
+          {/* Push for abandoned cart */}
+          <div className="flex items-center justify-between p-4 bg-slate-50 border border-slate-200 rounded-xl">
+            <div className="flex items-center gap-3">
+              <div className="w-8 h-8 rounded-lg bg-emerald-50 border border-emerald-100 flex items-center justify-center">
+                <ShoppingCart size={15} className="text-emerald-600" />
+              </div>
+              <div>
+                <p
+                  id="abandoned-cart-toggle-label"
+                  className="text-xs font-black text-slate-800 uppercase tracking-wide"
+                >
+                  Abandoned Cart Recovery Coupon
+                </p>
+                <p className="text-[11px] text-slate-400 mt-0.5">
+                  Enables "Push to Abandoned Carts" button on this coupon
+                </p>
+              </div>
+            </div>
+            <button
+              type="button"
+              role="switch"
+              aria-checked={formData.isAbandonedCartCoupon}
+              aria-labelledby="abandoned-cart-toggle-label"
+              onClick={() => {
+                if (!formData.isAbandonedCartCoupon) {
+                  const conflict = allCoupons.find(
+                    (c) =>
+                      c.isAbandonedCartCoupon && c._id !== initialData?._id,
+                  );
+                  if (conflict) {
+                    toast.error(
+                      `"${conflict.code || conflict.description}" is already set as the abandoned cart recovery coupon. Disable it first.`,
+                      { duration: 4000 },
+                    );
+                    return;
+                  }
+                }
+                setFormData((prev) => ({
+                  ...prev,
+                  isAbandonedCartCoupon: !prev.isAbandonedCartCoupon,
+                }));
+              }}
+              className={`relative w-11 h-6 rounded-full cursor-pointer transition-colors duration-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-slate-900 focus-visible:ring-offset-2 ${
+                formData.isAbandonedCartCoupon
+                  ? "bg-emerald-600"
+                  : "bg-slate-200"
+              }`}
+            >
+              <span
+                aria-hidden="true"
+                className={`absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full shadow-sm transition-transform duration-200 ${
+                  formData.isAbandonedCartCoupon
+                    ? "translate-x-5"
+                    : "translate-x-0"
+                }`}
+              />
+            </button>
+          </div>
+
           {/* Type Selectors */}
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-1.5">
-              <label htmlFor="campaign-type" className="text-xs font-bold text-slate-900 uppercase tracking-wider">
+              <label
+                htmlFor="campaign-type"
+                className="text-xs font-bold text-slate-900 uppercase tracking-wider"
+              >
                 Campaign Type
               </label>
               <select
                 id="campaign-type"
                 value={formData.couponType}
-                onChange={(e) => setFormData({ ...formData, couponType: e.target.value })}
+                onChange={(e) =>
+                  setFormData({ ...formData, couponType: e.target.value })
+                }
                 className="w-full bg-white border cursor-pointer border-slate-400 px-4 py-2.5 rounded-lg text-sm text-slate-900 font-medium focus:border-slate-900 outline-none transition"
               >
                 <option value="CouponCode">Coupon Code</option>
@@ -380,13 +453,18 @@ export default function CouponModal({
               </select>
             </div>
             <div className="space-y-1.5">
-              <label htmlFor="offer-type" className="text-xs font-bold text-slate-900 uppercase tracking-wider">
+              <label
+                htmlFor="offer-type"
+                className="text-xs font-bold text-slate-900 uppercase tracking-wider"
+              >
                 Offer Type
               </label>
               <select
                 id="offer-type"
                 value={formData.offerType}
-                onChange={(e) => setFormData({ ...formData, offerType: e.target.value })}
+                onChange={(e) =>
+                  setFormData({ ...formData, offerType: e.target.value })
+                }
                 className="w-full bg-white border cursor-pointer border-slate-400 px-4 py-2.5 rounded-lg text-sm text-slate-900 font-medium focus:border-slate-900 outline-none transition"
               >
                 <option value="Percentage">Percentage (%)</option>
@@ -397,23 +475,32 @@ export default function CouponModal({
           </div>
 
           {/* Coupon Code */}
-          
-            <div className="space-y-1.5 animate-in fade-in slide-in-from-top-1 duration-300">
-              <label htmlFor="coupon-code" className="text-xs font-bold text-slate-900 uppercase tracking-wider">
-                Coupon {formData.couponType === "CouponCode" ? "Code" : "Name"}
-              </label>
-              <input
-                id="coupon-code"
-                value={formData.code}
-                onChange={(e) => setFormData({ ...formData, code: e.target.value.toUpperCase() })}
-                placeholder="e.g. FESTIVE50"
-                className="w-full bg-white border border-slate-400 px-4 py-2.5 rounded-lg text-sm font-bold text-slate-900 focus:border-slate-900 outline-none"
-                required={formData.couponType === "CouponCode"}
-              />
-            </div>
+
+          <div className="space-y-1.5 animate-in fade-in slide-in-from-top-1 duration-300">
+            <label
+              htmlFor="coupon-code"
+              className="text-xs font-bold text-slate-900 uppercase tracking-wider"
+            >
+              Coupon {formData.couponType === "CouponCode" ? "Code" : "Name"}
+            </label>
+            <input
+              id="coupon-code"
+              value={formData.code}
+              onChange={(e) =>
+                setFormData({ ...formData, code: e.target.value.toUpperCase() })
+              }
+              placeholder="e.g. FESTIVE50"
+              className="w-full bg-white border border-slate-400 px-4 py-2.5 rounded-lg text-sm font-bold text-slate-900 focus:border-slate-900 outline-none"
+              required={formData.couponType === "CouponCode"}
+            />
+          </div>
           {formData.couponType !== "CouponCode" && (
             <div className="p-3 bg-orange-50 border border-orange-200 rounded-lg flex items-start gap-3 animate-in fade-in slide-in-from-top-1 duration-300">
-              <Info size={18} className="text-orange-600 mt-0.5" aria-hidden="true" />
+              <Info
+                size={18}
+                className="text-orange-600 mt-0.5"
+                aria-hidden="true"
+              />
               <p className="text-xs text-orange-800 leading-relaxed">
                 <strong>Auto-Apply Mode:</strong> Customers do not need to enter
                 a code. This discount will be automatically applied based on the
@@ -425,7 +512,10 @@ export default function CouponModal({
           {/* Scope and Category Selectors */}
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-1.5">
-              <label htmlFor="coupon-scope" className="text-xs font-bold text-slate-900 uppercase tracking-wider">
+              <label
+                htmlFor="coupon-scope"
+                className="text-xs font-bold text-slate-900 uppercase tracking-wider"
+              >
                 Coupon Scope
               </label>
               <select
@@ -445,11 +535,18 @@ export default function CouponModal({
 
             {formData.scope === "Category" && (
               <div className="space-y-1.5 animate-in fade-in slide-in-from-top-1 duration-300 col-span-2">
-                <label htmlFor="category-search" className="text-xs font-bold text-slate-900 uppercase tracking-wider">
+                <label
+                  htmlFor="category-search"
+                  className="text-xs font-bold text-slate-900 uppercase tracking-wider"
+                >
                   Select Categories
                 </label>
                 <div className="relative">
-                  <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" aria-hidden="true" />
+                  <Search
+                    size={16}
+                    className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"
+                    aria-hidden="true"
+                  />
                   <input
                     id="category-search"
                     type="text"
@@ -515,7 +612,10 @@ export default function CouponModal({
                 )}
 
                 {selectedItems.length > 0 && (
-                  <div className="flex flex-wrap gap-2 mt-2" aria-label="Selected categories">
+                  <div
+                    className="flex flex-wrap gap-2 mt-2"
+                    aria-label="Selected categories"
+                  >
                     {selectedItems.map((item) => (
                       <div
                         key={item._id}
@@ -554,11 +654,18 @@ export default function CouponModal({
 
             {formData.scope === "Specific_Product" && (
               <div className="space-y-1.5 animate-in fade-in slide-in-from-top-1 duration-300 col-span-2">
-                <label htmlFor="product-search" className="text-xs font-bold text-slate-900 uppercase tracking-wider">
+                <label
+                  htmlFor="product-search"
+                  className="text-xs font-bold text-slate-900 uppercase tracking-wider"
+                >
                   Select Products
                 </label>
                 <div className="relative">
-                  <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" aria-hidden="true" />
+                  <Search
+                    size={16}
+                    className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"
+                    aria-hidden="true"
+                  />
                   <input
                     id="product-search"
                     type="text"
@@ -581,7 +688,9 @@ export default function CouponModal({
                     aria-label="Product search results"
                   >
                     {products.map((prod) => {
-                      const isSelected = selectedItems.some((item) => item._id === prod._id);
+                      const isSelected = selectedItems.some(
+                        (item) => item._id === prod._id,
+                      );
                       return (
                         <li key={prod._id}>
                           <button
@@ -590,7 +699,9 @@ export default function CouponModal({
                             aria-selected={isSelected}
                             onClick={() => {
                               if (isSelected) {
-                                setSelectedItems((prev) => prev.filter((item) => item._id !== prod._id));
+                                setSelectedItems((prev) =>
+                                  prev.filter((item) => item._id !== prod._id),
+                                );
                               } else {
                                 setSelectedItems((prev) => [...prev, prod]);
                               }
@@ -599,12 +710,20 @@ export default function CouponModal({
                           >
                             <div className="flex items-center gap-2">
                               {prod.mainImage?.url && (
-                                <img src={prod.mainImage.url} alt="" className="w-8 h-8 rounded object-cover" />
+                                <img
+                                  src={prod.mainImage.url}
+                                  alt=""
+                                  className="w-8 h-8 rounded object-cover"
+                                />
                               )}
-                              <span className="text-sm font-medium">{prod.name}</span>
+                              <span className="text-sm font-medium">
+                                {prod.name}
+                              </span>
                             </div>
                             {isSelected && (
-                              <span className="text-xs bg-black text-white px-2 py-0.5 rounded">Selected</span>
+                              <span className="text-xs bg-black text-white px-2 py-0.5 rounded">
+                                Selected
+                              </span>
                             )}
                           </button>
                         </li>
@@ -614,7 +733,10 @@ export default function CouponModal({
                 )}
 
                 {selectedItems.length > 0 && (
-                  <div className="flex flex-wrap gap-2 mt-2" aria-label="Selected products">
+                  <div
+                    className="flex flex-wrap gap-2 mt-2"
+                    aria-label="Selected products"
+                  >
                     {selectedItems.map((item) => (
                       <div
                         key={item._id}
@@ -626,7 +748,9 @@ export default function CouponModal({
                           type="button"
                           aria-label={`Remove ${item.name || "product"}`}
                           onClick={() =>
-                            setSelectedItems((prev) => prev.filter((i) => i._id !== item._id))
+                            setSelectedItems((prev) =>
+                              prev.filter((i) => i._id !== item._id),
+                            )
                           }
                           className="text-slate-400 hover:text-red-500"
                         >
@@ -644,7 +768,10 @@ export default function CouponModal({
           {formData.offerType === "BOGO" ? (
             <div className="grid grid-cols-2 gap-4 bg-blue-50/50 p-4 rounded-xl border border-blue-100">
               <div className="space-y-1.5">
-                <label htmlFor="buy-quantity" className="text-xs font-bold text-blue-900 uppercase tracking-wider">
+                <label
+                  htmlFor="buy-quantity"
+                  className="text-xs font-bold text-blue-900 uppercase tracking-wider"
+                >
                   Buy Quantity
                 </label>
                 <input
@@ -652,13 +779,18 @@ export default function CouponModal({
                   type="number"
                   min="1"
                   value={formData.buyQuantity}
-                  onChange={(e) => setFormData({ ...formData, buyQuantity: e.target.value })}
+                  onChange={(e) =>
+                    setFormData({ ...formData, buyQuantity: e.target.value })
+                  }
                   className="w-full bg-white border border-blue-300 px-4 py-2.5 rounded-lg text-sm text-slate-900 focus:border-blue-600 outline-none shadow-sm"
                   required
                 />
               </div>
               <div className="space-y-1.5">
-                <label htmlFor="get-quantity" className="text-xs font-bold text-blue-900 uppercase tracking-wider">
+                <label
+                  htmlFor="get-quantity"
+                  className="text-xs font-bold text-blue-900 uppercase tracking-wider"
+                >
                   Get Free Qty
                 </label>
                 <input
@@ -666,7 +798,9 @@ export default function CouponModal({
                   type="number"
                   min="1"
                   value={formData.getQuantity}
-                  onChange={(e) => setFormData({ ...formData, getQuantity: e.target.value })}
+                  onChange={(e) =>
+                    setFormData({ ...formData, getQuantity: e.target.value })
+                  }
                   className="w-full bg-white border border-blue-300 px-4 py-2.5 rounded-lg text-sm text-slate-900 focus:border-blue-600 outline-none shadow-sm"
                   required
                 />
@@ -676,7 +810,10 @@ export default function CouponModal({
             <>
               {formData.offerType === "FixedAmount" ? (
                 <div className="space-y-1.5 animate-in fade-in duration-200">
-                  <label htmlFor="offer-value-fixed" className="text-xs font-bold text-slate-900 uppercase tracking-wider flex items-center gap-1.5">
+                  <label
+                    htmlFor="offer-value-fixed"
+                    className="text-xs font-bold text-slate-900 uppercase tracking-wider flex items-center gap-1.5"
+                  >
                     Flat Discount Amount (₹)
                     <span className="text-[10px] font-normal text-slate-400 normal-case tracking-normal">
                       — exact rupees deducted from order
@@ -687,7 +824,9 @@ export default function CouponModal({
                     type="number"
                     min="1"
                     value={formData.offerValue}
-                    onChange={(e) => setFormData({ ...formData, offerValue: e.target.value })}
+                    onChange={(e) =>
+                      setFormData({ ...formData, offerValue: e.target.value })
+                    }
                     placeholder="e.g. 200"
                     className="w-full bg-white border border-slate-400 px-4 py-2.5 rounded-lg text-sm text-slate-900 focus:border-slate-900 outline-none font-bold"
                     required
@@ -705,7 +844,10 @@ export default function CouponModal({
               ) : (
                 <div className="grid grid-cols-2 gap-4 animate-in fade-in duration-200">
                   <div className="space-y-1.5">
-                    <label htmlFor="offer-value-pct" className="text-xs font-bold text-slate-900 uppercase tracking-wider">
+                    <label
+                      htmlFor="offer-value-pct"
+                      className="text-xs font-bold text-slate-900 uppercase tracking-wider"
+                    >
                       Discount Value (%)
                     </label>
                     <input
@@ -717,7 +859,9 @@ export default function CouponModal({
                       onChange={(e) => {
                         let value = e.target.value;
                         if (Number(value) > 100) {
-                          toast.error("Discount percentage cannot exceed 100%. Setting to 100.");
+                          toast.error(
+                            "Discount percentage cannot exceed 100%. Setting to 100.",
+                          );
                           value = "100";
                         }
                         setFormData({ ...formData, offerValue: value });
@@ -727,16 +871,26 @@ export default function CouponModal({
                     />
                   </div>
                   <div className="space-y-1.5">
-                    <label htmlFor="max-discount" className="text-xs font-bold text-slate-900 uppercase tracking-wider flex items-center gap-1">
+                    <label
+                      htmlFor="max-discount"
+                      className="text-xs font-bold text-slate-900 uppercase tracking-wider flex items-center gap-1"
+                    >
                       Max Discount (₹)
-                      <span className="text-[10px] font-normal text-slate-400 normal-case">optional cap</span>
+                      <span className="text-[10px] font-normal text-slate-400 normal-case">
+                        optional cap
+                      </span>
                     </label>
                     <input
                       id="max-discount"
                       type="number"
                       min="1"
                       value={formData.maxDiscountAmount}
-                      onChange={(e) => setFormData({ ...formData, maxDiscountAmount: e.target.value })}
+                      onChange={(e) =>
+                        setFormData({
+                          ...formData,
+                          maxDiscountAmount: e.target.value,
+                        })
+                      }
                       placeholder="e.g. 500"
                       className="w-full bg-white border border-slate-400 px-4 py-2.5 rounded-lg text-sm text-slate-900 focus:border-slate-900 outline-none"
                     />
@@ -749,25 +903,35 @@ export default function CouponModal({
           {/* Limits and Status */}
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-1.5">
-              <label htmlFor="min-order" className="text-xs font-bold text-slate-900 uppercase tracking-wider">
+              <label
+                htmlFor="min-order"
+                className="text-xs font-bold text-slate-900 uppercase tracking-wider"
+              >
                 Min Order (₹)
               </label>
               <input
                 id="min-order"
                 type="number"
                 value={formData.minOrderAmount}
-                onChange={(e) => setFormData({ ...formData, minOrderAmount: e.target.value })}
+                onChange={(e) =>
+                  setFormData({ ...formData, minOrderAmount: e.target.value })
+                }
                 className="w-full bg-white border border-slate-400 px-4 py-2.5 rounded-lg text-sm text-slate-900 focus:border-slate-900 outline-none"
               />
             </div>
             <div className="space-y-1.5">
-              <label htmlFor="coupon-status" className="text-xs font-bold text-slate-900 uppercase tracking-wider">
+              <label
+                htmlFor="coupon-status"
+                className="text-xs font-bold text-slate-900 uppercase tracking-wider"
+              >
                 Status
               </label>
               <select
                 id="coupon-status"
                 value={formData.status}
-                onChange={(e) => setFormData({ ...formData, status: e.target.value })}
+                onChange={(e) =>
+                  setFormData({ ...formData, status: e.target.value })
+                }
                 className="w-full cursor-pointer bg-white border border-slate-400 px-4 py-2.5 rounded-lg text-sm text-slate-900 font-bold focus:border-slate-900 outline-none"
               >
                 <option value="Active">Active</option>
@@ -779,27 +943,40 @@ export default function CouponModal({
           {/* Usage Limits */}
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-1.5">
-              <label htmlFor="total-usage" className="text-xs font-bold text-slate-900 uppercase tracking-wider">
+              <label
+                htmlFor="total-usage"
+                className="text-xs font-bold text-slate-900 uppercase tracking-wider"
+              >
                 Total Usage Limit
               </label>
               <input
                 id="total-usage"
                 type="number"
                 value={formData.totalUsageLimit}
-                onChange={(e) => setFormData({ ...formData, totalUsageLimit: e.target.value })}
+                onChange={(e) =>
+                  setFormData({ ...formData, totalUsageLimit: e.target.value })
+                }
                 className="w-full bg-white border border-slate-400 px-4 py-2.5 rounded-lg text-sm text-slate-900 focus:border-slate-900 outline-none"
                 required
               />
             </div>
             <div className="space-y-1.5">
-              <label htmlFor="per-user-limit" className="text-xs font-bold text-slate-900 uppercase tracking-wider">
+              <label
+                htmlFor="per-user-limit"
+                className="text-xs font-bold text-slate-900 uppercase tracking-wider"
+              >
                 Limit Per User
               </label>
               <input
                 id="per-user-limit"
                 type="number"
                 value={formData.usageLimitPerUser}
-                onChange={(e) => setFormData({ ...formData, usageLimitPerUser: e.target.value })}
+                onChange={(e) =>
+                  setFormData({
+                    ...formData,
+                    usageLimitPerUser: e.target.value,
+                  })
+                }
                 className="w-full bg-white border border-slate-400 px-4 py-2.5 rounded-lg text-sm text-slate-900 focus:border-slate-900 outline-none"
                 required
               />
@@ -809,27 +986,37 @@ export default function CouponModal({
           {/* Dates */}
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-1.5">
-              <label htmlFor="start-date" className="text-xs font-bold text-slate-900 uppercase tracking-wider">
+              <label
+                htmlFor="start-date"
+                className="text-xs font-bold text-slate-900 uppercase tracking-wider"
+              >
                 Start Date
               </label>
               <input
                 id="start-date"
                 type="date"
                 value={formData.startDate}
-                onChange={(e) => setFormData({ ...formData, startDate: e.target.value })}
+                onChange={(e) =>
+                  setFormData({ ...formData, startDate: e.target.value })
+                }
                 className="w-full bg-white border border-slate-400 px-4 py-2.5 rounded-lg text-sm text-slate-900 focus:border-slate-900 outline-none transition"
                 required
               />
             </div>
             <div className="space-y-1.5">
-              <label htmlFor="end-date" className="text-xs font-bold text-slate-900 uppercase tracking-wider">
+              <label
+                htmlFor="end-date"
+                className="text-xs font-bold text-slate-900 uppercase tracking-wider"
+              >
                 End Date
               </label>
               <input
                 id="end-date"
                 type="date"
                 value={formData.endDate}
-                onChange={(e) => setFormData({ ...formData, endDate: e.target.value })}
+                onChange={(e) =>
+                  setFormData({ ...formData, endDate: e.target.value })
+                }
                 className="w-full bg-white border border-slate-400 px-4 py-2.5 rounded-lg text-sm text-slate-900 focus:border-slate-900 outline-none transition"
                 required
               />
@@ -838,14 +1025,19 @@ export default function CouponModal({
 
           {/* Description */}
           <div className="space-y-1.5">
-            <label htmlFor="coupon-description" className="text-xs font-bold text-slate-900 uppercase tracking-wider">
+            <label
+              htmlFor="coupon-description"
+              className="text-xs font-bold text-slate-900 uppercase tracking-wider"
+            >
               Sale/Coupon Description
             </label>
             <textarea
               id="coupon-description"
               rows="2"
               value={formData.description}
-              onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+              onChange={(e) =>
+                setFormData({ ...formData, description: e.target.value })
+              }
               placeholder="Describe the offer (e.g., Get 50% off on orders above ₹500)"
               className="w-full bg-white border border-slate-400 px-4 py-2.5 rounded-lg text-sm text-slate-900 focus:border-slate-900 outline-none transition"
               required
@@ -867,7 +1059,11 @@ export default function CouponModal({
               className={`flex-[2] cursor-pointer ${formData.couponType === "FestiveSale" ? "bg-orange-600 hover:bg-orange-700" : initialData ? "bg-blue-600 hover:bg-blue-700" : "bg-slate-900 hover:bg-black"} text-white py-3 rounded-lg font-bold text-sm transition shadow-lg flex items-center justify-center active:scale-[0.98] disabled:opacity-70`}
             >
               {loading ? (
-                <Loader2 className="animate-spin" size={18} aria-hidden="true" />
+                <Loader2
+                  className="animate-spin"
+                  size={18}
+                  aria-hidden="true"
+                />
               ) : initialData ? (
                 "Update Campaign"
               ) : (

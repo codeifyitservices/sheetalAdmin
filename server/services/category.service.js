@@ -6,6 +6,33 @@ import { deleteFile, deleteS3File } from "../utils/fileHelper.js";
 import { config } from "../config/config.js";
 import { syncToIndex, deleteFromIndex } from "./ngram.search.service.js";
 
+const resolveCategorySizing = async ({ sizeMode, sizeChart }) => {
+  const normalizedMode = String(sizeMode || "").trim().toLowerCase();
+  const normalizedChart = String(sizeChart || "").trim();
+
+  if (normalizedMode === "free" || normalizedChart === "free") {
+    return { success: true, sizeMode: "free", sizeChart: null };
+  }
+
+  if (
+    !normalizedChart ||
+    normalizedChart === "" ||
+    normalizedChart === "null" ||
+    normalizedChart === "undefined"
+  ) {
+    return { success: true, sizeMode: "none", sizeChart: null };
+  }
+
+  const sizeChartExists = await SizeChart.findById(normalizedChart).select(
+    "_id",
+  );
+  if (!sizeChartExists) {
+    return { success: false, message: "Selected size chart not found" };
+  }
+
+  return { success: true, sizeMode: "chart", sizeChart: sizeChartExists._id };
+};
+
 export const createCategoryService = async (data, files) => {
   const {
     name,
@@ -26,6 +53,7 @@ export const createCategoryService = async (data, files) => {
     wearType,
     occasion,
     byPrice,
+    sizeMode,
     sizeChart,
   } = data;
 
@@ -71,18 +99,9 @@ export const createCategoryService = async (data, files) => {
   const parsedWearType = parseArrayField(wearType);
   const parsedOccasion = parseArrayField(occasion);
   const parsedByPrice = parseArrayField(byPrice);
-  const parsedSizeChart =
-    sizeChart && sizeChart !== "null" && sizeChart !== "undefined"
-      ? sizeChart
-      : null;
-
-  if (parsedSizeChart) {
-    const sizeChartExists = await SizeChart.findById(parsedSizeChart).select(
-      "_id",
-    );
-    if (!sizeChartExists) {
-      return { success: false, message: "Selected size chart not found" };
-    }
+  const parsedSizing = await resolveCategorySizing({ sizeMode, sizeChart });
+  if (!parsedSizing.success) {
+    return parsedSizing;
   }
 
   const newCategoryData = {
@@ -106,7 +125,8 @@ export const createCategoryService = async (data, files) => {
     wearType: parsedWearType,
     occasion: parsedOccasion,
     byPrice: parsedByPrice,
-    sizeChart: parsedSizeChart,
+    sizeMode: parsedSizing.sizeMode,
+    sizeChart: parsedSizing.sizeChart,
   };
 
   if (files && files.mainImage) {
@@ -141,7 +161,7 @@ export const createCategoryService = async (data, files) => {
 export const getAllCategoriesService = async () => {
   const categories = await Category.find({ isActive: true })
     .select(
-      "name slug mainImage bannerImage parentCategory subCategories style work fabric productType wearType occasion byPrice sizeChart",
+      "name slug mainImage bannerImage parentCategory subCategories style work fabric productType wearType occasion byPrice sizeMode sizeChart",
     )
     .populate("parentCategory", "name")
     .populate("sizeChart", "name table howToMeasureImage")
@@ -300,22 +320,16 @@ export const updateCategoryService = async (id, data, files) => {
     updateData.occasion = parseArrayField(data.occasion);
   if (data.byPrice !== undefined)
     updateData.byPrice = parseArrayField(data.byPrice);
-  if (data.sizeChart !== undefined) {
-    if (
-      data.sizeChart === "" ||
-      data.sizeChart === "null" ||
-      data.sizeChart === "undefined"
-    ) {
-      updateData.sizeChart = null;
-    } else {
-      const sizeChartExists = await SizeChart.findById(data.sizeChart).select(
-        "_id",
-      );
-      if (!sizeChartExists) {
-        return { success: false, message: "Selected size chart not found" };
-      }
-      updateData.sizeChart = data.sizeChart;
+  if (data.sizeChart !== undefined || data.sizeMode !== undefined) {
+    const parsedSizing = await resolveCategorySizing({
+      sizeMode: data.sizeMode,
+      sizeChart: data.sizeChart,
+    });
+    if (!parsedSizing.success) {
+      return parsedSizing;
     }
+    updateData.sizeMode = parsedSizing.sizeMode;
+    updateData.sizeChart = parsedSizing.sizeChart;
   }
 
   if (data.subCategories !== undefined) {
