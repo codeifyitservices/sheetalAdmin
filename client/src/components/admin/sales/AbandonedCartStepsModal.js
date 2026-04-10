@@ -1,20 +1,15 @@
 "use client";
 
-import { useEffect, useState } from "react";
 import {
   X,
   Clock3,
   Mail,
   MessageSquareText,
-  Save,
   TicketPercent,
   ShieldCheck,
-  CheckCircle2,
+  ShoppingCart,
+  AlertCircle,
 } from "lucide-react";
-import toast from "react-hot-toast";
-import { getSettings, updateSettings } from "@/services/settingsService";
-
-const DEFAULT_COUPON = { code: "SAVE10", percent: 10 };
 
 const STEPS = [
   {
@@ -91,61 +86,27 @@ const ACCENT = {
   },
 };
 
-export default function AbandonedCartStepsModal({ isOpen, onClose }) {
-  const [loading, setLoading] = useState(false);
-  const [saving, setSaving] = useState(false);
-  const [saved, setSaved] = useState(false);
-  const [couponCode, setCouponCode] = useState(DEFAULT_COUPON.code);
-  const [discountPercent, setDiscountPercent] = useState(DEFAULT_COUPON.percent);
+// ── Coupon status helper (mirrors CouponTable) ────────────────────────────
+const getCouponStatus = (coupon) => {
+  if (!coupon) return null;
+  const isExpired = coupon.endDate
+    ? new Date(coupon.endDate).getTime() < Date.now()
+    : false;
+  if (isExpired) return "Expired";
+  return coupon.isActive ? "Live" : "Paused";
+};
 
-  useEffect(() => {
-    if (!isOpen) return;
-    let mounted = true;
-    setLoading(true);
-
-    getSettings()
-      .then((res) => {
-        if (!mounted) return;
-        const data = res?.data || {};
-        setCouponCode(data.abandonedCartCouponCode || DEFAULT_COUPON.code);
-        setDiscountPercent(
-          Number(data.abandonedCartDiscountPercent || DEFAULT_COUPON.percent)
-        );
-      })
-      .catch((err) => toast.error(err?.message || "Failed to load settings"))
-      .finally(() => {
-        if (mounted) setLoading(false);
-      });
-
-    return () => {
-      mounted = false;
-    };
-  }, [isOpen]);
-
+export default function AbandonedCartStepsModal({ isOpen, onClose, coupons = [] }) {
   if (!isOpen) return null;
+  console.log(coupons)
 
-  const handleSave = async () => {
-    const cleanedCode = couponCode.trim().toUpperCase();
-    const percent = Math.max(1, Math.min(90, Number(discountPercent) || 0));
-    if (!cleanedCode) return toast.error("Enter a coupon code");
-
-    setSaving(true);
-    try {
-      await updateSettings({
-        abandonedCartCouponCode: cleanedCode,
-        abandonedCartDiscountPercent: percent,
-      });
-      setCouponCode(cleanedCode);
-      setDiscountPercent(percent);
-      setSaved(true);
-      toast.success("Coupon saved");
-      setTimeout(() => setSaved(false), 2500);
-    } catch (err) {
-      toast.error(err?.message || "Failed to save");
-    } finally {
-      setSaving(false);
-    }
-  };
+  // Find the coupon flagged for abandoned cart recovery.
+  // Prefer Live ones first; fall back to any match so the admin
+  // can see it even if it's paused/expired.
+  const abandonedCoupon =
+    coupons.find((c) => c.isAbandonedCartCoupon && c.isActive) ||
+    coupons.find((c) => c.isAbandonedCartCoupon) ||
+    null;
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/50 p-4 sm:p-6 backdrop-blur-sm">
@@ -200,14 +161,7 @@ export default function AbandonedCartStepsModal({ isOpen, onClose }) {
                 key={step.stage}
                 step={step}
                 isLast={index === STEPS.length - 1}
-                loading={loading}
-                saving={saving}
-                saved={saved}
-                couponCode={couponCode}
-                discountPercent={discountPercent}
-                onCodeChange={setCouponCode}
-                onPercentChange={setDiscountPercent}
-                onSave={handleSave}
+                abandonedCoupon={abandonedCoupon}
               />
             ))}
           </div>
@@ -217,19 +171,9 @@ export default function AbandonedCartStepsModal({ isOpen, onClose }) {
   );
 }
 
-function StepCard({
-  step,
-  isLast,
-  loading,
-  saving,
-  saved,
-  couponCode,
-  discountPercent,
-  onCodeChange,
-  onPercentChange,
-  onSave,
-}) {
+function StepCard({ step, isLast, abandonedCoupon }) {
   const a = ACCENT[step.accent];
+  const couponStatus = getCouponStatus(abandonedCoupon);
 
   return (
     <div className={`relative rounded-xl border px-4 py-4 ${a.card}`}>
@@ -282,7 +226,7 @@ function StepCard({
             {step.channels}
           </div>
 
-          {/* ── Coupon editor inline in Step 3 ── */}
+          {/* ── Step 3 coupon display ── */}
           {step.coupon && (
             <div className="mt-3 rounded-xl border border-emerald-200 bg-white p-3.5">
               <div className="mb-3 flex items-center gap-2">
@@ -299,61 +243,116 @@ function StepCard({
                 </div>
               </div>
 
-              {loading ? (
-                <div className="rounded-lg border border-dashed border-slate-200 bg-slate-50 py-4 text-center text-xs font-semibold text-slate-400">
-                  Loading settings…
-                </div>
-              ) : (
+              {abandonedCoupon ? (
                 <>
-                  <div className="grid grid-cols-[1fr_100px] gap-2">
-                    <div>
-                      <label className="mb-1 block text-[10px] font-black uppercase tracking-[0.2em] text-slate-400">
-                        Coupon Code
-                      </label>
-                      <input
-                        type="text"
-                        value={couponCode}
-                        onChange={(e) => onCodeChange(e.target.value)}
-                        placeholder="SAVE10"
-                        className="w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm font-bold text-slate-800 outline-none transition focus:border-emerald-400 focus:bg-white"
-                      />
+                  {/* Coupon card */}
+                  <div className="rounded-lg border border-slate-200 bg-slate-50 px-4 py-3 flex items-center justify-between gap-4">
+                    <div className="flex items-center gap-3 min-w-0">
+                      <div className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-lg bg-emerald-100 border border-emerald-200">
+                        <ShoppingCart size={14} className="text-emerald-600" />
+                      </div>
+                      <div className="min-w-0">
+                        <p className="text-sm font-black text-slate-900 tracking-wider">
+                          {abandonedCoupon.code || "AUTO-APPLIED"}
+                        </p>
+                        <p className="text-[11px] text-slate-500 font-medium mt-0.5">
+                          {abandonedCoupon.offerType === "Percentage" &&
+                            `${abandonedCoupon.offerValue}% off`}
+                          {abandonedCoupon.offerType === "FixedAmount" &&
+                            `₹${abandonedCoupon.offerValue} off`}
+                          {abandonedCoupon.offerType === "BOGO" &&
+                            `Buy ${abandonedCoupon.buyQuantity} Get ${abandonedCoupon.getQuantity}`}
+                          {abandonedCoupon.minOrderAmount > 0 &&
+                            ` · Min ₹${abandonedCoupon.minOrderAmount}`}
+                        </p>
+                      </div>
                     </div>
-                    <div>
-                      <label className="mb-1 block text-[10px] font-black uppercase tracking-[0.2em] text-slate-400">
-                        Discount %
-                      </label>
-                      <input
-                        type="number"
-                        min="1"
-                        max="90"
-                        value={discountPercent}
-                        onChange={(e) => onPercentChange(e.target.value)}
-                        className="w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm font-bold text-slate-800 outline-none transition focus:border-emerald-400 focus:bg-white"
-                      />
+
+                    <div className="flex flex-col items-end gap-1.5 flex-shrink-0">
+                      {/* Live / Paused / Expired badge */}
+                      <span
+                        className={`px-2 py-0.5 rounded text-[10px] font-black uppercase tracking-wider border ${
+                          couponStatus === "Live"
+                            ? "bg-emerald-50 text-emerald-700 border-emerald-200"
+                            : couponStatus === "Expired"
+                              ? "bg-amber-50 text-amber-700 border-amber-200"
+                              : "bg-rose-50 text-rose-700 border-rose-200"
+                        }`}
+                      >
+                        {couponStatus}
+                      </span>
+
+                      {/* Expiry */}
+                      <span className="text-[10px] text-slate-400 font-medium">
+                        Expires{" "}
+                        {new Date(abandonedCoupon.endDate).toLocaleDateString(
+                          "en-IN",
+                          { day: "2-digit", month: "short", year: "numeric" },
+                        )}
+                      </span>
                     </div>
                   </div>
 
-                  <button
-                    type="button"
-                    onClick={onSave}
-                    disabled={saving}
-                    className="mt-2.5 cursor-pointer inline-flex w-full items-center justify-center gap-2 rounded-lg bg-slate-950 py-2 text-sm font-black text-white transition hover:bg-slate-800 disabled:opacity-60"
-                  >
-                    {saved ? (
-                      <>
-                        <CheckCircle2 size={14} className="text-emerald-400" />
-                        Saved
-                      </>
-                    ) : saving ? (
-                      "Saving…"
-                    ) : (
-                      <>
-                        <Save size={13} />
-                        Save Coupon
-                      </>
-                    )}
-                  </button>
+                  {/* Usage progress */}
+                  <div className="mt-2.5 flex items-center gap-3">
+                    <div className="flex-1 h-1.5 bg-slate-100 rounded-full overflow-hidden border border-slate-200/50">
+                      <div
+                        className={`h-full rounded-full ${
+                          abandonedCoupon.usedCount /
+                            abandonedCoupon.totalUsageLimit >
+                          0.8
+                            ? "bg-rose-500"
+                            : "bg-emerald-500"
+                        }`}
+                        style={{
+                          width: `${Math.min(
+                            (abandonedCoupon.usedCount /
+                              (abandonedCoupon.totalUsageLimit || 1)) *
+                              100,
+                            100,
+                          )}%`,
+                        }}
+                      />
+                    </div>
+                    <span className="text-[11px] font-bold text-slate-500 whitespace-nowrap">
+                      {abandonedCoupon.usedCount} /{" "}
+                      {abandonedCoupon.totalUsageLimit} used
+                    </span>
+                  </div>
+
+                  {/* Warning if not live */}
+                  {couponStatus !== "Live" && (
+                    <div className="mt-2.5 flex items-start gap-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2">
+                      <AlertCircle
+                        size={13}
+                        className="text-amber-600 mt-0.5 flex-shrink-0"
+                      />
+                      <p className="text-[11px] text-amber-800 leading-relaxed">
+                        This coupon is currently{" "}
+                        <strong>{couponStatus?.toLowerCase()}</strong> and won't
+                        be sent to customers. Go to{" "}
+                        <strong>Coupon Management</strong> to activate or
+                        replace it.
+                      </p>
+                    </div>
+                  )}
                 </>
+              ) : (
+                /* No coupon assigned yet */
+                <div className="rounded-lg border border-dashed border-slate-200 bg-slate-50 py-5 px-4 flex flex-col items-center gap-2 text-center">
+                  <AlertCircle size={18} className="text-slate-300" />
+                  <p className="text-xs font-bold text-slate-500">
+                    No recovery coupon assigned
+                  </p>
+                  <p className="text-[11px] text-slate-400 leading-relaxed max-w-xs">
+                    Go to <strong className="text-slate-600">Coupon Management</strong>,
+                    create or edit a coupon, and enable the{" "}
+                    <strong className="text-slate-600">
+                      Abandoned Cart Recovery
+                    </strong>{" "}
+                    toggle.
+                  </p>
+                </div>
               )}
             </div>
           )}

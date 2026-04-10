@@ -45,9 +45,6 @@ export default function CategoryModal({
   const [previewMainImage, setPreviewMainImage] = useState(null);
   const [previewBannerImage, setPreviewBannerImage] = useState(null);
   const [previewOgImage, setPreviewOgImage] = useState(null);
-  const freeSizeChart = sizeCharts.find(
-    (chart) => String(chart?.name || "").trim().toLowerCase() === "free size",
-  );
 
   const [formData, setFormData] = useState({
     name: "",
@@ -93,7 +90,10 @@ export default function CategoryModal({
         wearType: initialData?.wearType || [],
         occasion: initialData?.occasion || [],
         byPrice: initialData?.byPrice || [],
-        sizeChart: initialData?.sizeChart?._id || initialData?.sizeChart || "",
+        sizeChart:
+          initialData?.sizeChart === "free"
+            ? "free"
+            : initialData?.sizeChart?._id || initialData?.sizeChart || "",
         mainImage: null,
         bannerImage: null,
         metaTitle: initialData?.metaTitle || "",
@@ -240,7 +240,10 @@ export default function CategoryModal({
     data.append("wearType", JSON.stringify(formData.wearType));
     data.append("occasion", JSON.stringify(formData.occasion));
     data.append("byPrice", JSON.stringify(formData.byPrice));
-    data.append("sizeChart", formData.sizeChart || "");
+    data.append(
+      "sizeChart",
+      formData.sizeChart === "free" ? "free" : formData.sizeChart || "",
+    );
     // SEO
     data.append("metaTitle", formData.metaTitle);
     data.append("metaDescription", formData.metaDescription);
@@ -572,16 +575,21 @@ export default function CategoryModal({
                       }
                       className="w-full bg-white border border-slate-300 px-3 py-2.5 rounded-lg text-sm outline-none focus:border-slate-900 transition font-medium"
                     >
-                      <option value="">No chart selected</option>
-                      {freeSizeChart ? (
-                        <option value={freeSizeChart._id}>Free Size</option>
-                      ) : null}
+                      <option value="">— No chart selected —</option>
+                      <option value="free">Free Size</option>
                       {sizeCharts.map((chart) => (
                         <option key={chart._id} value={chart._id}>
                           {chart.name || "Untitled Size Chart"}
                         </option>
                       ))}
                     </select>
+                    <p className="text-[11px] text-slate-500">
+                      {formData.sizeChart === "free"
+                        ? "Products in this category will be marked as free size — no chart applied."
+                        : formData.sizeChart
+                          ? "Products in this category will use the selected chart."
+                          : "No size chart will be shown for this category."}
+                    </p>
                     <p className="text-[11px] text-slate-500">
                       Products in this category will use the selected chart.
                     </p>
@@ -804,41 +812,41 @@ export default function CategoryModal({
                 </div>
 
                 {/* OG Image */}
-                  <div className="space-y-2">
-                    <label className="text-xs font-bold text-slate-900 uppercase tracking-wider block">
-                      OG Image (Social Share)
-                    </label>
-                    <p className="text-[10px] font-semibold text-slate-500">
-                      Required aspect ratio: {OG_RATIO_LABEL}
-                    </p>
-                    <div className="flex items-center gap-4 p-4 bg-white border border-slate-200 rounded-xl">
-                      <div className="w-16 h-16 bg-slate-100 rounded-lg flex items-center justify-center border border-dashed border-slate-300 overflow-hidden shrink-0">
-                        {previewOgImage ? (
-                          <img
-                            src={previewOgImage}
-                            className="w-full h-full object-cover"
-                            alt="OG Preview"
-                            onError={(e) => {
-                              e.target.onerror = null;
-                              e.target.src = "/placeholder.png";
-                            }}
-                          />
-                        ) : (
-                          <Upload size={20} className="text-slate-300" />
-                        )}
-                      </div>
-                      <div className="flex-1">
-                        <input
-                          type="file"
-                          accept="image/*"
-                          className="text-xs text-slate-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-xs file:font-semibold file:bg-slate-900 file:text-white hover:file:bg-slate-700 cursor-pointer"
-                          onChange={(e) => handleFileChange(e, "ogImage")}
+                <div className="space-y-2">
+                  <label className="text-xs font-bold text-slate-900 uppercase tracking-wider block">
+                    OG Image (Social Share)
+                  </label>
+                  <p className="text-[10px] font-semibold text-slate-500">
+                    Required aspect ratio: {OG_RATIO_LABEL}
+                  </p>
+                  <div className="flex items-center gap-4 p-4 bg-white border border-slate-200 rounded-xl">
+                    <div className="w-16 h-16 bg-slate-100 rounded-lg flex items-center justify-center border border-dashed border-slate-300 overflow-hidden shrink-0">
+                      {previewOgImage ? (
+                        <img
+                          src={previewOgImage}
+                          className="w-full h-full object-cover"
+                          alt="OG Preview"
+                          onError={(e) => {
+                            e.target.onerror = null;
+                            e.target.src = "/placeholder.png";
+                          }}
                         />
-                        <p className="text-[9px] text-slate-400 mt-2">
-                          Visible when category is shared on WhatsApp/Facebook
-                        </p>
-                      </div>
+                      ) : (
+                        <Upload size={20} className="text-slate-300" />
+                      )}
                     </div>
+                    <div className="flex-1">
+                      <input
+                        type="file"
+                        accept="image/*"
+                        className="text-xs text-slate-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-xs file:font-semibold file:bg-slate-900 file:text-white hover:file:bg-slate-700 cursor-pointer"
+                        onChange={(e) => handleFileChange(e, "ogImage")}
+                      />
+                      <p className="text-[9px] text-slate-400 mt-2">
+                        Visible when category is shared on WhatsApp/Facebook
+                      </p>
+                    </div>
+                  </div>
                 </div>
               </div>
             )}

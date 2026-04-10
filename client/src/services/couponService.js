@@ -91,3 +91,15 @@ export const getLoginCoupon = async () => {
   if (!res.ok) throw new Error(data.message || "Failed to fetch login coupon");
   return data;
 };
+
+export const pushCouponToAbandonedCarts = async (couponId) => {
+  const res = await fetch(`${API_BASE_URL}/abandoned-carts/push-coupon`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    credentials: "include",
+    body: JSON.stringify({ couponId }),
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.message || "Failed to push coupon");
+  return data;
+};
