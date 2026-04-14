@@ -5,11 +5,7 @@ import Settings from "../models/settings.model.js";
 import ErrorResponse from "../utils/ErrorResponse.js";
 import logger from "../utils/logger.js";
 import { config } from "../config/config.js";
-import {
-  buildAbandonedCartJobId,
-  buildAbandonedCartOrderUrl,
-  ensureAbandonedCartQueue,
-} from "../queues/abandonedCart.queue.js";
+import { buildAbandonedCartOrderUrl } from "../utils/abandonedCartLinks.js";
 import {
   logReminderProviderResult,
   sendReminderEmail,
@@ -37,6 +33,9 @@ const REMINDER_STAGE_TO_RECOVERY_STEP = {
   third: 3,
   final: 4,
 };
+
+const buildAbandonedCartJobId = (cartId, cycleId, stage) =>
+  `abandoned-cart-${cartId}-${cycleId}-${stage}`;
 
 const clamp = (value, min, max) =>
   Math.min(max, Math.max(min, Number(value) || min));
@@ -190,24 +189,6 @@ const getCartContactUpdates = async (cart, overrides = {}) => {
   };
 };
 
-const removeQueueJob = async (jobId) => {
-  if (!jobId) return;
-
-  try {
-    const queue = await ensureAbandonedCartQueue();
-    if (!queue) return;
-    const job = await queue.getJob(jobId);
-    if (job) {
-      await job.remove();
-    }
-  } catch (error) {
-    logger.warn(
-      { jobId, error: error.message },
-      "[AbandonedCart] Failed to remove queued job",
-    );
-  }
-};
-
 const persistReminderAttempt = async (cartId, entry) => {
   await Cart.findByIdAndUpdate(cartId, {
     $push: { abandonmentReminderAttempts: entry },
@@ -223,6 +204,8 @@ const sanitizeReminderAttempts = (cart) => {
     (attempt) => attempt && typeof attempt.jobId === "string" && attempt.jobId.trim(),
   );
 };
+
+const removeQueueJob = async () => {};
 
 const syncCartState = async (cart, updates) => {
   cart.abandonmentReminderAttempts = sanitizeReminderAttempts(cart);
@@ -367,6 +350,11 @@ export const scheduleReminders = async (
   if (!activeCycleId || cart.abandonmentStatus !== "abandoned") {
     return cart;
   }
+
+  cart.abandonmentReminderJobIds = {};
+  cart.abandonmentReminderAttempts = sanitizeReminderAttempts(cart);
+  await cart.save();
+  return cart;
 
   const policy = await getReminderPolicy();
   const cartSnapshot =
@@ -533,6 +521,22 @@ export const markCartAsAbandoned = async (
     lastActivityAt: cart.lastActivityAt || triggeredAt,
   });
 
+  cart.abandonmentReminderJobIds = {};
+  cart.abandonmentReminderAttempts = sanitizeReminderAttempts(cart);
+
+  logger.info(
+    {
+      cartId: cart._id.toString(),
+      cartTrackingId: cart.cartTrackingId || null,
+      userId: cart.user?._id?.toString?.() || cart.user?.toString?.() || null,
+      reason,
+      cycleId: finalCycleId,
+    },
+    "[AbandonedCart] Cart marked as abandoned",
+  );
+
+  return cart;
+
   await scheduleReminders(cart, {
     cycleId: finalCycleId,
     abandonedAt: triggeredAt,
@@ -592,6 +596,26 @@ export const sendReminder = async ({
 
   const policy = await getReminderPolicy();
   const cartSnapshot = snapshotFromJob || buildCartSnapshot(cart);
+  if (stage === "third" && cartSnapshot.userId) {
+    try {
+      await issueAbandonedCartCoupon({
+        cartId: cartSnapshot.cartId,
+        userId: cartSnapshot.userId,
+        cycleId,
+        discountPercent: policy.discountPercent,
+        items: cartSnapshot.items,
+      });
+    } catch (couponErr) {
+      logger.warn(
+        {
+          cartId: cartSnapshot.cartId,
+          cycleId,
+          error: couponErr.message,
+        },
+        "[AbandonedCart] Failed to issue abandoned-cart coupon for third reminder",
+      );
+    }
+  }
   const ctaUrl = ctaUrlFromJob || buildAbandonedCartOrderUrl(cartSnapshot.cartId);
   const couponCode = couponFromJob || policy.couponCode;
   const discountPercent = discountFromJob || policy.discountPercent;
@@ -774,6 +798,20 @@ export const handleUserActivity = async ({
   };
 
   await syncCartState(cart, nextState);
+
+  if (cart.items?.length) {
+    logger.info(
+      {
+        cartId: cart._id.toString(),
+        cartTrackingId: cart.cartTrackingId || null,
+        userId: cart.user?._id?.toString?.() || userId?.toString?.() || null,
+        source,
+        cycleId: cart.abandonmentCycleId,
+      },
+      "[AbandonedCart] Cart activity registered",
+    );
+    return cart;
+  }
 
   if (cart.items?.length) {
     const policy = await getReminderPolicy();
