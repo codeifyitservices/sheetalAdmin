@@ -47,6 +47,15 @@ const getLegacyCellValue = (row, index) => {
   return String(row?.[legacyKeys[index]] || "").trim();
 };
 
+const buildLegacyRow = (cells = []) => ({
+  label: String(cells[0] || "").trim(),
+  bust: String(cells[1] || "").trim(),
+  waist: String(cells[2] || "").trim(),
+  hip: String(cells[3] || "").trim(),
+  shoulder: String(cells[4] || "").trim(),
+  length: String(cells[5] || "").trim(),
+});
+
 const normalizeTableRows = (rows, headers) => {
   if (!Array.isArray(rows)) return [];
 
@@ -55,7 +64,10 @@ const normalizeTableRows = (rows, headers) => {
       ? headers.map((_, index) => String(row.cells[index] || "").trim())
       : headers.map((_, index) => getLegacyCellValue(row, index));
 
-    return { cells };
+    return {
+      cells,
+      ...buildLegacyRow(cells),
+    };
   });
 };
 
