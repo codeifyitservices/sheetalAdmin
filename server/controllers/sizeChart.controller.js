@@ -56,10 +56,8 @@ export const getSizeChart = async (req, res, next) => {
 
 export const addSize = async (req, res, next) => {
   try {
-    console.log("hit 1")
     const result = await sizeChartService.createSizeChartService(req.body);
-    console.log("hit 2")
-    
+
     if (!result.success) {
       return res.status(result.statusCode || 400).json(result);
     }

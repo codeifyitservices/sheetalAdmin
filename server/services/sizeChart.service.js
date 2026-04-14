@@ -104,8 +104,6 @@ export const getSizeChartByIdService = async (id) => {
 };
 
 export const createSizeChartService = async (chartData = {}) => {
-  console.log("hit2")
-  console.log(chartData)
   const name = (chartData.name || "").trim();
   if (!name) {
     return { success: false, message: "Size chart name is required" };
