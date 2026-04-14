@@ -44,6 +44,29 @@ import sanitizeBody from "./middlewares/sanitize.middleware.js";
 const app = express();
 app.set("trust proxy", 1);
 
+const normalizeOrigin = (value = "") => String(value).trim().replace(/\/$/, "");
+const configuredOrigins = [
+  process.env.ALLOWED_ORIGINS,
+  config.frontendDomain,
+]
+  .filter(Boolean)
+  .flatMap((value) => value.split(","))
+  .map(normalizeOrigin)
+  .filter(Boolean);
+
+const localOrigins = [
+  "http://localhost:3000",
+  "http://localhost:3001",
+  "http://localhost:3002",
+  "http://localhost:4000",
+  "http://192.168.0.227:3000",
+  "http://192.168.1.10:3000",
+  "http://192.168.0.141:3000",
+  "http://192.168.0.227:4000",
+].map(normalizeOrigin);
+
+const allowedOrigins = new Set([...localOrigins, ...configuredOrigins]);
+
 const logDir = "logs";
 if (!fs.existsSync(logDir)) {
   fs.mkdirSync(logDir);
@@ -66,21 +89,8 @@ app.use("/api/v1/auth", authLimiter);
 app.use(
   cors({
     origin: (origin, callback) => {
-      const allowedOrigins = [
-        "http://localhost:3000",
-        "http://localhost:4000",
-        "http://localhost:3001",
-        "http://localhost:3002",
-        "http://192.168.0.227:3000",
-        "http://192.168.1.10:3000",
-        "http://192.168.0.141:3000",
-        "http://192.168.0.227:4000",
-        "https://sheetal-admin.vercel.app",
-        "https://www.sheetal-admin.vercel.app",
-        "https://sheetal-omega.vercel.app",
-        "https://www.sheetal-omega.vercel.app",
-      ];
-      if (!origin || allowedOrigins.includes(origin)) {
+      const normalizedOrigin = normalizeOrigin(origin);
+      if (!origin || allowedOrigins.has(normalizedOrigin)) {
         callback(null, true);
       } else {
         callback(new Error("Not allowed by CORS"));
