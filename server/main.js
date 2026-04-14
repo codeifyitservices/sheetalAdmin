@@ -45,6 +45,30 @@ import sanitizeBody from "./middlewares/sanitize.middleware.js";
 const app = express();
 app.set("trust proxy", 1);
 
+const normalizeOrigin = (value = "") => String(value).trim().replace(/\/$/, "");
+const configuredOrigins = [
+  process.env.ALLOWED_ORIGINS,
+  config.frontendDomain,
+]
+  .filter(Boolean)
+  .flatMap((value) => value.split(","))
+  .map(normalizeOrigin)
+  .filter(Boolean);
+
+const localOrigins = [
+  "http://localhost:3000",
+  "http://localhost:3001",
+  "http://localhost:3002",
+  "http://localhost:4000",
+  "http://192.168.0.227:3000",
+  "http://192.168.1.10:3000",
+  "http://192.168.0.141:3000",
+  "http://192.168.0.227:4000",
+  "https://sheetal-admin.vercel.app"
+].map(normalizeOrigin);
+
+const allowedOrigins = new Set([...localOrigins, ...configuredOrigins]);
+
 const logDir = "logs";
 if (!fs.existsSync(logDir)) {
   fs.mkdirSync(logDir);
