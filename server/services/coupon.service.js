@@ -1,5 +1,5 @@
 import Coupon from "../models/coupon.model.js";
-import { validateAndApplyAbandonedCartCoupon } from "./abandonedCartCoupon.service.js";
+import { validateAndApplyAbandonedCartCoupon } from "./abandonedcartcoupon.service.js";
 import { config } from "../config/config.js";
 
 // ---------------------------------------------------------------------------

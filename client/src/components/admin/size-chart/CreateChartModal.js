@@ -26,6 +26,15 @@ const createEmptyRow = (columnCount) => ({
   cells: Array.from({ length: columnCount }, () => ""),
 });
 
+const toLegacyRow = (cells = []) => ({
+  label: String(cells[0] || "").trim(),
+  bust: String(cells[1] || "").trim(),
+  waist: String(cells[2] || "").trim(),
+  hip: String(cells[3] || "").trim(),
+  shoulder: String(cells[4] || "").trim(),
+  length: String(cells[5] || "").trim(),
+});
+
 const normalizeRow = (row = {}, columnCount = DEFAULT_HEADERS.length) => {
   const cells = Array.isArray(row.cells)
     ? row.cells
@@ -238,7 +247,13 @@ export default function CreateChartModal({ isOpen, onClose, onSuccess }) {
     }
 
     const cleanedRows = rows
-      .map((row) => ({ cells: row.cells.map((c) => String(c || "").trim()) }))
+      .map((row) => {
+        const cells = row.cells.map((c) => String(c || "").trim());
+        return {
+          cells,
+          ...toLegacyRow(cells),
+        };
+      })
       .filter((row) => row.cells[0]);
 
     if (cleanedRows.length === 0) {
