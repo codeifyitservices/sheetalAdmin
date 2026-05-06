@@ -836,7 +836,7 @@ export const searchNgram = async (query, options = {}) => {
       }
     });
 
-    if (qWord.length < 4) return;
+    if (qWord.length < 3) return;
 
     primaryWordIndex.forEach((bucket, word) => {
       const wordConsonantKey = consonantKey(word);

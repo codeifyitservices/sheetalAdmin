@@ -53,6 +53,7 @@ export const createCategoryService = async (data, files) => {
     wearType,
     occasion,
     byPrice,
+    gstPercent,
     sizeMode,
     sizeChart,
   } = data;
@@ -125,6 +126,7 @@ export const createCategoryService = async (data, files) => {
     wearType: parsedWearType,
     occasion: parsedOccasion,
     byPrice: parsedByPrice,
+    gstPercent: Math.max(0, Number(gstPercent) || 0),
     sizeMode: parsedSizing.sizeMode,
     sizeChart: parsedSizing.sizeChart,
   };
@@ -161,7 +163,7 @@ export const createCategoryService = async (data, files) => {
 export const getAllCategoriesService = async () => {
   const categories = await Category.find({ isActive: true })
     .select(
-      "name slug mainImage bannerImage parentCategory subCategories style work fabric productType wearType occasion byPrice sizeMode sizeChart",
+      "name slug mainImage bannerImage parentCategory subCategories style work fabric productType wearType occasion byPrice sizeMode sizeChart gstPercent",
     )
     .populate("parentCategory", "name")
     .populate("sizeChart", "name table howToMeasureImage")
@@ -285,6 +287,7 @@ export const updateCategoryService = async (id, data, files) => {
     status: data.status,
     isActive: data.status === "Active",
     categoryBanner: data.categoryBanner,
+    gstPercent: Math.max(0, Number(data.gstPercent) || 0),
     metaTitle: data.metaTitle,
     metaDescription: data.metaDescription,
     metaKeywords: data.metaKeywords,
@@ -396,6 +399,11 @@ export const updateCategoryService = async (id, data, files) => {
     id,
     { $set: updateData },
     { new: true, runValidators: true },
+  );
+
+  await Product.updateMany(
+    { category: id },
+    { $set: { gstPercent: updated.gstPercent || 0 } },
   );
 
   // Sync to n-gram search index

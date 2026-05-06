@@ -97,7 +97,7 @@ export default function BasicInfoParams({
         </div>
       </div>
 
-      <div className="grid grid-cols-2 gap-5">
+      <div className="grid grid-cols-1 gap-5">
         <InputField
           label="SKU Code"
           name="sku"
@@ -105,13 +105,6 @@ export default function BasicInfoParams({
           onChange={handleChange}
           placeholder="CLOTH-001"
           required
-        />
-        <InputField
-          label="GST %"
-          name="gstPercent"
-          type="number"
-          value={formData.gstPercent}
-          onChange={handleChange}
         />
       </div>
 

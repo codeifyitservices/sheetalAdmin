@@ -50,6 +50,7 @@ export default function CategoryModal({
     name: "",
     description: "",
     parentCategory: "",
+    gstPercent: 0,
     isFeatured: false,
     status: "Active",
     categoryBanner: "",
@@ -79,6 +80,7 @@ export default function CategoryModal({
         name: initialData?.name || "",
         description: initialData?.description || "",
         parentCategory: initialData?.parentCategory?._id || "",
+        gstPercent: initialData?.gstPercent ?? 0,
         isFeatured: initialData?.isFeatured || false,
         status: initialData?.isActive !== false ? "Active" : "Inactive",
         categoryBanner: initialData?.categoryBanner || "",
@@ -236,6 +238,7 @@ export default function CategoryModal({
     data.append("name", formData.name);
     data.append("description", formData.description);
     data.append("parentCategory", formData.parentCategory || "");
+    data.append("gstPercent", formData.gstPercent ?? 0);
     data.append("isFeatured", formData.isFeatured);
     data.append("status", formData.status);
     data.append("categoryBanner", formData.categoryBanner);
@@ -486,6 +489,29 @@ export default function CategoryModal({
                       placeholder="Short description..."
                       className="w-full bg-white border border-slate-300 px-3 py-2.5 rounded-lg text-sm outline-none focus:border-slate-900 transition resize-none"
                     />
+                  </div>
+
+                  <div className="space-y-1.5">
+                    <label className="text-xs font-bold text-slate-900 uppercase tracking-wider">
+                      GST %
+                    </label>
+                    <input
+                      type="number"
+                      min="0"
+                      step="0.01"
+                      value={formData.gstPercent ?? 0}
+                      onChange={(e) =>
+                        setFormData({
+                          ...formData,
+                          gstPercent: e.target.value,
+                        })
+                      }
+                      placeholder="e.g. 5"
+                      className="w-full bg-white border border-slate-300 px-3 py-2.5 rounded-lg text-sm outline-none focus:border-slate-900 transition font-medium"
+                    />
+                    <p className="text-[11px] text-slate-500">
+                      Saving this updates GST for all products in this category.
+                    </p>
                   </div>
 
                   {/* Subcategories */}

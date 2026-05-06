@@ -438,7 +438,8 @@ const productMatchesSearchIntent = (product, normalisedQuery) => {
     return (
       productMatchesStructuredFields(product, normalisedQuery) ||
       productMatchesTextFields(product, normalisedQuery) ||
-      primaryTextMatchesProduct(product, normalisedQuery)
+      primaryTextMatchesProduct(product, normalisedQuery) ||
+      (normalisedQuery.length >= 3 && productHasFuzzyWordMatch(product, normalisedQuery))
     );
   }
 

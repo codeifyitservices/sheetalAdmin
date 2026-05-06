@@ -63,7 +63,6 @@ export default function ProductModal({
     shortDescription: "",
     description: "",
     materialCare: "",
-    gstPercent: 0,
     lowStockThreshold: 5,
     stock: 0,
     category: "",
@@ -126,6 +125,7 @@ export default function ProductModal({
     if (isOpen) {
       fetchCategories();
       if (initialData) {
+        const { gstPercent, ...safeInitialData } = initialData;
         const variants = Array.isArray(initialData.variants)
           ? initialData.variants.map((v) => ({
               ...v,
@@ -135,7 +135,7 @@ export default function ProductModal({
             }))
           : [];
         setFormData({
-          ...initialData,
+          ...safeInitialData,
           category: initialData.category?._id || initialData.category || "",
           subCategory: initialData.subCategory || "",
           isTrending: initialData.isTrending ?? false,
@@ -243,7 +243,6 @@ export default function ProductModal({
       sku: "",
       shortDescription: "",
       description: "",
-      gstPercent: 0,
       lowStockThreshold: 5,
       stock: 0,
       category: "",
@@ -339,6 +338,7 @@ export default function ProductModal({
         "category",
         "subCategory",
         "brand",
+        "gstPercent",
       ];
 
       Object.keys(formData).forEach((key) => {
