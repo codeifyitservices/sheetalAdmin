@@ -5,6 +5,7 @@ import slugify from "slugify";
 import { deleteFile, deleteS3File } from "../utils/fileHelper.js";
 import { config } from "../config/config.js";
 import { syncToIndex, deleteFromIndex } from "./ngram.search.service.js";
+import { getGlobalTax } from "./settings.service.js";
 
 const resolveCategorySizing = async ({ sizeMode, sizeChart }) => {
   const normalizedMode = String(sizeMode || "").trim().toLowerCase();
@@ -126,7 +127,10 @@ export const createCategoryService = async (data, files) => {
     wearType: parsedWearType,
     occasion: parsedOccasion,
     byPrice: parsedByPrice,
-    gstPercent: Math.max(0, Number(gstPercent) || 0),
+    gstPercent:
+      Number(gstPercent) > 0
+        ? Number(gstPercent)
+        : await getGlobalTax(),
     sizeMode: parsedSizing.sizeMode,
     sizeChart: parsedSizing.sizeChart,
   };
@@ -287,7 +291,10 @@ export const updateCategoryService = async (id, data, files) => {
     status: data.status,
     isActive: data.status === "Active",
     categoryBanner: data.categoryBanner,
-    gstPercent: Math.max(0, Number(data.gstPercent) || 0),
+    gstPercent:
+      Number(data.gstPercent) > 0
+        ? Number(data.gstPercent)
+        : await getGlobalTax(),
     metaTitle: data.metaTitle,
     metaDescription: data.metaDescription,
     metaKeywords: data.metaKeywords,

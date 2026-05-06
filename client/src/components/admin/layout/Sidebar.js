@@ -28,6 +28,7 @@ import {
   BadgeIndianRupee,
   InfoIcon,
   Truck,
+  Settings,
 } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
@@ -116,6 +117,7 @@ export default function Sidebar({ storeName = "Admin", isOpen, setIsOpen }) {
     },
     { icon: Monitor, label: "Navbar & Footer", href: "/admin/navbar-footer" },
     { icon: ListTree, label: "Size Chart", href: "/admin/size-chart" },
+    { icon: Settings, label: "Settings", href: "/admin/settings" },
   ];
 
   return (
