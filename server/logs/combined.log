@@ -3251,3 +3251,4 @@
 {"cartId":"69c4e97f53f31976a6aebd2c","cartTrackingId":"cart-1774512511944-1777619845064","cycleId":"8196242d-407e-44f1-87fb-0066e325c236","level":"info","message":"[AbandonedCart] Cart activity registered","source":"checkout_address","timestamp":"2026-05-01T09:48:18.488Z","userId":"69c4ddf053f31976a6aeb57b"}
 {"cartId":"69c4e97f53f31976a6aebd2c","cartTrackingId":null,"level":"info","message":"[AbandonedCart] Flow completed and reminders cancelled","timestamp":"2026-05-01T09:50:30.384Z","userId":"69c4ddf053f31976a6aeb57b"}
 {"cartId":"69f4753095a065eb1a0e2a2b","cartTrackingId":"cart-1777628464332-1777628854238","cycleId":"b8499ec3-045a-428a-beac-a39d6a1fd6b6","level":"info","message":"[AbandonedCart] Cart marked as abandoned","reason":"inactivity","timestamp":"2026-05-01T10:07:53.150Z","userId":"69f4753095a065eb1a0e2a27"}
+{"level":"info","message":"Root route accessed from IP: ::1","timestamp":"2026-05-06T11:36:46.216Z"}

@@ -14,6 +14,7 @@ import {
   rebuildIndex,
 } from "./ngram.search.service.js";
 import { searchService } from "./search.service.js";
+import { getGlobalTax } from "./settings.service.js";
 import {
   sanitizeProductHtml,
   sanitizeProductRecord,
@@ -506,7 +507,7 @@ export const createProductService = async (data, files, userId) => {
     const category = await Category.findById(parsedData.category).select(
       "gstPercent",
     );
-    parsedData.gstPercent = category?.gstPercent || 0;
+    parsedData.gstPercent = category?.gstPercent || await getGlobalTax();
   }
 
   parsedData.description = sanitizeProductHtml(parsedData.description || "");
@@ -692,7 +693,7 @@ export const updateProductService = async (id, data, files) => {
     const category = await Category.findById(parsedData.category).select(
       "gstPercent",
     );
-    parsedData.gstPercent = category?.gstPercent || 0;
+    parsedData.gstPercent = category?.gstPercent || await getGlobalTax();
   }
 
   parsedData.description = sanitizeProductHtml(parsedData.description || "");
@@ -1501,7 +1502,7 @@ const bulkImportRowBasedService = async (files, userId) => {
         isNewArrival: isTrue(item.NewArrival),
         isCollection: isTrue(item.Collection),
         isStarred: isTrue(item.Starred),
-        gstPercent: categoryDoc?.gstPercent || 0,
+        gstPercent: categoryDoc?.gstPercent || await getGlobalTax(),
         lowStockThreshold: Number(item.Threshold) || 5,
         brandInfo: item.BrandInfo || "",
         warranty: item.Warranty || "No Warranty",
@@ -1839,7 +1840,7 @@ const bulkImportRowBasedService = async (files, userId) => {
     }
 
     return {
-      success: true,
+      success: inserted.length > 0,
       data: inserted,
       errors,
     };

@@ -111,6 +111,14 @@ export const bulkImportProducts = async (req, res, next) => {
       req.user._id,
     );
 
+    if (result.data.length === 0) {
+      return res.status(200).json({
+        success: false,
+        message: "No products were imported. Please check your Excel file for errors.",
+        data: { imported: 0, errors: result.errors },
+      });
+    }
+
     return successResponse(
       res,
       200,
