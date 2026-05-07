@@ -28,6 +28,7 @@ import {
 
 export default function CustomerTable({
   dateRange,
+  refreshStats,
 }) {
   const [users, setUsers] = useState([]);
   const [loading, setLoading] = useState(false);
@@ -66,6 +67,7 @@ export default function CustomerTable({
         if (isRefresh) toast.success("Data synchronized!");
       }
     } catch (err) {
+      console.error("Failed to fetch users:", err);
       toast.error("Fetch failed");
     } finally {
       setLoading(false);

@@ -38,6 +38,14 @@ export const updateOrderStatus = async (orderId, updateData) => {
   return handleResponse(res);
 };
 
+export const getAdminOrderById = async (orderId) => {
+  const res = await fetch(`${API_BASE_URL}/orders/admin/${orderId}`, {
+    method: "GET",
+    credentials: "include",
+  });
+  return handleResponse(res);
+};
+
 export const getOrderStats = async (startDate = "", endDate = "") => {
   const query = new URLSearchParams();
   if (startDate) query.set("startDate", startDate);

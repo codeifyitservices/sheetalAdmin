@@ -87,13 +87,6 @@ const resolveCouponForOrder = async (order) => {
 /**
  * Applies a coupon to a cart/order.
  *
- * Resolution order:
- *  1. If the code matches the abandoned-cart coupon code AND the user has
- *     an eligible AbandonedCartCoupon record, delegate entirely to the
- *     abandoned-cart coupon path — skip the generic Coupon collection.
- *  2. Otherwise fall through to the standard Coupon collection flow which
- *     supports Percentage, FixedAmount, BOGO, and FreeShipping offer types.
- *
  * @param {object} params
  * @param {string}   params.code         Coupon code entered at checkout.
  * @param {string}   params.userId       Authenticated user's ObjectId string.
@@ -122,9 +115,6 @@ export const applyCouponService = async ({
 
     // ── 1. Abandoned-cart coupon intercept ──────────────────────────────────
     // If the code is the recovery code, attempt the abandoned-cart path first.
-    // We only fall through to the generic flow when there is no eligible record
-    // for this user — this lets the admin keep the code as a generic coupon too,
-    // which will work normally for users not in an abandoned-cart cycle.
     if (normalizedCode === getAbandonedCartCouponCode()) {
       const result = await validateAndApplyAbandonedCartCoupon({
         code: normalizedCode,
@@ -158,6 +148,33 @@ export const applyCouponService = async ({
 
     if (!coupon) {
       return { success: false, statusCode: 404, message: "Invalid or inactive coupon" };
+    }
+
+    // Restriction: If coupon is marked as an abandoned cart coupon, 
+    // it can ONLY be used via the abandoned cart flow logic.
+    if (coupon.isAbandonedCartCoupon) {
+      const result = await validateAndApplyAbandonedCartCoupon({
+        code: normalizedCode,
+        userId,
+        cartId,
+      });
+
+      if (result.success) {
+        return {
+          success: true,
+          data: {
+            discount: result.discount,
+            couponCode: normalizedCode,
+            isAbandonedCartCoupon: true,
+            message: result.message,
+          },
+        };
+      }
+      return {
+        success: false,
+        statusCode: 400,
+        message: "This coupon is only valid for abandoned cart recovery",
+      };
     }
 
     const validation = coupon.isValid(userId, orderAmount, cartItems);

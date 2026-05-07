@@ -79,6 +79,7 @@ router.post("/push-coupon", isAdmin, async (req, res, next) => {
           cycleId: cart.abandonmentCycleId,
           discountPercent: coupon.offerValue, // uses the coupon's % value
           items: cart.items,
+          code: coupon.code,
         }),
       ),
     );

@@ -271,6 +271,18 @@ export const getSingleOrderService = async (orderId, userId) => {
   return order;
 };
 
+export const getSingleOrderAdminService = async (orderId) => {
+  const order = await Order.findById(orderId)
+    .populate("orderItems.product", "name mainImage slug")
+    .populate("user", "name email");
+
+  if (!order) {
+    throw new ErrorResponse("Order not found", 404);
+  }
+
+  return order;
+};
+
 // --- GET ALL ORDERS ---
 export const getAllOrdersService = async (queryStr, userId = null) => {
   const page = parseInt(queryStr.page) || 1;

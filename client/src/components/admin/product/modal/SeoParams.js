@@ -14,6 +14,19 @@ export default function SeoParams({ formData, handleChange, setFormData }) {
     return (
         <div className="space-y-6 animate-in fade-in duration-300">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div className="md:col-span-2 space-y-2">
+                    <InputField
+                        label="URL Slug"
+                        name="slug"
+                        value={formData.slug || ""}
+                        onChange={handleChange}
+                        placeholder="Slug"
+                    />
+                    <p className="text-[11px] text-slate-500">
+                        This will be used in your product URL. Example: /product/[SLUG]
+                    </p>
+                </div>
+
                 <div className="md:col-span-2">
                     <InputField
                         label="Meta Title"

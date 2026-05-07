@@ -19,6 +19,8 @@ import toast from "react-hot-toast";
 
 import AddUserModal from "@/components/admin/customer/AddCustomerModal";
 import DeleteConfirmModal from "@/components/admin/common/DeleteConfirmModal";
+import ViewOrderDrawer from "@/components/admin/order/ViewOrderDrawer";
+import AddressModal from "@/components/admin/customer/AddressModal";
 
 export default function UserDetailPage() {
   const { id } = useParams();
@@ -29,6 +31,13 @@ export default function UserDetailPage() {
 
   const [showEditModal, setShowEditModal] = useState(false);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
+
+  const [selectedOrder, setSelectedOrder] = useState(null);
+  const [isDrawerOpen, setIsDrawerOpen] = useState(false);
+
+  const [isAddressModalOpen, setIsAddressModalOpen] = useState(false);
+  const [selectedAddress, setSelectedAddress] = useState(null);
+  const [addressIndex, setAddressIndex] = useState(null);
 
   const fetchFullDetails = async () => {
     setLoading(true);
@@ -75,6 +84,27 @@ export default function UserDetailPage() {
     }
   };
 
+  const handleSaveAddress = async (addressData) => {
+    const newAddresses = [...(user.addresses || [])];
+    if (addressIndex !== null) {
+      newAddresses[addressIndex] = addressData;
+    } else {
+      newAddresses.push(addressData);
+    }
+    await handleUpdateUser({ addresses: newAddresses });
+  };
+
+  const handleRemoveAddress = async (index) => {
+    if (!window.confirm("Are you sure you want to remove this address?")) return;
+    const newAddresses = user.addresses.filter((_, i) => i !== index);
+    await handleUpdateUser({ addresses: newAddresses });
+  };
+
+  const handleOrderClick = (order) => {
+    setSelectedOrder(order);
+    setIsDrawerOpen(true);
+  };
+
   if (loading)
     return <div className="animate-pulse p-20 text-center">Loading...</div>;
   if (!user) return <div>User not found</div>;
@@ -114,7 +144,7 @@ export default function UserDetailPage() {
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
         <StatCard
           title="Total Spent"
-          count={`₹${user.totalSpent || 0}`}
+          count={`₹${(user.totalSpent || 0).toLocaleString()}`}
           icon={<Wallet size={20} />}
           color="indigo"
         />
@@ -262,7 +292,8 @@ export default function UserDetailPage() {
                   {user.orders.map((order) => (
                     <div
                       key={order._id}
-                      className="group bg-white border border-slate-200 rounded-2xl p-4 hover:border-indigo-500 transition-all flex flex-wrap md:flex-nowrap items-center justify-between gap-4"
+                      onClick={() => handleOrderClick(order)}
+                      className="group bg-white border border-slate-200 rounded-2xl p-4 hover:border-indigo-500 transition-all flex flex-wrap md:flex-nowrap items-center justify-between gap-4 cursor-pointer"
                     >
                       <div className="flex items-center gap-4">
                         <div className="w-12 h-12 bg-slate-100 rounded-xl flex flex-col items-center justify-center group-hover:bg-indigo-50 transition-colors">
@@ -308,7 +339,7 @@ export default function UserDetailPage() {
                             Total Amount
                           </p>
                           <p className="text-sm font-black text-slate-900 italic">
-                            ₹{order.totalAmount.toLocaleString()}
+                            ₹{(order.totalPrice ?? 0).toLocaleString()}
                           </p>
                         </div>
                         <button className="p-2 hover:bg-slate-100 rounded-lg transition-colors">
@@ -341,7 +372,16 @@ export default function UserDetailPage() {
                 <h3 className="text-sm font-black text-slate-900 uppercase tracking-widest">
                   Saved Addresses
                 </h3>
-                {/* <button className="text-[10px] font-black text-indigo-600 uppercase border border-indigo-200 px-4 py-2 rounded-xl hover:bg-indigo-50 transition-all">+ Add New Address</button> */}
+                <button
+                  onClick={() => {
+                    setSelectedAddress(null);
+                    setAddressIndex(null);
+                    setIsAddressModalOpen(true);
+                  }}
+                  className="text-[10px] font-black text-indigo-600 uppercase border border-indigo-200 px-4 py-2 rounded-xl hover:bg-indigo-50 transition-all cursor-pointer"
+                >
+                  + Add New Address
+                </button>
               </div>
 
               {user.addresses?.length > 0 ? (
@@ -361,6 +401,11 @@ export default function UserDetailPage() {
                       </div>
 
                       <div className="space-y-1">
+                        <p className="text-xs font-black text-slate-900 uppercase tracking-tighter flex items-center gap-2">
+                          {addr.firstName} {addr.lastName}
+                          <span className="text-slate-300 font-normal">|</span>
+                          <span className="text-slate-500">{addr.phoneNumber}</span>
+                        </p>
                         <p className="text-sm font-black text-slate-800 uppercase tracking-tight">
                           {addr.addressLine1}
                         </p>
@@ -370,10 +415,20 @@ export default function UserDetailPage() {
                       </div>
 
                       <div className="mt-6 pt-4 border-t border-slate-50 flex gap-4">
-                        <button className="text-[10px] font-black text-slate-400 uppercase hover:text-indigo-600">
+                        <button
+                          onClick={() => {
+                            setSelectedAddress(addr);
+                            setAddressIndex(idx);
+                            setIsAddressModalOpen(true);
+                          }}
+                          className="text-[10px] font-black text-slate-400 uppercase hover:text-indigo-600 cursor-pointer"
+                        >
                           Edit
                         </button>
-                        <button className="text-[10px] font-black text-slate-400 uppercase hover:text-rose-600">
+                        <button
+                          onClick={() => handleRemoveAddress(idx)}
+                          className="text-[10px] font-black text-slate-400 uppercase hover:text-rose-600 cursor-pointer"
+                        >
                           Remove
                         </button>
                       </div>
@@ -405,6 +460,23 @@ export default function UserDetailPage() {
         onClose={() => setShowDeleteModal(false)}
         onConfirm={handleDeleteConfirm}
       />
+
+      <ViewOrderDrawer
+        isOpen={isDrawerOpen}
+        onClose={() => setIsDrawerOpen(false)}
+        order={selectedOrder}
+      />
+
+      <AddressModal
+        isOpen={isAddressModalOpen}
+        onClose={() => {
+          setIsAddressModalOpen(false);
+          setSelectedAddress(null);
+          setAddressIndex(null);
+        }}
+        onSave={handleSaveAddress}
+        editAddress={selectedAddress}
+      />
     </div>
   );
 }
@@ -427,7 +499,7 @@ function StatCard({ title, count, icon, color, valueClassName = "" }) {
         <p
           className={`text-2xl font-black text-slate-900 mt-1.5 leading-none ${valueClassName}`}
         >
-          {count.toLocaleString()}
+          {typeof count === "number" ? count.toLocaleString() : count}
         </p>
       </div>
     </div>

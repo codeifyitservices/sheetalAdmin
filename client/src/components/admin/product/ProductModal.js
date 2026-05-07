@@ -20,6 +20,7 @@ import InventoryParams from "./modal/InventoryParams";
 import SpecParams from "./modal/SpecParams";
 import SeoParams from "./modal/SeoParams";
 import MediaParams from "./modal/MediaParams";
+import { sanitizeProductSlug } from "@/utils/productSlug";
 
 export default function ProductModal({
   isOpen,
@@ -27,38 +28,9 @@ export default function ProductModal({
   onSuccess,
   initialData = null,
 }) {
-  const getChartSizeLabel = (row) =>
-    String(row?.cells?.[0] || row?.label || "").trim();
-
-  const getSeededSizesFromCategory = (category) => {
-    if (category?.sizeMode === "free") {
-      return [{ name: "Free Size", stock: 0, price: 0, discountPrice: 0 }];
-    }
-
-    const chart = category?.sizeChart;
-    const chartSizes = Array.isArray(chart?.table) ? chart.table : [];
-    const seededFromTable = chartSizes
-      .map((row) => ({
-        name: getChartSizeLabel(row),
-        stock: 0,
-        price: 0,
-        discountPrice: 0,
-      }))
-      .filter((row) => row.name.trim() !== "");
-
-    if (seededFromTable.length > 0) {
-      return seededFromTable;
-    }
-
-    return [];
-  };
-
-  const [activeTab, setActiveTab] = useState("basic");
-  const [loading, setLoading] = useState(false);
-  const [categories, setCategories] = useState([]);
-
-  const [formData, setFormData] = useState({
+  const createInitialFormData = () => ({
     name: "",
+    slug: "",
     sku: "",
     shortDescription: "",
     description: "",
@@ -98,6 +70,39 @@ export default function ProductModal({
     isCollection: false,
   });
 
+  const getChartSizeLabel = (row) =>
+    String(row?.cells?.[0] || row?.label || "").trim();
+
+  const getSeededSizesFromCategory = (category) => {
+    if (category?.sizeMode === "free") {
+      return [{ name: "Free Size", stock: 0, price: 0, discountPrice: 0 }];
+    }
+
+    const chart = category?.sizeChart;
+    const chartSizes = Array.isArray(chart?.table) ? chart.table : [];
+    const seededFromTable = chartSizes
+      .map((row) => ({
+        name: getChartSizeLabel(row),
+        stock: 0,
+        price: 0,
+        discountPrice: 0,
+      }))
+      .filter((row) => row.name.trim() !== "");
+
+    if (seededFromTable.length > 0) {
+      return seededFromTable;
+    }
+
+    return [];
+  };
+
+  const [activeTab, setActiveTab] = useState("basic");
+  const [loading, setLoading] = useState(false);
+  const [categories, setCategories] = useState([]);
+  const [isSlugManuallyEdited, setIsSlugManuallyEdited] = useState(false);
+
+  const [formData, setFormData] = useState(createInitialFormData);
+
   const getDefaultVariantSizes = () => {
     const selectedCategory = categories.find(
       (cat) => cat._id === formData.category,
@@ -135,8 +140,10 @@ export default function ProductModal({
             }))
           : [];
         setFormData({
+          ...createInitialFormData(),
           ...safeInitialData,
           category: initialData.category?._id || initialData.category || "",
+          slug: initialData.slug || "",
           subCategory: initialData.subCategory || "",
           isTrending: initialData.isTrending ?? false,
           isNewArrival: initialData.isNewArrival ?? false,
@@ -172,6 +179,7 @@ export default function ProductModal({
           price: undefined,
           discountPrice: undefined,
         });
+        setIsSlugManuallyEdited(true);
       } else {
         resetForm();
       }
@@ -238,35 +246,8 @@ export default function ProductModal({
   };
 
   const resetForm = () => {
-    setFormData({
-      name: "",
-      sku: "",
-      shortDescription: "",
-      description: "",
-      lowStockThreshold: 5,
-      stock: 0,
-      category: "",
-      subCategory: "",
-      status: "Active",
-      displayCollections: [],
-      wearType: [],
-      occasion: [],
-      tags: [],
-      variants: [],
-      specifications: [],
-      keyBenefits: [],
-      eventTags: [],
-      style: [],
-      work: [],
-      fabric: [],
-      productType: [],
-      byPrice: [],
-      brandInfo: "",
-      returnPolicy: "7 Days Easy Return",
-      isTrending: false,
-      isNewArrival: false,
-      isCollection: false,
-    });
+    setFormData(createInitialFormData());
+    setIsSlugManuallyEdited(false);
   };
 
   const handleChange = (e) => {
@@ -291,10 +272,30 @@ export default function ProductModal({
             : prev.variants,
       }));
     } else {
-      setFormData((prev) => ({
-        ...prev,
-        [name]: type === "checkbox" ? checked : value,
-      }));
+      const nextValue = type === "checkbox" ? checked : value;
+      const nextSlugValue =
+        name === "slug" ? sanitizeProductSlug(value) : undefined;
+
+      if (name === "slug") {
+        setIsSlugManuallyEdited(Boolean(nextSlugValue));
+      }
+
+      setFormData((prev) => {
+        const nextState = {
+          ...prev,
+          [name]: nextValue,
+        };
+
+        if (name === "name" && !initialData && !isSlugManuallyEdited) {
+          nextState.slug = sanitizeProductSlug(value);
+        }
+
+        if (name === "slug") {
+          nextState.slug = nextSlugValue;
+        }
+
+        return nextState;
+      });
     }
   };
 

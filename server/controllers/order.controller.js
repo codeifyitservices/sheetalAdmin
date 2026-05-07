@@ -48,6 +48,15 @@ export const getSingleOrder = async (req, res, next) => {
   }
 };
 
+export const adminGetSingleOrder = async (req, res, next) => {
+  try {
+    const data = await orderService.getSingleOrderAdminService(req.params.id);
+    return successResponse(res, 200, data, "Order fetched successfully");
+  } catch (error) {
+    next(error);
+  }
+};
+
 // --- 4. ADMIN: GET ALL ORDERS (Paginated + Filters) ---
 export const adminGetAllOrders = async (req, res, next) => {
   try {

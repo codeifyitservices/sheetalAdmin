@@ -3,6 +3,7 @@ import {
   createOrder,
   getMyOrders,
   getSingleOrder,
+  adminGetSingleOrder,
   adminGetAllOrders,
   adminGetOrderStats,
   updateOrderStatus,
@@ -29,6 +30,9 @@ router.get("/admin/stats", isAuthenticated, isAdmin, adminGetOrderStats);
 
 // 3. Admin ko poori website ke saare orders dikhane ke liye
 router.get("/admin/all", isAuthenticated, isAdmin, adminGetAllOrders);
+
+// Admin: Get a single order detail
+router.get("/admin/:id", isAuthenticated, isAdmin, adminGetSingleOrder);
 
 // 4. Admin order ka status (Shipped/Delivered/Return) update karne ke liye
 router.put("/admin/update/:id", isAuthenticated, isAdmin, updateOrderStatus);

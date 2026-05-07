@@ -34,21 +34,21 @@ export default function CustomersPage() {
     [dateRange.endDate, dateRange.startDate],
   );
 
-  useEffect(() => {
-    const fetchStats = async () => {
-      try {
-        const res = await getUserStats(
-          tableDateRange.startDate,
-          tableDateRange.endDate,
-        );
-        if (res.success) setStats(res.data);
-      } catch (err) {
-        console.error(err);
-      }
-    };
-
-    fetchStats();
+  const fetchStats = useCallback(async () => {
+    try {
+      const res = await getUserStats(
+        tableDateRange.startDate,
+        tableDateRange.endDate,
+      );
+      if (res.success) setStats(res.data);
+    } catch (err) {
+      console.error("Failed to fetch user stats:", err);
+    }
   }, [tableDateRange.endDate, tableDateRange.startDate]);
+
+  useEffect(() => {
+    fetchStats();
+  }, [fetchStats]);
 
   return (
     <div className="min-h-screen w-full animate-in fade-in duration-500">
@@ -104,6 +104,7 @@ export default function CustomersPage() {
       <div className="bg-white border border-slate-200 rounded-xl shadow-sm overflow-hidden">
         <CustomerTable
           dateRange={tableDateRange}
+          refreshStats={fetchStats}
         />
       </div>
     </div>

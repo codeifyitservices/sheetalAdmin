@@ -16,6 +16,28 @@ const homepageSchema = new mongoose.Schema(
             blogs:                  { type: Boolean, default: true },
             bookAppointmentWidget:  { type: Boolean, default: true },
         },
+        topInfoConfig: {
+            mode: {
+                type: String,
+                enum: ["coupon", "custom", "hidden"],
+                default: "coupon",
+            },
+            customText: {
+                type: String,
+                default: "",
+                trim: true,
+            },
+            customCtaLabel: {
+                type: String,
+                default: "Shop Now",
+                trim: true,
+            },
+            customCtaHref: {
+                type: String,
+                default: "/product-list",
+                trim: true,
+            },
+        },
     },
     { timestamps: true }
 );

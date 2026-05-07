@@ -15,6 +15,14 @@ const productSchema = new mongoose.Schema(
       lowercase: true,
       index: true,
     },
+    previousSlugs: [
+      {
+        type: String,
+        lowercase: true,
+        trim: true,
+        index: true,
+      },
+    ],
     sku: {
       type: String,
       required: [true, "SKU is required"],

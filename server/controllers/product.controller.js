@@ -48,7 +48,9 @@ export const getProductDetails = async (req, res, next) => {
   try {
     const result = await productService.getProductDetailsService(req.params.id);
     if (!result.success) return res.status(result.statusCode).json(result);
-    return successResponse(res, 200, result.product, "Fetched");
+    return successResponse(res, 200, result.product, "Fetched", {
+      redirectSlug: result.redirectSlug || null,
+    });
   } catch (error) {
     next(error);
   }

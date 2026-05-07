@@ -20,6 +20,7 @@ export const issueAbandonedCartCoupon = async ({
   cycleId,
   discountPercent,
   items = [],
+  code: overrideCode = null,
 }) => {
   const existing = await AbandonedCartCoupon.findOne({ cartId, cycleId });
   if (existing) {
@@ -29,7 +30,7 @@ export const issueAbandonedCartCoupon = async ({
     await existing.save();
   }
 
-  const code = resolveCouponCode();
+  const code = (overrideCode || resolveCouponCode()).toUpperCase().trim();
   const snapshotTotal = calculateCartTotal(items);
   const currentDiscount = parseFloat(
     ((discountPercent / 100) * snapshotTotal).toFixed(2),

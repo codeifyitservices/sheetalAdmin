@@ -29,6 +29,7 @@ import {
   InfoIcon,
   Truck,
   Settings,
+  Mail,
 } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
@@ -81,6 +82,11 @@ export default function Sidebar({ storeName = "Admin", isOpen, setIsOpen }) {
       icon: MessageSquare,
       label: "Contact Enquiries",
       href: "/admin/contact-enquiry",
+    },
+    {
+      icon: Mail,
+      label: "Newsletter",
+      href: "/admin/newsletter",
     },
     { icon: Star, label: "Reviews", href: "/admin/reviews" },
     { icon: Newspaper, label: "Blogs", href: "/admin/blogs" },

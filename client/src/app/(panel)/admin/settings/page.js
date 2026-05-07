@@ -1,11 +1,6 @@
 "use client";
 import { useCallback, useEffect, useState } from "react";
-import {
-  CreditCard,
-  Save,
-  Loader2,
-  RefreshCw,
-} from "lucide-react";
+import { CreditCard, Save, Loader2, RefreshCw } from "lucide-react";
 import toast from "react-hot-toast";
 import PageHeader from "@/components/admin/layout/PageHeader.js";
 import { getSettings, updateSettings } from "@/services/settingsService";
@@ -90,7 +85,8 @@ export default function SettingsPage() {
         <div className="bg-white p-6 md:p-8 rounded-[28px] border border-slate-200 shadow-sm space-y-6">
           <div className="flex items-center justify-between mb-6">
             <h3 className="text-lg font-black text-slate-900 flex items-center gap-2">
-              <CreditCard size={18} className="text-emerald-500" /> Payments & Tax Settings
+              <CreditCard size={18} className="text-emerald-500" /> Payments &
+              Tax Settings
             </h3>
             <button
               type="button"
@@ -108,9 +104,9 @@ export default function SettingsPage() {
           </div>
 
           {isLoading ? (
-             <div className="flex h-48 items-center justify-center rounded-3xl border border-dashed border-slate-200 bg-slate-50">
-               <Loader2 size={22} className="animate-spin text-slate-400" />
-             </div>
+            <div className="flex h-48 items-center justify-center rounded-3xl border border-dashed border-slate-200 bg-slate-50">
+              <Loader2 size={22} className="animate-spin text-slate-400" />
+            </div>
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               <div className="space-y-1.5">
@@ -123,7 +119,9 @@ export default function SettingsPage() {
                   onChange={handleGlobalSettingChange}
                   className={inputStyle}
                 />
-                <p className="text-[10px] text-slate-400">Fixed fee applied to every order.</p>
+                <p className="text-[10px] text-slate-400">
+                  Fixed fee applied to every order.
+                </p>
               </div>
 
               <div className="space-y-1.5">
@@ -148,7 +146,9 @@ export default function SettingsPage() {
                   onChange={handleGlobalSettingChange}
                   className={inputStyle}
                 />
-                <p className="text-[10px] text-slate-400">Order amount to qualify for free shipping.</p>
+                <p className="text-[10px] text-slate-400">
+                  Order amount to qualify for free shipping.
+                </p>
               </div>
 
               <div className="space-y-1.5">
@@ -183,7 +183,11 @@ export default function SettingsPage() {
             disabled={isSaving}
             className="bg-emerald-500 hover:bg-emerald-600 text-white px-8 py-3 rounded-2xl font-black text-xs uppercase tracking-widest shadow-lg shadow-emerald-100 flex items-center gap-2 transition-all active:scale-95 disabled:opacity-70 disabled:cursor-not-allowed"
           >
-            {isSaving ? <Loader2 size={16} className="animate-spin" /> : <Save size={16} />}
+            {isSaving ? (
+              <Loader2 size={16} className="animate-spin" />
+            ) : (
+              <Save size={16} />
+            )}
             Save Settings
           </button>
         </div>

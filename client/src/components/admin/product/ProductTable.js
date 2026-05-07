@@ -133,8 +133,13 @@ export default function ProductTable({ refreshStats }) {
   const fetchProducts = async (isRefresh = false) => {
     setLoading(true);
     try {
+      // Always sort starred products first, then apply the user's chosen sort as secondary.
+      // This ensures starred products appear at the top across ALL pages, not just the current one.
+      const secondarySort =
+        sortConfig.direction === "desc" ? `-${sortConfig.key}` : sortConfig.key;
       const sortParam =
         sortConfig.direction === "desc" ? `-${sortConfig.key}` : sortConfig.key;
+
       const res = await getProducts(
         currentPage,
         rowsPerPage,
@@ -218,11 +223,9 @@ export default function ProductTable({ refreshStats }) {
     try {
       const res = await starProduct(id);
       if (res.success) {
-        setProducts((prev) =>
-          prev.map((p) =>
-            p._id === id ? { ...p, isStarred: res.data.isStarred } : p,
-          ),
-        );
+        // Re-fetch so the list re-sorts with the new star state
+        // (a newly starred product may need to jump to the top on page 1)
+        await fetchProducts();
         toast.success(res.data.isStarred ? "Product starred!" : "Star removed");
       }
     } catch {
@@ -258,17 +261,13 @@ export default function ProductTable({ refreshStats }) {
           `${succeeded} product${succeeded > 1 ? "s" : ""} ${starred ? "starred" : "unstarred"}`,
           { id: loadingToast },
         );
-        // Optimistically update local state
-        setProducts((prev) =>
-          prev.map((p) =>
-            selectedIds.has(p._id) ? { ...p, isStarred: starred } : p,
-          ),
-        );
       }
       if (failed > 0)
         toast.error(`${failed} update${failed > 1 ? "s" : ""} failed`);
 
       exitSelectMode();
+      // Re-fetch so the list re-sorts correctly after bulk star changes
+      await fetchProducts();
     } catch {
       toast.error("Bulk star failed", { id: loadingToast });
     } finally {
@@ -326,9 +325,9 @@ export default function ProductTable({ refreshStats }) {
     });
   };
 
-  const starredProducts = products.filter((p) => p.isStarred);
-  const normalProducts = products.filter((p) => !p.isStarred);
-  const orderedProducts = [...starredProducts, ...normalProducts];
+  // No need for client-side re-ordering — the backend now returns products
+  // already sorted starred-first via the sortParam, so we use `products` directly.
+  const orderedProducts = products;
 
   return (
     <div className="bg-white border border-slate-200 rounded-lg shadow-sm text-slate-900 overflow-hidden">

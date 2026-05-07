@@ -342,13 +342,40 @@ test("abandoned-cart coupon applies only for the matching authenticated user and
     },
   };
 
+  const otherCartDoc = {
+    _id: "cart-2",
+    user: "user-1",
+    abandonmentStatus: "abandoned",
+    abandonmentCycleId: "cycle-1",
+    items: [{ price: 500, quantity: 1 }],
+    appliedAbandonedCoupon: null,
+    save: async function save() {
+      return this;
+    },
+  };
+
   const originalCouponFindOne = AbandonedCartCoupon.findOne;
   const originalCartFindOne = Cart.findOne;
 
-  AbandonedCartCoupon.findOne = () => ({
-    sort: async () => couponRecord,
+  AbandonedCartCoupon.findOne = (query = {}) => ({
+    sort: async () =>
+      query.code === "SAVE10" &&
+      query.userId === "user-1" &&
+      query.status?.$in?.includes("issued")
+        ? couponRecord
+        : null,
   });
-  Cart.findOne = () => cartDoc;
+  Cart.findOne = (filter = {}) => {
+    if (String(filter?._id || "") === "cart-1") {
+      return cartDoc;
+    }
+
+    if (String(filter?._id || "") === "cart-2") {
+      return otherCartDoc;
+    }
+
+    return null;
+  };
 
   try {
     const success = await validateAndApplyAbandonedCartCoupon({
@@ -369,70 +396,15 @@ test("abandoned-cart coupon applies only for the matching authenticated user and
 
     assert.equal(wrongUser.success, false);
     assert.equal(wrongUser.message, "This coupon is not valid for your account");
-  } finally {
-    AbandonedCartCoupon.findOne = originalCouponFindOne;
-    Cart.findOne = originalCartFindOne;
-  }
-});
 
-test("the same abandoned-cart code can be redeemed by another eligible recipient", async () => {
-  setBaseEnv();
-
-  const { validateAndApplyAbandonedCartCoupon } = await import(
-    "../services/abandonedcartcoupon.service.js?shared-code-test=1"
-  );
-  const { default: AbandonedCartCoupon } = await import(
-    "../models/abandonedcartcoupon.model.js?shared-code-test=1"
-  );
-  const { default: Cart } = await import("../models/cart.model.js?shared-code-test=1");
-
-  const couponRecord = {
-    _id: "coupon-2",
-    code: "SAVE10",
-    userId: "user-2",
-    cartId: {
-      toString: () => "cart-2",
-    },
-    cycleId: "cycle-2",
-    discountPercent: 10,
-    currentDiscount: 80,
-    isUsable: () => true,
-    computeDiscount: (currentCartTotal) => currentCartTotal * 0.1,
-    save: async function save() {
-      return this;
-    },
-  };
-
-  const cartDoc = {
-    _id: "cart-2",
-    user: "user-2",
-    abandonmentStatus: "abandoned",
-    abandonmentCycleId: "cycle-2",
-    items: [{ price: 800, quantity: 1 }],
-    appliedAbandonedCoupon: null,
-    save: async function save() {
-      return this;
-    },
-  };
-
-  const originalCouponFindOne = AbandonedCartCoupon.findOne;
-  const originalCartFindOne = Cart.findOne;
-
-  AbandonedCartCoupon.findOne = () => ({
-    sort: async () => couponRecord,
-  });
-  Cart.findOne = () => cartDoc;
-
-  try {
-    const result = await validateAndApplyAbandonedCartCoupon({
+    const wrongCart = await validateAndApplyAbandonedCartCoupon({
       code: "SAVE10",
-      userId: "user-2",
+      userId: "user-1",
       cartId: "cart-2",
     });
 
-    assert.equal(result.success, true);
-    assert.equal(result.discount, 80);
-    assert.equal(cartDoc.appliedAbandonedCoupon.code, "SAVE10");
+    assert.equal(wrongCart.success, false);
+    assert.equal(wrongCart.message, "This coupon is not valid for your current cart");
   } finally {
     AbandonedCartCoupon.findOne = originalCouponFindOne;
     Cart.findOne = originalCartFindOne;

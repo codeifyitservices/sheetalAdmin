@@ -2,7 +2,6 @@ import Review from "../models/review.model.js";
 import Product from "../models/product.model.js";
 import Order from "../models/order.model.js";
 import ProductView from "../models/productView.model.js";
-import slugify from "slugify";
 import Category from "../models/category.model.js";
 import { deleteFile, deleteS3File, uploadS3File } from "../utils/fileHelper.js";
 import { config } from "../config/config.js";
@@ -20,6 +19,10 @@ import {
   sanitizeProductRecord,
 } from "../utils/productHtmlSanitizer.js";
 import { spreadsheetCellToHtml } from "../utils/spreadsheetRichText.js";
+import {
+  generateUniqueProductSlug,
+  sanitizeProductSlug,
+} from "../utils/productSlug.js";
 import Enquiry from "../models/enquiry.model.js";
 import { sendAvailabilityEmail } from "./enquiry.service.js";
 
@@ -246,18 +249,32 @@ export const getAllProductsService = async (queryStr) => {
     }),
       {
         $sort: (() => {
+          const searchSort =
+            searchProductIds.length > 0 ? { _searchRank: 1 } : {};
+
+          // Strip the "-isStarred," prefix the frontend sends
+          const stripStarred = (s) => {
+            if (!s) return s;
+            return s.replace(/^-?isStarred[, ]+/, "").trim();
+          };
+          const effectiveSort = stripStarred(sort);
+
           const userSort = (() => {
-            if (!sort) return { createdAt: -1 };
-            if (typeof sort === "object") return sort;
-            if (sort === "newest") return { createdAt: -1 };
-            if (sort === "price_asc") return { "variants.sizes.price": 1 };
-            if (sort === "price_desc") return { "variants.sizes.price": -1 };
-            if (sort === "popularity") return { averageRating: -1 };
-            if (sort.startsWith("-")) return { [sort.substring(1)]: -1 };
-            return { [sort]: 1 };
+            if (!effectiveSort) return { createdAt: -1 };
+            if (typeof effectiveSort === "object") return effectiveSort;
+            if (effectiveSort === "newest") return { createdAt: -1 };
+            if (effectiveSort === "price_asc")
+              return { "variants.sizes.price": 1 };
+            if (effectiveSort === "price_desc")
+              return { "variants.sizes.price": -1 };
+            if (effectiveSort === "popularity") return { averageRating: -1 };
+            if (effectiveSort.startsWith("-"))
+              return { [effectiveSort.substring(1)]: -1 };
+            return { [effectiveSort]: 1 };
           })();
 
-          return { isStarred: -1, ...userSort };
+          // isStarred always first, then search rank, then user sort
+          return { isStarred: -1, ...searchSort, ...userSort };
         })(),
       });
   }
@@ -343,35 +360,27 @@ export const getAllProductsService = async (queryStr) => {
       $sort: (() => {
         const searchSort =
           searchProductIds.length > 0 ? { _searchRank: 1 } : {};
-        if (!sort)
-          return searchProductIds.length > 0 ? searchSort : { createdAt: -1 };
-        if (typeof sort === "object") return sort;
-        if (sort === "newest")
-          return searchProductIds.length > 0
-            ? { ...searchSort, createdAt: -1 }
-            : { createdAt: -1 };
-        if (sort === "price_asc")
-          return searchProductIds.length > 0
-            ? { ...searchSort, "variants.sizes.price": 1 }
-            : { "variants.sizes.price": 1 };
-        if (sort === "price_desc")
-          return searchProductIds.length > 0
-            ? { ...searchSort, "variants.sizes.price": -1 }
-            : { "variants.sizes.price": -1 };
-        if (sort === "popularity")
-          return searchProductIds.length > 0
-            ? { ...searchSort, averageRating: -1 }
-            : { averageRating: -1 };
-        if (sort.startsWith("-"))
-          return searchProductIds.length > 0
-            ? { ...searchSort, [sort.substring(1)]: -1 }
-            : { [sort.substring(1)]: -1 };
-        return searchProductIds.length > 0
-          ? { ...searchSort, [sort]: 1 }
-          : { [sort]: 1 };
+
+        const userSort = (() => {
+          if (!sort) return { createdAt: -1 };
+          if (typeof sort === "object") return sort;
+          if (sort === "newest") return { createdAt: -1 };
+          if (sort === "price_asc") return { "variants.sizes.price": 1 };
+          if (sort === "price_desc") return { "variants.sizes.price": -1 };
+          if (sort === "popularity") return { averageRating: -1 };
+          if (sort.startsWith("-")) return { [sort.substring(1)]: -1 };
+          return { [sort]: 1 };
+        })();
+
+        return { isStarred: -1, ...searchSort, ...userSort };
       })(),
     },
   ];
+  console.log("SORT PARAM RECEIVED:", sort);
+  console.log(
+    "PIPELINE SORT STAGE:",
+    JSON.stringify(pipeline[pipeline.length - 1]),
+  );
 
   const [result] = await Product.aggregate([
     {
@@ -430,8 +439,11 @@ export const getNewArrivalsService = async () => {
 };
 
 export const getProductDetailsService = async (id) => {
-  const query = id.match(/^[0-9a-fA-F]{24}$/) ? { _id: id } : { slug: id };
-  const product = await Product.findOne(query)
+  const isObjectId = id.match(/^[0-9a-fA-F]{24}$/);
+  const lookupSlug = isObjectId ? null : sanitizeProductSlug(id);
+  let resolvedFromSlug = null;
+  const query = isObjectId ? { _id: id } : { slug: lookupSlug };
+  let product = await Product.findOne(query)
     .populate({
       path: "category",
       select: "name slug sizeChart",
@@ -441,8 +453,33 @@ export const getProductDetailsService = async (id) => {
     })
     .populate("sizeChart")
     .lean();
+
+  if (!product && !isObjectId) {
+    product = await Product.findOne({ previousSlugs: lookupSlug })
+      .populate({
+        path: "category",
+        select: "name slug sizeChart",
+        populate: {
+          path: "sizeChart",
+        },
+      })
+      .populate("sizeChart")
+      .lean();
+
+    if (product) {
+      resolvedFromSlug = lookupSlug;
+    }
+  }
+
   return product
-    ? { success: true, product: sanitizeProductRecord(product) }
+    ? {
+        success: true,
+        product: sanitizeProductRecord(product),
+        redirectSlug:
+          resolvedFromSlug && product.slug !== resolvedFromSlug
+            ? product.slug
+            : null,
+      }
     : { success: false, statusCode: 404 };
 };
 
@@ -507,11 +544,15 @@ export const createProductService = async (data, files, userId) => {
     const category = await Category.findById(parsedData.category).select(
       "gstPercent",
     );
-    parsedData.gstPercent = category?.gstPercent || await getGlobalTax();
+    parsedData.gstPercent = category?.gstPercent || (await getGlobalTax());
   }
 
   parsedData.description = sanitizeProductHtml(parsedData.description || "");
   parsedData.materialCare = sanitizeProductHtml(parsedData.materialCare || "");
+  parsedData.slug = await generateUniqueProductSlug(
+    Product,
+    parsedData.slug || parsedData.name || "product",
+  );
 
   const mainImage = {
     url: files?.mainImage
@@ -608,7 +649,7 @@ export const createProductService = async (data, files, userId) => {
 
   const product = await Product.create({
     ...parsedData,
-    slug: slugify(parsedData.name || "product", { lower: true, strict: true }),
+    previousSlugs: [],
     mainImage,
     hoverImage,
     ogImage,
@@ -693,14 +734,33 @@ export const updateProductService = async (id, data, files) => {
     const category = await Category.findById(parsedData.category).select(
       "gstPercent",
     );
-    parsedData.gstPercent = category?.gstPercent || await getGlobalTax();
+    parsedData.gstPercent = category?.gstPercent || (await getGlobalTax());
   }
 
   parsedData.description = sanitizeProductHtml(parsedData.description || "");
   parsedData.materialCare = sanitizeProductHtml(parsedData.materialCare || "");
+  const currentSlug = product.slug;
+  const incomingSlugValue =
+    typeof data.slug === "string" ? data.slug.trim() : undefined;
 
-  if (parsedData.name) {
-    parsedData.slug = slugify(parsedData.name, { lower: true, strict: true });
+  if (incomingSlugValue !== undefined) {
+    const sanitizedSlug = sanitizeProductSlug(
+      incomingSlugValue || parsedData.name || currentSlug,
+    );
+
+    if (sanitizedSlug !== currentSlug) {
+      parsedData.slug = await generateUniqueProductSlug(Product, sanitizedSlug, {
+        excludeProductId: product._id,
+      });
+      parsedData.previousSlugs = Array.from(
+        new Set([...(product.previousSlugs || []), currentSlug]),
+      );
+    } else {
+      parsedData.slug = currentSlug;
+      parsedData.previousSlugs = (product.previousSlugs || []).filter(
+        (slug) => slug !== currentSlug,
+      );
+    }
   }
 
   if (files && files["mainImage"]?.[0]) {
@@ -1221,9 +1281,6 @@ const bulkImportRowBasedService = async (files, userId) => {
     categoryMap.set(c.name.toLowerCase().trim(), c);
   });
 
-  const existingSlugs = new Set(
-    (await Product.find({}, { slug: 1 }).lean()).map((p) => p.slug),
-  );
   const existingSkus = new Set(
     (await Product.find({}, { sku: 1 }).lean()).map((p) => p.sku),
   );
@@ -1456,18 +1513,9 @@ const bulkImportRowBasedService = async (files, userId) => {
         );
       });
 
-      let slug = slugify(name, { lower: true, strict: true });
-      if (existingSlugs.has(slug) || batchSlugs.has(slug)) {
-        const base = slug;
-        let suffix = 1;
-        while (
-          existingSlugs.has(`${base}-${suffix}`) ||
-          batchSlugs.has(`${base}-${suffix}`)
-        ) {
-          suffix++;
-        }
-        slug = `${base}-${suffix}`;
-      }
+      const slug = await generateUniqueProductSlug(Product, name, {
+        reservedSlugs: batchSlugs,
+      });
 
       const isTrue = (val) => {
         if (val === true || val === "true" || val === 1 || val === "1")
@@ -1480,6 +1528,7 @@ const bulkImportRowBasedService = async (files, userId) => {
         name,
         sku,
         slug,
+        previousSlugs: [],
         description: item.Description,
         shortDescription: item.ShortDescription || "",
         materialCare: item.MaterialCare,
@@ -1502,7 +1551,7 @@ const bulkImportRowBasedService = async (files, userId) => {
         isNewArrival: isTrue(item.NewArrival),
         isCollection: isTrue(item.Collection),
         isStarred: isTrue(item.Starred),
-        gstPercent: categoryDoc?.gstPercent || await getGlobalTax(),
+        gstPercent: categoryDoc?.gstPercent || (await getGlobalTax()),
         lowStockThreshold: Number(item.Threshold) || 5,
         brandInfo: item.BrandInfo || "",
         warranty: item.Warranty || "No Warranty",
@@ -2081,13 +2130,21 @@ export const incrementViewCountService = async (id) => {
     };
   }
 
-  const query = id.match(/^[0-9a-fA-F]{24}$/) ? { _id: id } : { slug: id };
-
-  const product = await Product.findOneAndUpdate(
-    query,
+  const isObjectId = id.match(/^[0-9a-fA-F]{24}$/);
+  const lookupSlug = isObjectId ? null : sanitizeProductSlug(id);
+  let product = await Product.findOneAndUpdate(
+    isObjectId ? { _id: id } : { slug: lookupSlug },
     { $inc: { viewCount: 1 } },
     { new: true },
   );
+
+  if (!product && !isObjectId) {
+    product = await Product.findOneAndUpdate(
+      { previousSlugs: lookupSlug },
+      { $inc: { viewCount: 1 } },
+      { new: true },
+    );
+  }
 
   if (!product) {
     return { success: false, statusCode: 404 };

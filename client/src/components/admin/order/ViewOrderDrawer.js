@@ -1,4 +1,5 @@
 "use client";
+import Link from "next/link";
 import {
   X,
   Package,
@@ -10,10 +11,15 @@ import {
   AlertCircle,
   Tag,
   Hash,
+  FileText,
+  Download,
 } from "lucide-react";
 
 export default function ViewOrderDrawer({ isOpen, onClose, order }) {
   if (!isOpen || !order) return null;
+
+  const invoiceHref = `/admin/orders/${order._id}/invoice`;
+  const invoiceDownloadHref = `${invoiceHref}?print=1`;
 
   // Timeline logic
   const getTimeline = () => {
@@ -301,6 +307,25 @@ export default function ViewOrderDrawer({ isOpen, onClose, order }) {
 
             {/* 5. Pricing Summary with Discount */}
             <div className="bg-slate-900 rounded-3xl p-6 text-white space-y-4 shadow-2xl shadow-slate-200">
+              <div className="flex flex-wrap gap-2 no-print">
+                <Link
+                  href={invoiceHref}
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center gap-2 rounded-xl border border-white/15 bg-white/10 px-4 py-2 text-[11px] font-black uppercase tracking-wide text-white transition-all hover:bg-white/20"
+                >
+                  <FileText size={13} />
+                  View Invoice
+                </Link>
+                <Link
+                  href={invoiceDownloadHref}
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center gap-2 rounded-xl border border-emerald-300/30 bg-emerald-500/15 px-4 py-2 text-[11px] font-black uppercase tracking-wide text-emerald-100 transition-all hover:bg-emerald-500/25"
+                >
+                  <Download size={13} />
+                  Download Invoice
+                </Link>
+              </div>
+
               <div className="space-y-2 pb-4 border-b border-white/10">
                 <div className="flex justify-between text-[11px] font-bold text-slate-400 uppercase tracking-widest">
                   <span>Subtotal</span>
