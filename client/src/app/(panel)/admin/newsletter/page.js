@@ -1,17 +1,21 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Check, ChevronDown, Mail, Trash2 } from "lucide-react";
+import { Check, ChevronDown, Mail, RefreshCw, Trash2 } from "lucide-react";
 import toast from "react-hot-toast";
 
+import DateRangeControl from "@/components/admin/common/DateRangeControl";
 import PageHeader from "@/components/admin/layout/PageHeader";
+import ReportExportMenu from "@/components/admin/common/ReportExportMenu";
 import DeleteConfirmModal from "@/components/admin/common/DeleteConfirmModal";
+import { useDateRange } from "@/hooks/useDateRange";
 import {
   deleteSubscriber,
   fetchSubscribers,
   formatSubscriberDate,
   updateSubscriberStatus,
 } from "@/services/newsletterService";
+import { downloadCsvReport, downloadPdfReport } from "@/utils/reportExport";
 
 const STATUS_OPTIONS = ["All", "New", "Added"];
 
@@ -39,30 +43,40 @@ export default function NewsletterPage() {
   const [sortBy, setSortBy] = useState("latest");
   const [pendingAction, setPendingAction] = useState(null);
   const [subscriberToDelete, setSubscriberToDelete] = useState(null);
+  const [isExporting, setIsExporting] = useState(null);
+  const {
+    rangeType,
+    setRangeType,
+    customStartDate,
+    setCustomStartDate,
+    customEndDate,
+    setCustomEndDate,
+    dateRange,
+    dateRangeLabel,
+  } = useDateRange("last_30_days");
 
   const abortRef = useRef(null);
+
+  const loadSubscribers = async (signal) => {
+    setIsLoading(true);
+    try {
+      const data = await fetchSubscribers(signal);
+      if (signal?.aborted) return;
+      setSubscribers(data);
+    } catch (error) {
+      if (error.name === "AbortError" || error.code === "ERR_CANCELED") return;
+      toast.error("Failed to load newsletter subscribers");
+    } finally {
+      if (!signal?.aborted) {
+        setIsLoading(false);
+      }
+    }
+  };
 
   useEffect(() => {
     const controller = new AbortController();
     abortRef.current = controller;
-
-    const loadSubscribers = async () => {
-      setIsLoading(true);
-      try {
-        const data = await fetchSubscribers(controller.signal);
-        if (controller.signal.aborted) return;
-        setSubscribers(data);
-      } catch (error) {
-        if (error.name === "AbortError" || error.code === "ERR_CANCELED") return;
-        toast.error("Failed to load newsletter subscribers");
-      } finally {
-        if (!controller.signal.aborted) {
-          setIsLoading(false);
-        }
-      }
-    };
-
-    loadSubscribers();
+    void loadSubscribers(controller.signal);
 
     return () => controller.abort();
   }, []);
@@ -73,22 +87,30 @@ export default function NewsletterPage() {
         ? [...subscribers]
         : subscribers.filter((subscriber) => subscriber.status === statusFilter);
 
+    const startTime = new Date(dateRange.startDate).setHours(0, 0, 0, 0);
+    const endTime = new Date(dateRange.endDate).setHours(23, 59, 59, 999);
+
+    const dateFiltered = filtered.filter((subscriber) => {
+      const createdTime = new Date(subscriber.createdAt).getTime();
+      return !Number.isNaN(createdTime) && createdTime >= startTime && createdTime <= endTime;
+    });
+
     if (sortBy === "latest" || sortBy === "oldest") {
-      filtered.sort((a, b) => {
+      dateFiltered.sort((a, b) => {
         const diff = new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime();
         return sortBy === "latest" ? -diff : diff;
       });
-      return filtered;
+      return dateFiltered;
     }
 
     const priority = STATUS_PRIORITY[sortBy] || STATUS_PRIORITY.new;
-    filtered.sort((a, b) => {
+    dateFiltered.sort((a, b) => {
       const rankDiff = (priority[a.status] ?? 99) - (priority[b.status] ?? 99);
       if (rankDiff !== 0) return rankDiff;
       return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
     });
-    return filtered;
-  }, [statusFilter, sortBy, subscribers]);
+    return dateFiltered;
+  }, [dateRange.endDate, dateRange.startDate, sortBy, statusFilter, subscribers]);
 
   const counts = useMemo(
     () => ({
@@ -134,12 +156,106 @@ export default function NewsletterPage() {
     }
   };
 
+  const handleExportExcel = async () => {
+    if (!visibleSubscribers.length) {
+      toast.error("No subscribers to export");
+      return;
+    }
+
+    setIsExporting("excel");
+    try {
+      downloadCsvReport({
+        filename: `newsletter_subscribers_${rangeType}_${new Date().toISOString().split("T")[0]}`,
+        columns: [
+          { key: "email", label: "Email" },
+          { key: "status", label: "Status" },
+          { key: "createdAt", label: "Subscribed On" },
+        ],
+        rows: visibleSubscribers.map((subscriber) => ({
+          email: subscriber.email,
+          status: subscriber.status,
+          createdAt: formatSubscriberDate(subscriber.createdAt),
+        })),
+      });
+      toast.success("Excel export downloaded");
+    } catch {
+      toast.error("Failed to export Excel file");
+    } finally {
+      setIsExporting(null);
+    }
+  };
+
+  const handleExportPdf = async () => {
+    if (!visibleSubscribers.length) {
+      toast.error("No subscribers to export");
+      return;
+    }
+
+    setIsExporting("pdf");
+    try {
+      await downloadPdfReport({
+        filename: `newsletter_subscribers_${rangeType}_${new Date().toISOString().split("T")[0]}`,
+        title: "Newsletter Subscribers",
+        meta: [
+          `Date Range: ${dateRangeLabel}`,
+          `Generated on: ${new Date().toLocaleString()}`,
+          `Subscribers: ${visibleSubscribers.length}`,
+        ],
+        columns: [
+          { key: "email", label: "Email" },
+          { key: "status", label: "Status" },
+          { key: "createdAt", label: "Subscribed On" },
+        ],
+        rows: visibleSubscribers.map((subscriber) => ({
+          email: subscriber.email,
+          status: subscriber.status,
+          createdAt: formatSubscriberDate(subscriber.createdAt),
+        })),
+      });
+      toast.success("PDF export downloaded");
+    } catch {
+      toast.error("Failed to export PDF file");
+    } finally {
+      setIsExporting(null);
+    }
+  };
+
   return (
     <div className="space-y-6 animate-in fade-in duration-500">
       <PageHeader
         title="Newsletter Subscribers"
-        subtitle="Review newsletter signups, update their status, and manage the list."
+        subtitle={dateRangeLabel}
+        action={
+          <div className="flex items-center gap-2">
+            <ReportExportMenu
+              disabled={isLoading || visibleSubscribers.length === 0}
+              busy={isExporting !== null}
+              onExportPdf={handleExportPdf}
+              onExportExcel={handleExportExcel}
+            />
+            <button
+              type="button"
+              onClick={() => void loadSubscribers(abortRef.current?.signal)}
+              disabled={isLoading}
+              className="flex items-center gap-2 px-4 py-2.5 bg-slate-900 hover:bg-black text-white rounded-xl text-sm font-bold transition-all cursor-pointer disabled:opacity-50 active:scale-95"
+            >
+              <RefreshCw size={15} className={isLoading ? "animate-spin" : ""} />
+              Refresh
+            </button>
+          </div>
+        }
       />
+
+      <div className="mb-6 rounded-2xl border border-slate-200 bg-white px-4 py-4 shadow-sm">
+        <DateRangeControl
+          rangeType={rangeType}
+          customStartDate={customStartDate}
+          customEndDate={customEndDate}
+          onRangeTypeChange={setRangeType}
+          onCustomStartDateChange={setCustomStartDate}
+          onCustomEndDateChange={setCustomEndDate}
+        />
+      </div>
 
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
         <StatCard label="Total Subscribers" value={counts.total} tone="slate" />
