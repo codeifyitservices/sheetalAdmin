@@ -23,47 +23,40 @@ export const createOrderService = async (data, userId) => {
     recoveryCartId = null,
     recoveryCycleId = null,
   } = data;
-  const user = await User.findById(userId).lean();
+
   const isBuyNow = Array.isArray(buyNowItems) && buyNowItems.length > 0;
 
-  // 1. Stock check and update
-  for (const item of orderItems) {
-    const product = await Product.findById(item.product);
+  // 1. Parallel pre-checks and data fetching
+  const [user, abandonedCartCouponRecordId] = await Promise.all([
+    User.findById(userId).lean(),
+    !isBuyNow
+      ? Cart.findOne({ user: userId }).lean().then(cart => cart?.appliedAbandonedCoupon?.couponRecordId ?? null)
+      : Promise.resolve(null)
+  ]);
+
+  if (!user) throw new ErrorResponse("User not found", 404);
+
+  // 2. Atomic Stock check and update in parallel
+  await Promise.all(orderItems.map(async (item) => {
+    const product = await Product.findOneAndUpdate(
+      { _id: item.product, stock: { $gte: item.quantity } },
+      {
+        $inc: {
+          stock: -item.quantity,
+          "orderStats.totalOrders": item.quantity,
+          "orderStats.totalRevenue": item.quantity * item.price
+        }
+      },
+      { new: true, validateBeforeSave: false }
+    );
 
     if (!product) {
-      throw new ErrorResponse(
-        `Product not found with ID: ${item.product}`,
-        404,
-      );
+      // If product not found or insufficient stock
+      const checkProduct = await Product.findById(item.product).lean();
+      if (!checkProduct) throw new ErrorResponse(`Product not found: ${item.product}`, 404);
+      throw new ErrorResponse(`${checkProduct.name} ka stock khatam hai! (Available: ${checkProduct.stock})`, 400);
     }
-
-    if (product.stock < item.quantity) {
-      throw new ErrorResponse(
-        `${product.name} ka stock khatam hai! (Available: ${product.stock})`,
-        400,
-      );
-    }
-
-    product.stock -= item.quantity;
-    product.orderStats.totalOrders += item.quantity;
-    product.orderStats.totalRevenue += item.quantity * item.price;
-
-    await product.save({ validateBeforeSave: false });
-  }
-
-  // 2. Resolve the abandoned-cart coupon record id from the user's cart so we
-  //    can redeem it after the order is persisted. We look this up before
-  //    creating the order because completeAbandonedCartFlow() clears the cart.
-  let abandonedCartCouponRecordId = null;
-  if (!isBuyNow) {
-    try {
-      const cart = await Cart.findOne({ user: userId }).lean();
-      abandonedCartCouponRecordId =
-        cart?.appliedAbandonedCoupon?.couponRecordId ?? null;
-    } catch {
-      // Non-fatal — order creation proceeds even if we can't read the cart.
-    }
-  }
+  }));
 
   // 3. Build order document
   const finalOrderData = {
@@ -81,8 +74,7 @@ export const createOrderService = async (data, userId) => {
     billingAddress: {
       fullName: billingAddress?.fullName || shippingAddress.fullName,
       phoneNumber: billingAddress?.phoneNumber || shippingAddress.phoneNumber,
-      addressLine1:
-        billingAddress?.addressLine1 || shippingAddress.addressLine1,
+      addressLine1: billingAddress?.addressLine1 || shippingAddress.addressLine1,
       city: billingAddress?.city || shippingAddress.city,
       state: billingAddress?.state || shippingAddress.state,
       postalCode: billingAddress?.postalCode || shippingAddress.postalCode,
@@ -92,9 +84,7 @@ export const createOrderService = async (data, userId) => {
       id: paymentInfo?.id || `manual_${Date.now()}`,
       status: paymentInfo?.status || "Pending",
       method: paymentInfo?.method || "COD",
-      displayMethod:
-        paymentInfo?.displayMethod ||
-        (paymentInfo?.method === "COD" ? "Cash on Delivery" : "Online"),
+      displayMethod: paymentInfo?.displayMethod || (paymentInfo?.method === "COD" ? "Cash on Delivery" : "Online"),
     },
     couponId: data.couponId || null,
     couponCode: data.couponCode || "",
@@ -113,91 +103,48 @@ export const createOrderService = async (data, userId) => {
     paidAt: paymentInfo?.method === "Online" ? Date.now() : null,
   };
 
-  // 4. Persist
+  // 4. Persist Order
   const order = await Order.create(finalOrderData);
 
-  // 5. Push order reference into user
-  try {
-    await User.findByIdAndUpdate(userId, { $push: { orders: order._id } });
-  } catch (userUpdateErr) {
-    console.error(
-      `[Order] Failed to push order ref to user ${userId}:`,
-      userUpdateErr.message,
-    );
-  }
-
-  // 6. COD post-creation flow
-  if (order.paymentInfo?.method === "COD") {
-    // 6a. Redeem abandoned-cart coupon (if one was applied).
-    //     Must happen before confirmCouponUsageForOrder so both paths don't
-    //     double-count the same discount.
-    if (abandonedCartCouponRecordId) {
-      try {
-        await redeemAbandonedCartCoupon({
-          couponRecordId: abandonedCartCouponRecordId,
-          orderId: order._id,
-        });
-      } catch (couponErr) {
-        console.error(
-          `[AbandonedCartCoupon] Failed to redeem coupon for order ${order._id}:`,
-          couponErr.message,
-        );
-      }
-    } else {
-      // 6b. Regular coupon usage confirmation.
-      await confirmCouponUsageForOrder(order);
-    }
-
-    // 6c. Clear cart
-    if (!isBuyNow) {
-      try {
-        await Cart.findOneAndUpdate({ user: userId }, { $set: { items: [] } });
-      } catch (cartErr) {
-        console.error(
-          `[COD] Failed to clear cart for user ${userId}:`,
-          cartErr.message,
-        );
-      }
-    }
-
-    // 6d. Push to Shiprocket
+  // 5. Background / Non-blocking tasks
+  setImmediate(async () => {
     try {
-      const { shiprocketOrderId, shipmentId } = await createShiprocketOrder(
-        order,
-        user,
-      );
-      await Order.findByIdAndUpdate(order._id, {
-        shiprocketOrderId,
-        shipmentId,
-      });
-      order.shiprocketOrderId = shiprocketOrderId;
-      order.shipmentId = shipmentId;
-    } catch (srError) {
-      console.error(
-        `[Shiprocket] Failed to push COD order ${order._id}:`,
-        srError.message,
-      );
-    }
+      // 5a. Push order reference into user
+      await User.findByIdAndUpdate(userId, { $push: { orders: order._id } }).catch(err => console.error("[Background] User Update Error:", err.message));
 
-    // 6e. Complete abandoned-cart flow (cancels any remaining reminders)
-    try {
-      await completeAbandonedCartFlow({ userId });
-    } catch (abandonErr) {
-      console.error(
-        `[AbandonedCart] Failed to complete flow for user ${userId}:`,
-        abandonErr.message,
-      );
-    }
-  }
+      // 5b. Handle Coupon & Cart
+      if (order.paymentInfo?.method === "COD") {
+        if (abandonedCartCouponRecordId) {
+          await redeemAbandonedCartCoupon({ couponRecordId: abandonedCartCouponRecordId, orderId: order._id }).catch(err => console.error("[Background] Coupon Redeem Error:", err.message));
+        } else if (order.couponCode) {
+          await confirmCouponUsageForOrder(order).catch(err => console.error("[Background] Coupon Confirm Error:", err.message));
+        }
 
-  try {
-    await sendOrderConfirmationEmail({ order, user });
-  } catch (emailErr) {
-    console.error(
-      `[OrderEmail] Failed to send confirmation email for order ${order._id}:`,
-      emailErr.message,
-    );
-  }
+        if (!isBuyNow) {
+          await Cart.findOneAndUpdate({ user: userId }, { $set: { items: [] } }).catch(err => console.error("[Background] Cart Clear Error:", err.message));
+        }
+      }
+
+      // 5c. Shiprocket Integration
+      if (order.paymentInfo?.method === "COD" || order.paymentInfo?.status === "Paid") {
+        try {
+          const { shiprocketOrderId, shipmentId } = await createShiprocketOrder(order, user);
+          await Order.findByIdAndUpdate(order._id, { shiprocketOrderId, shipmentId });
+        } catch (srError) {
+          console.error(`[Background] Shiprocket Error for order ${order._id}:`, srError.message);
+        }
+      }
+
+      // 5d. Abandoned Cart Flow Completion
+      await completeAbandonedCartFlow({ userId }).catch(err => console.error("[Background] Abandoned Cart Flow Error:", err.message));
+
+      // 5e. Order Confirmation Email
+      await sendOrderConfirmationEmail({ order, user }).catch(err => console.error("[Background] Email Error:", err.message));
+
+    } catch (bgError) {
+      console.error("[Order Background Task Critical Failure]:", bgError);
+    }
+  });
 
   return order;
 };

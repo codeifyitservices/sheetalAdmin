@@ -1,6 +1,7 @@
 "use client";
 
 import { useEditor, EditorContent } from "@tiptap/react";
+import { createPortal } from "react-dom";
 import StarterKit from "@tiptap/starter-kit";
 import { Extension } from "@tiptap/core";
 import Underline from "@tiptap/extension-underline";
@@ -123,7 +124,11 @@ const normalizeMarkdownInline = (text = "") => {
   while (i < source.length) {
     if (source[i] === "*" && source[i + 1] === "*") {
       const end = source.indexOf("**", i + 2);
-      if (end === -1) { output += escapeHtml("**"); i += 2; continue; }
+      if (end === -1) {
+        output += escapeHtml("**");
+        i += 2;
+        continue;
+      }
       output += `<strong>${normalizeMarkdownInline(source.slice(i + 2, end))}</strong>`;
       i = end + 2;
       continue;
@@ -131,7 +136,11 @@ const normalizeMarkdownInline = (text = "") => {
     if (source[i] === "*" || source[i] === "_") {
       const marker = source[i];
       const end = source.indexOf(marker, i + 1);
-      if (end === -1) { output += escapeHtml(marker); i += 1; continue; }
+      if (end === -1) {
+        output += escapeHtml(marker);
+        i += 1;
+        continue;
+      }
       output += `<em>${normalizeMarkdownInline(source.slice(i + 1, end))}</em>`;
       i = end + 1;
       continue;
@@ -146,30 +155,45 @@ const normalizeMarkdownInline = (text = "") => {
 };
 
 const markdownToHtml = (input = "") => {
-  const lines = String(input ?? "").replace(/\r\n?/g, "\n").split("\n");
+  const lines = String(input ?? "")
+    .replace(/\r\n?/g, "\n")
+    .split("\n");
   const blocks = [];
   let bullets = [];
 
   const flushBullets = () => {
     if (!bullets.length) return;
-    blocks.push(`<ul>${bullets.map((item) => `<li>${item}</li>`).join("")}</ul>`);
+    blocks.push(
+      `<ul>${bullets.map((item) => `<li>${item}</li>`).join("")}</ul>`,
+    );
     bullets = [];
   };
 
-  const isBullet = (line = "") => /^\s*(?:-|\u2022|\u00B7|\u2013|\u2014)(?:\s+|(?=\S))/.test(line);
-  const stripBullet = (line = "") => line.replace(/^\s*(?:-|\u2022|\u00B7|\u2013|\u2014)\s*/, "");
+  const isBullet = (line = "") =>
+    /^\s*(?:-|\u2022|\u00B7|\u2013|\u2014)(?:\s+|(?=\S))/.test(line);
+  const stripBullet = (line = "") =>
+    line.replace(/^\s*(?:-|\u2022|\u00B7|\u2013|\u2014)\s*/, "");
 
   lines.forEach((line) => {
     const trimmed = line.trim();
-    if (!trimmed) { flushBullets(); blocks.push("<p><br></p>"); return; }
+    if (!trimmed) {
+      flushBullets();
+      blocks.push("<p><br></p>");
+      return;
+    }
     const heading = trimmed.match(/^(#{1,6})\s+([\s\S]+)$/);
     if (heading) {
       flushBullets();
       const level = heading[1].length;
-      blocks.push(`<h${level}>${normalizeMarkdownInline(heading[2].trim())}</h${level}>`);
+      blocks.push(
+        `<h${level}>${normalizeMarkdownInline(heading[2].trim())}</h${level}>`,
+      );
       return;
     }
-    if (isBullet(trimmed)) { bullets.push(normalizeMarkdownInline(stripBullet(trimmed))); return; }
+    if (isBullet(trimmed)) {
+      bullets.push(normalizeMarkdownInline(stripBullet(trimmed)));
+      return;
+    }
     flushBullets();
     blocks.push(`<p>${normalizeMarkdownInline(line)}</p>`);
   });
@@ -190,7 +214,10 @@ const markdownToFragment = (doc, text = "") => {
 const applyMarkdownToHtml = (html) => {
   if (typeof document === "undefined") return html;
   const parser = new DOMParser();
-  const doc = parser.parseFromString(`<div id="root">${html}</div>`, "text/html");
+  const doc = parser.parseFromString(
+    `<div id="root">${html}</div>`,
+    "text/html",
+  );
   const root = doc.getElementById("root");
   if (!root) return html;
   const walker = doc.createTreeWalker(root, NodeFilter.SHOW_TEXT);
@@ -201,7 +228,8 @@ const applyMarkdownToHtml = (html) => {
     const text = node.nodeValue || "";
     const parentTag = node.parentElement?.tagName?.toLowerCase();
     if (["script", "style"].includes(parentTag)) return;
-    if (!text.includes("*") && !text.includes("_") && !text.includes("#")) return;
+    if (!text.includes("*") && !text.includes("_") && !text.includes("#"))
+      return;
     const fragment = markdownToFragment(doc, text);
     node.parentNode?.replaceChild(fragment, node);
   });
@@ -212,12 +240,25 @@ const normalizeHtmlString = (input = "") => {
   if (!input) return "";
   if (/<[a-z][\s\S]*>/i.test(input)) {
     let html = input
-      .replace(/<(?:b|strong)\b[^>]*>([\s\S]*?)<\/(?:b|strong)>/gi, "<strong>$1</strong>")
+      .replace(
+        /<(?:b|strong)\b[^>]*>([\s\S]*?)<\/(?:b|strong)>/gi,
+        "<strong>$1</strong>",
+      )
       .replace(/<(?:i|em)\b[^>]*>([\s\S]*?)<\/(?:i|em)>/gi, "<em>$1</em>")
-      .replace(/<p[^>]*>\s*([-\u2022\u00B7\u2013\u2014])\s*([\s\S]*?)<\/p>/gi, "<ul><li>$2</li></ul>")
-      .replace(/<div[^>]*>\s*([-\u2022\u00B7\u2013\u2014])\s*([\s\S]*?)<\/div>/gi, "<ul><li>$2</li></ul>");
+      .replace(
+        /<p[^>]*>\s*([-\u2022\u00B7\u2013\u2014])\s*([\s\S]*?)<\/p>/gi,
+        "<ul><li>$2</li></ul>",
+      )
+      .replace(
+        /<div[^>]*>\s*([-\u2022\u00B7\u2013\u2014])\s*([\s\S]*?)<\/div>/gi,
+        "<ul><li>$2</li></ul>",
+      );
     html = applyMarkdownToHtml(html);
-    if (/^\s*<(?:p|div|h[1-6]|blockquote|ul|ol|li|table|thead|tbody|tfoot|tr|th|td|pre|hr)\b/i.test(html)) {
+    if (
+      /^\s*<(?:p|div|h[1-6]|blockquote|ul|ol|li|table|thead|tbody|tfoot|tr|th|td|pre|hr)\b/i.test(
+        html,
+      )
+    ) {
       return html;
     }
     return `<p>${html}</p>`;
@@ -239,6 +280,11 @@ const LinkModal = ({ isOpen, onClose, onConfirm, initialUrl, initialText }) => {
   const [text, setText] = useState(initialText || "");
   const inputRef = useRef(null);
 
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
   useEffect(() => {
     if (isOpen) {
       setUrl(initialUrl || "");
@@ -247,46 +293,72 @@ const LinkModal = ({ isOpen, onClose, onConfirm, initialUrl, initialText }) => {
     }
   }, [isOpen, initialUrl, initialText]);
 
-  if (!isOpen) return null;
-
   const handleSubmit = (e) => {
-    e.preventDefault();
+    if (e) {
+      e.preventDefault();
+      e.stopPropagation();
+      if (e.nativeEvent) e.nativeEvent.stopImmediatePropagation();
+    }
     onConfirm({ url: url.trim(), text: text.trim() });
   };
 
-  return (
+  const handleKeyDown = (e) => {
+    if (e.key === "Enter") {
+      e.preventDefault();
+      e.stopPropagation();
+      if (e.nativeEvent) e.nativeEvent.stopImmediatePropagation();
+      handleSubmit();
+    }
+  };
+
+  if (!isOpen || !mounted) return null;
+
+  return createPortal(
     <div className="fixed inset-0 z-[100] flex items-center justify-center">
-      <div className="absolute inset-0 bg-black/40" onClick={onClose} />
+      <div
+        className="absolute inset-0 bg-black/40"
+        onClick={(e) => {
+          e.stopPropagation();
+          onClose();
+        }}
+      />
       <div className="relative bg-white rounded-xl shadow-2xl p-6 w-full max-w-md mx-4 z-10">
-        <h3 className="text-lg font-semibold text-slate-800 mb-4">Insert Link</h3>
-        <form onSubmit={handleSubmit} className="space-y-3">
+        <h3 className="text-lg font-semibold text-slate-800 mb-4">
+          Insert Link
+        </h3>
+        <div className="space-y-3">
           <div>
-            <label className="block text-sm font-medium text-slate-700 mb-1">URL</label>
+            <label className="block text-sm font-medium text-slate-700 mb-1">
+              URL
+            </label>
             <input
               ref={inputRef}
-              type="url"
+              type="text"
               value={url}
               onChange={(e) => setUrl(e.target.value)}
+              onKeyDown={handleKeyDown}
               placeholder="https://example.com"
-              className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-slate-400"
-              required
+              className="w-full text-black border border-slate-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-slate-400"
             />
           </div>
           <div>
             <label className="block text-sm font-medium text-slate-700 mb-1">
-              Display text <span className="text-slate-400 font-normal">(optional)</span>
+              Display text{" "}
+              <span className="text-slate-400 font-normal">(optional)</span>
             </label>
             <input
               type="text"
               value={text}
               onChange={(e) => setText(e.target.value)}
+              onKeyDown={handleKeyDown}
               placeholder="Link text"
-              className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-slate-400"
+              className="w-full text-black border border-slate-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-slate-400"
             />
           </div>
           <div className="flex gap-2 pt-1">
             <button
-              type="submit"
+              type="button"
+              onClick={handleSubmit}
               className="flex-1 bg-slate-800 text-white rounded-lg py-2 text-sm font-medium hover:bg-slate-700 transition"
             >
               Insert
@@ -299,9 +371,10 @@ const LinkModal = ({ isOpen, onClose, onConfirm, initialUrl, initialText }) => {
               Cancel
             </button>
           </div>
-        </form>
+        </div>
       </div>
-    </div>
+    </div>,
+    document.body,
   );
 };
 
@@ -319,7 +392,11 @@ const ToolbarGroup = ({ children }) => (
 // ---------------------------------------------------------------------------
 const TiptapEditor = ({ value, onChange }) => {
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
-  const [linkModal, setLinkModal] = useState({ open: false, url: "", text: "" });
+  const [linkModal, setLinkModal] = useState({
+    open: false,
+    url: "",
+    text: "",
+  });
   const [, forceUpdate] = useState(0);
 
   const lastSetKeyRef = useRef(contentKey(value));
@@ -338,7 +415,8 @@ const TiptapEditor = ({ value, onChange }) => {
         },
         blockquote: {
           HTMLAttributes: {
-            class: "border-l-4 border-slate-700 pl-4 py-1 my-4 italic bg-slate-50",
+            class:
+              "border-l-4 border-slate-700 pl-4 py-1 my-4 italic bg-slate-50",
           },
         },
       }),
@@ -373,7 +451,8 @@ const TiptapEditor = ({ value, onChange }) => {
       Table.configure({
         resizable: true,
         HTMLAttributes: {
-          class: "border-collapse table-auto w-full my-4 border border-slate-300",
+          class:
+            "border-collapse table-auto w-full my-4 border border-slate-300",
         },
       }),
       TableRow,
@@ -395,9 +474,9 @@ const TiptapEditor = ({ value, onChange }) => {
       },
       // Allow clicking links with Ctrl/Cmd
       handleClick(view, pos, event) {
-        const attrs = view.state.doc.nodeAt(pos)?.marks?.find(
-          (m) => m.type.name === "link"
-        )?.attrs;
+        const attrs = view.state.doc
+          .nodeAt(pos)
+          ?.marks?.find((m) => m.type.name === "link")?.attrs;
         if (attrs?.href && (event.ctrlKey || event.metaKey)) {
           window.open(attrs.href, "_blank", "noopener,noreferrer");
           return true;
@@ -459,7 +538,9 @@ const TiptapEditor = ({ value, onChange }) => {
         editor
           .chain()
           .focus()
-          .insertContent(`<a href="${url}" target="_blank" rel="noopener noreferrer">${text}</a>`)
+          .insertContent(
+            `<a href="${url}" target="_blank" rel="noopener noreferrer">${text}</a>`,
+          )
           .run();
       } else {
         // Apply link to existing selection
@@ -471,7 +552,7 @@ const TiptapEditor = ({ value, onChange }) => {
           .run();
       }
     },
-    [editor]
+    [editor],
   );
 
   const removeLink = useCallback(() => {
@@ -509,140 +590,247 @@ const TiptapEditor = ({ value, onChange }) => {
       <div className="w-full text-left border rounded-lg border-slate-400 shadow-sm relative flex flex-col">
         {/* Toolbar */}
         <div className="flex flex-wrap gap-y-2 p-2 bg-slate-100 border-b border-slate-400 items-center rounded-t-lg sticky top-0 z-10">
-
           <ToolbarGroup>
-            <button type="button" onClick={() => editor.chain().focus().undo().run()}
+            <button
+              type="button"
+              onClick={() => editor.chain().focus().undo().run()}
               disabled={!editor.can().undo()}
-              className="p-2 rounded hover:bg-slate-200 text-slate-700 disabled:opacity-40" title="Undo">
+              className="p-2 rounded hover:bg-slate-200 text-slate-700 disabled:opacity-40"
+              title="Undo"
+            >
               <Undo size={18} />
             </button>
-            <button type="button" onClick={() => editor.chain().focus().redo().run()}
+            <button
+              type="button"
+              onClick={() => editor.chain().focus().redo().run()}
               disabled={!editor.can().redo()}
-              className="p-2 rounded hover:bg-slate-200 text-slate-700 disabled:opacity-40" title="Redo">
+              className="p-2 rounded hover:bg-slate-200 text-slate-700 disabled:opacity-40"
+              title="Redo"
+            >
               <Redo size={18} />
             </button>
           </ToolbarGroup>
 
           <ToolbarGroup>
-            <button type="button"
-              onClick={() => editor.chain().focus().toggleHeading({ level: 1 }).run()}
-              className={btnClass(editor.isActive("heading", { level: 1 }))} title="Heading 1">
+            <button
+              type="button"
+              onClick={() =>
+                editor.chain().focus().toggleHeading({ level: 1 }).run()
+              }
+              className={btnClass(editor.isActive("heading", { level: 1 }))}
+              title="Heading 1"
+            >
               <Heading1 size={18} />
             </button>
-            <button type="button"
-              onClick={() => editor.chain().focus().toggleHeading({ level: 2 }).run()}
-              className={btnClass(editor.isActive("heading", { level: 2 }))} title="Heading 2">
+            <button
+              type="button"
+              onClick={() =>
+                editor.chain().focus().toggleHeading({ level: 2 }).run()
+              }
+              className={btnClass(editor.isActive("heading", { level: 2 }))}
+              title="Heading 2"
+            >
               <Heading2 size={18} />
             </button>
-            <button type="button"
-              onClick={() => editor.chain().focus().toggleHeading({ level: 3 }).run()}
-              className={btnClass(editor.isActive("heading", { level: 3 }))} title="Heading 3">
+            <button
+              type="button"
+              onClick={() =>
+                editor.chain().focus().toggleHeading({ level: 3 }).run()
+              }
+              className={btnClass(editor.isActive("heading", { level: 3 }))}
+              title="Heading 3"
+            >
               <Heading3 size={18} />
             </button>
-            <button type="button"
-              onClick={() => editor.chain().focus().toggleHeading({ level: 4 }).run()}
-              className={btnClass(editor.isActive("heading", { level: 4 }))} title="Heading 4">
+            <button
+              type="button"
+              onClick={() =>
+                editor.chain().focus().toggleHeading({ level: 4 }).run()
+              }
+              className={btnClass(editor.isActive("heading", { level: 4 }))}
+              title="Heading 4"
+            >
               <Heading4 size={18} />
             </button>
           </ToolbarGroup>
 
           <ToolbarGroup>
-            <button type="button" onClick={() => editor.chain().focus().toggleBold().run()}
-              className={btnClass(editor.isActive("bold"))} title="Bold">
+            <button
+              type="button"
+              onClick={() => editor.chain().focus().toggleBold().run()}
+              className={btnClass(editor.isActive("bold"))}
+              title="Bold"
+            >
               <Bold size={18} />
             </button>
-            <button type="button" onClick={() => editor.chain().focus().toggleItalic().run()}
-              className={btnClass(editor.isActive("italic"))} title="Italic">
+            <button
+              type="button"
+              onClick={() => editor.chain().focus().toggleItalic().run()}
+              className={btnClass(editor.isActive("italic"))}
+              title="Italic"
+            >
               <Italic size={18} />
             </button>
-            <button type="button" onClick={() => editor.chain().focus().toggleUnderline().run()}
-              className={btnClass(editor.isActive("underline"))} title="Underline">
+            <button
+              type="button"
+              onClick={() => editor.chain().focus().toggleUnderline().run()}
+              className={btnClass(editor.isActive("underline"))}
+              title="Underline"
+            >
               <UnderlineIcon size={18} />
             </button>
-            <button type="button" onClick={() => editor.chain().focus().toggleStrike().run()}
-              className={btnClass(editor.isActive("strike"))} title="Strikethrough">
+            <button
+              type="button"
+              onClick={() => editor.chain().focus().toggleStrike().run()}
+              className={btnClass(editor.isActive("strike"))}
+              title="Strikethrough"
+            >
               <Strikethrough size={18} />
             </button>
-            <button type="button" onClick={() => editor.chain().focus().toggleCode().run()}
-              className={btnClass(editor.isActive("code"))} title="Inline Code">
+            <button
+              type="button"
+              onClick={() => editor.chain().focus().toggleCode().run()}
+              className={btnClass(editor.isActive("code"))}
+              title="Inline Code"
+            >
               <Code size={18} />
             </button>
           </ToolbarGroup>
 
           <ToolbarGroup>
-            <button type="button" onClick={() => editor.chain().focus().toggleSuperscript().run()}
-              className={btnClass(editor.isActive("superscript"))} title="Superscript">
+            <button
+              type="button"
+              onClick={() => editor.chain().focus().toggleSuperscript().run()}
+              className={btnClass(editor.isActive("superscript"))}
+              title="Superscript"
+            >
               <SuperscriptIcon size={18} />
             </button>
-            <button type="button" onClick={() => editor.chain().focus().toggleSubscript().run()}
-              className={btnClass(editor.isActive("subscript"))} title="Subscript">
+            <button
+              type="button"
+              onClick={() => editor.chain().focus().toggleSubscript().run()}
+              className={btnClass(editor.isActive("subscript"))}
+              title="Subscript"
+            >
               <SubscriptIcon size={18} />
             </button>
           </ToolbarGroup>
 
           <ToolbarGroup>
             <div className="relative flex items-center">
-              <input type="color"
-                onInput={(e) => editor.chain().focus().setColor(e.target.value).run()}
+              <input
+                type="color"
+                onInput={(e) =>
+                  editor.chain().focus().setColor(e.target.value).run()
+                }
                 value={editor.getAttributes("textStyle").color || "#000000"}
                 className="w-8 h-8 p-1 bg-transparent cursor-pointer rounded overflow-hidden"
-                title="Text Color" />
+                title="Text Color"
+              />
             </div>
-            <button type="button" onClick={() => editor.chain().focus().toggleHighlight().run()}
-              className={btnClass(editor.isActive("highlight"))} title="Highlight">
+            <button
+              type="button"
+              onClick={() => editor.chain().focus().toggleHighlight().run()}
+              className={btnClass(editor.isActive("highlight"))}
+              title="Highlight"
+            >
               <Highlighter size={18} />
             </button>
           </ToolbarGroup>
 
           <ToolbarGroup>
-            <button type="button" onClick={() => editor.chain().focus().setTextAlign("left").run()}
-              className={btnClass(editor.isActive({ textAlign: "left" }))} title="Align Left">
+            <button
+              type="button"
+              onClick={() => editor.chain().focus().setTextAlign("left").run()}
+              className={btnClass(editor.isActive({ textAlign: "left" }))}
+              title="Align Left"
+            >
               <AlignLeft size={18} />
             </button>
-            <button type="button" onClick={() => editor.chain().focus().setTextAlign("center").run()}
-              className={btnClass(editor.isActive({ textAlign: "center" }))} title="Align Center">
+            <button
+              type="button"
+              onClick={() =>
+                editor.chain().focus().setTextAlign("center").run()
+              }
+              className={btnClass(editor.isActive({ textAlign: "center" }))}
+              title="Align Center"
+            >
               <AlignCenter size={18} />
             </button>
-            <button type="button" onClick={() => editor.chain().focus().setTextAlign("right").run()}
-              className={btnClass(editor.isActive({ textAlign: "right" }))} title="Align Right">
+            <button
+              type="button"
+              onClick={() => editor.chain().focus().setTextAlign("right").run()}
+              className={btnClass(editor.isActive({ textAlign: "right" }))}
+              title="Align Right"
+            >
               <AlignRight size={18} />
             </button>
-            <button type="button" onClick={() => editor.chain().focus().setTextAlign("justify").run()}
-              className={btnClass(editor.isActive({ textAlign: "justify" }))} title="Justify">
+            <button
+              type="button"
+              onClick={() =>
+                editor.chain().focus().setTextAlign("justify").run()
+              }
+              className={btnClass(editor.isActive({ textAlign: "justify" }))}
+              title="Justify"
+            >
               <AlignJustify size={18} />
             </button>
           </ToolbarGroup>
 
           <ToolbarGroup>
-            <button type="button" onClick={() => editor.chain().focus().toggleBulletList().run()}
-              className={btnClass(editor.isActive("bulletList"))} title="Bullet List">
+            <button
+              type="button"
+              onClick={() => editor.chain().focus().toggleBulletList().run()}
+              className={btnClass(editor.isActive("bulletList"))}
+              title="Bullet List"
+            >
               <List size={18} />
             </button>
-            <button type="button" onClick={() => editor.chain().focus().toggleOrderedList().run()}
-              className={btnClass(editor.isActive("orderedList"))} title="Ordered List">
+            <button
+              type="button"
+              onClick={() => editor.chain().focus().toggleOrderedList().run()}
+              className={btnClass(editor.isActive("orderedList"))}
+              title="Ordered List"
+            >
               <ListOrdered size={18} />
             </button>
-            <button type="button" onClick={() => editor.chain().focus().toggleTaskList().run()}
-              className={btnClass(editor.isActive("taskList"))} title="Task List">
+            <button
+              type="button"
+              onClick={() => editor.chain().focus().toggleTaskList().run()}
+              className={btnClass(editor.isActive("taskList"))}
+              title="Task List"
+            >
               <CheckSquare size={18} />
             </button>
           </ToolbarGroup>
 
           <ToolbarGroup>
-            <button type="button" onClick={() => editor.chain().focus().toggleBlockquote().run()}
-              className={btnClass(editor.isActive("blockquote"))} title="Blockquote">
+            <button
+              type="button"
+              onClick={() => editor.chain().focus().toggleBlockquote().run()}
+              className={btnClass(editor.isActive("blockquote"))}
+              title="Blockquote"
+            >
               <Quote size={18} />
             </button>
-            <button type="button" onClick={() => editor.chain().focus().setHorizontalRule().run()}
-              className="p-2 rounded hover:bg-slate-200 text-slate-700" title="Horizontal Rule">
+            <button
+              type="button"
+              onClick={() => editor.chain().focus().setHorizontalRule().run()}
+              className="p-2 rounded hover:bg-slate-200 text-slate-700"
+              title="Horizontal Rule"
+            >
               <Minus size={18} />
             </button>
           </ToolbarGroup>
 
           {/* Link buttons — insert, open, remove */}
           <ToolbarGroup>
-            <button type="button" onClick={openLinkModal}
-              className={btnClass(editor.isActive("link"))} title="Insert / Edit Link">
+            <button
+              type="button"
+              onClick={openLinkModal}
+              className={btnClass(editor.isActive("link"))}
+              title="Insert / Edit Link"
+            >
               <LinkIcon size={18} />
             </button>
             {editor.isActive("link") && (
@@ -651,15 +839,20 @@ const TiptapEditor = ({ value, onChange }) => {
                   type="button"
                   onClick={() => {
                     const href = editor.getAttributes("link").href;
-                    if (href) window.open(href, "_blank", "noopener,noreferrer");
+                    if (href)
+                      window.open(href, "_blank", "noopener,noreferrer");
                   }}
                   className="p-2 rounded hover:bg-slate-200 text-slate-700"
-                  title="Open link">
+                  title="Open link"
+                >
                   <ExternalLink size={18} />
                 </button>
-                <button type="button" onClick={removeLink}
+                <button
+                  type="button"
+                  onClick={removeLink}
                   className="p-2 rounded hover:bg-red-100 text-red-500"
-                  title="Remove link">
+                  title="Remove link"
+                >
                   <Unlink size={18} />
                 </button>
               </>
@@ -667,29 +860,53 @@ const TiptapEditor = ({ value, onChange }) => {
           </ToolbarGroup>
 
           <ToolbarGroup>
-            <button type="button" onClick={addImage}
-              className={btnClass(false)} title="Insert Image">
+            <button
+              type="button"
+              onClick={addImage}
+              className={btnClass(false)}
+              title="Insert Image"
+            >
               <ImageIcon size={18} />
             </button>
-            <button type="button"
-              onClick={() => editor.chain().focus().insertTable({ rows: 3, cols: 3, withHeaderRow: true }).run()}
-              className={btnClass(false)} title="Insert Table">
+            <button
+              type="button"
+              onClick={() =>
+                editor
+                  .chain()
+                  .focus()
+                  .insertTable({ rows: 3, cols: 3, withHeaderRow: true })
+                  .run()
+              }
+              className={btnClass(false)}
+              title="Insert Table"
+            >
               <TableIcon size={18} />
             </button>
           </ToolbarGroup>
 
           <div className="relative">
-            <button type="button" onClick={() => setShowEmojiPicker(!showEmojiPicker)}
-              className={btnClass(showEmojiPicker)} title="Insert Emoji">
+            <button
+              type="button"
+              onClick={() => setShowEmojiPicker(!showEmojiPicker)}
+              className={btnClass(showEmojiPicker)}
+              title="Insert Emoji"
+            >
               <Smile size={18} />
             </button>
             {showEmojiPicker && (
               <div className="absolute top-full right-0 z-50 mt-2 shadow-xl border border-slate-200 rounded-xl">
-                <div className="fixed inset-0 z-40" onClick={() => setShowEmojiPicker(false)} />
+                <div
+                  className="fixed inset-0 z-40"
+                  onClick={() => setShowEmojiPicker(false)}
+                />
                 <div className="relative z-50">
                   <EmojiPicker
                     onEmojiClick={(emojiData) => {
-                      editor.chain().focus().insertContent(emojiData.emoji).run();
+                      editor
+                        .chain()
+                        .focus()
+                        .insertContent(emojiData.emoji)
+                        .run();
                       setShowEmojiPicker(false);
                     }}
                     width={300}
@@ -704,16 +921,58 @@ const TiptapEditor = ({ value, onChange }) => {
         {/* Table Controls */}
         {editor.isActive("table") && (
           <div className="flex flex-wrap gap-1 p-2 bg-slate-50 border-b border-slate-400 text-xs items-center">
-            <span className="font-bold text-slate-500 mr-2 uppercase">Table:</span>
-            <button onClick={() => editor.chain().focus().addColumnBefore().run()} className="px-2 py-1 bg-white border rounded hover:bg-slate-100">Add Col Before</button>
-            <button onClick={() => editor.chain().focus().addColumnAfter().run()} className="px-2 py-1 bg-white border rounded hover:bg-slate-100">Add Col After</button>
-            <button onClick={() => editor.chain().focus().deleteColumn().run()} className="px-2 py-1 bg-white border border-red-200 text-red-600 rounded hover:bg-red-50">Del Col</button>
+            <span className="font-bold text-slate-500 mr-2 uppercase">
+              Table:
+            </span>
+            <button
+              type="button"
+              onClick={() => editor.chain().focus().addColumnBefore().run()}
+              className="px-2 py-1 bg-white border rounded hover:bg-slate-100"
+            >
+              Add Col Before
+            </button>
+            <button
+              type="button"
+              onClick={() => editor.chain().focus().addColumnAfter().run()}
+              className="px-2 py-1 bg-white border rounded hover:bg-slate-100"
+            >
+              Add Col After
+            </button>
+            <button
+              type="button"
+              onClick={() => editor.chain().focus().deleteColumn().run()}
+              className="px-2 py-1 bg-white border border-red-200 text-red-600 rounded hover:bg-red-50"
+            >
+              Del Col
+            </button>
             <div className="w-[1px] h-4 bg-slate-300 mx-1" />
-            <button onClick={() => editor.chain().focus().addRowBefore().run()} className="px-2 py-1 bg-white border rounded hover:bg-slate-100">Add Row Before</button>
-            <button onClick={() => editor.chain().focus().addRowAfter().run()} className="px-2 py-1 bg-white border rounded hover:bg-slate-100">Add Row After</button>
-            <button onClick={() => editor.chain().focus().deleteRow().run()} className="px-2 py-1 bg-white border border-red-200 text-red-600 rounded hover:bg-red-50">Del Row</button>
+            <button
+              type="button"
+              onClick={() => editor.chain().focus().addRowBefore().run()}
+              className="px-2 py-1 bg-white border rounded hover:bg-slate-100"
+            >
+              Add Row Before
+            </button>
+            <button
+              type="button"
+              onClick={() => editor.chain().focus().addRowAfter().run()}
+              className="px-2 py-1 bg-white border rounded hover:bg-slate-100"
+            >
+              Add Row After
+            </button>
+            <button
+              type="button"
+              onClick={() => editor.chain().focus().deleteRow().run()}
+              className="px-2 py-1 bg-white border border-red-200 text-red-600 rounded hover:bg-red-50"
+            >
+              Del Row
+            </button>
             <div className="w-[1px] h-4 bg-slate-300 mx-1" />
-            <button onClick={() => editor.chain().focus().deleteTable().run()} className="px-2 py-1 bg-white border border-red-200 text-red-600 rounded hover:bg-red-50 flex items-center gap-1">
+            <button
+              type="button"
+              onClick={() => editor.chain().focus().deleteTable().run()}
+              className="px-2 py-1 bg-white border border-red-200 text-red-600 rounded hover:bg-red-50 flex items-center gap-1"
+            >
               <Trash2 size={12} /> Table
             </button>
           </div>
@@ -722,26 +981,122 @@ const TiptapEditor = ({ value, onChange }) => {
         <EditorContent editor={editor} />
 
         <style jsx global>{`
-          .ProseMirror ul { list-style-type: disc; padding-left: 1.5rem; margin: 0.5rem 0; }
-          .ProseMirror ol { list-style-type: decimal; padding-left: 1.5rem; margin: 0.5rem 0; }
-          .ProseMirror ul[data-type="taskList"] { list-style: none; padding: 0; }
-          .ProseMirror ul[data-type="taskList"] li { display: flex; align-items: flex-start; gap: 0.5rem; }
-          .ProseMirror ul[data-type="taskList"] li > label { margin-top: 0.15rem; }
-          .ProseMirror h1 { font-size: 2em; font-weight: bold; margin-top: 0.67em; margin-bottom: 0.67em; }
-          .ProseMirror h2 { font-size: 1.5em; font-weight: bold; margin-top: 0.83em; margin-bottom: 0.83em; }
-          .ProseMirror h3 { font-size: 1.17em; font-weight: bold; margin-top: 1em; margin-bottom: 1em; }
-          .ProseMirror h4 { font-size: 1em; font-weight: bold; margin-top: 1.33em; margin-bottom: 1.33em; }
-          .ProseMirror blockquote { border-left: 4px solid #cbd5e1; padding-left: 1rem; margin-left: 0; font-style: italic; color: #475569; }
-          .ProseMirror code { background-color: #f1f5f9; padding: 0.2rem 0.4rem; border-radius: 0.25rem; font-family: monospace; font-size: 0.9em; }
-          .ProseMirror a { color: #2563eb; text-decoration: underline; cursor: pointer; }
-          .ProseMirror a:hover { color: #1d4ed8; }
-          .ProseMirror table { border-collapse: collapse; table-layout: fixed; width: 100%; margin: 0; overflow: hidden; }
-          .ProseMirror td, .ProseMirror th { min-width: 1em; border: 1px solid #ced4da; padding: 3px 5px; vertical-align: top; box-sizing: border-box; position: relative; }
-          .ProseMirror th { font-weight: bold; text-align: left; background-color: #f8f9fa; }
-          .ProseMirror .selectedCell:after { z-index: 2; position: absolute; content: ""; left: 0; right: 0; top: 0; bottom: 0; background: rgba(200, 200, 255, 0.4); pointer-events: none; }
-          .ProseMirror img { border: 2px solid transparent; display: block; max-width: 100%; height: auto; }
-          .ProseMirror img.ProseMirror-selectednode { border-color: #3b82f6; }
-          .ProseMirror p.is-editor-empty:first-child::before { color: #adb5bd; content: attr(data-placeholder); float: left; height: 0; pointer-events: none; }
+          .ProseMirror ul {
+            list-style-type: disc;
+            padding-left: 1.5rem;
+            margin: 0.5rem 0;
+          }
+          .ProseMirror ol {
+            list-style-type: decimal;
+            padding-left: 1.5rem;
+            margin: 0.5rem 0;
+          }
+          .ProseMirror ul[data-type="taskList"] {
+            list-style: none;
+            padding: 0;
+          }
+          .ProseMirror ul[data-type="taskList"] li {
+            display: flex;
+            align-items: flex-start;
+            gap: 0.5rem;
+          }
+          .ProseMirror ul[data-type="taskList"] li > label {
+            margin-top: 0.15rem;
+          }
+          .ProseMirror h1 {
+            font-size: 2em;
+            font-weight: bold;
+            margin-top: 0.67em;
+            margin-bottom: 0.67em;
+          }
+          .ProseMirror h2 {
+            font-size: 1.5em;
+            font-weight: bold;
+            margin-top: 0.83em;
+            margin-bottom: 0.83em;
+          }
+          .ProseMirror h3 {
+            font-size: 1.17em;
+            font-weight: bold;
+            margin-top: 1em;
+            margin-bottom: 1em;
+          }
+          .ProseMirror h4 {
+            font-size: 1em;
+            font-weight: bold;
+            margin-top: 1.33em;
+            margin-bottom: 1.33em;
+          }
+          .ProseMirror blockquote {
+            border-left: 4px solid #cbd5e1;
+            padding-left: 1rem;
+            margin-left: 0;
+            font-style: italic;
+            color: #475569;
+          }
+          .ProseMirror code {
+            background-color: #f1f5f9;
+            padding: 0.2rem 0.4rem;
+            border-radius: 0.25rem;
+            font-family: monospace;
+            font-size: 0.9em;
+          }
+          .ProseMirror a {
+            color: #2563eb;
+            text-decoration: underline;
+            cursor: pointer;
+          }
+          .ProseMirror a:hover {
+            color: #1d4ed8;
+          }
+          .ProseMirror table {
+            border-collapse: collapse;
+            table-layout: fixed;
+            width: 100%;
+            margin: 0;
+            overflow: hidden;
+          }
+          .ProseMirror td,
+          .ProseMirror th {
+            min-width: 1em;
+            border: 1px solid #ced4da;
+            padding: 3px 5px;
+            vertical-align: top;
+            box-sizing: border-box;
+            position: relative;
+          }
+          .ProseMirror th {
+            font-weight: bold;
+            text-align: left;
+            background-color: #f8f9fa;
+          }
+          .ProseMirror .selectedCell:after {
+            z-index: 2;
+            position: absolute;
+            content: "";
+            left: 0;
+            right: 0;
+            top: 0;
+            bottom: 0;
+            background: rgba(200, 200, 255, 0.4);
+            pointer-events: none;
+          }
+          .ProseMirror img {
+            border: 2px solid transparent;
+            display: block;
+            max-width: 100%;
+            height: auto;
+          }
+          .ProseMirror img.ProseMirror-selectednode {
+            border-color: #3b82f6;
+          }
+          .ProseMirror p.is-editor-empty:first-child::before {
+            color: #adb5bd;
+            content: attr(data-placeholder);
+            float: left;
+            height: 0;
+            pointer-events: none;
+          }
         `}</style>
       </div>
     </>
