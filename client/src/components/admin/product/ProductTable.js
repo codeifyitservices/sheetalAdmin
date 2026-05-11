@@ -429,15 +429,6 @@ export default function ProductTable({ refreshStats }) {
             <RefreshCw size={18} className={loading ? "animate-spin" : ""} />
           </button>
         </div>
-
-        <button
-          onClick={() => setShowSettingsModal(true)}
-          className="p-2.5 text-slate-500 cursor-pointer hover:text-slate-900 hover:bg-slate-100 rounded-lg transition-all"
-          title="Global Settings"
-        >
-          <SettingsIcon size={18} />
-        </button>
-
         {/* ── Select mode toggle ── */}
         <button
           onClick={() => (selectMode ? exitSelectMode() : setSelectMode(true))}
