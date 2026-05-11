@@ -623,9 +623,6 @@ export default function CategoryModal({
                           ? "Products in this category will use the selected chart."
                           : "No size chart will be shown for this category."}
                     </p>
-                    <p className="text-[11px] text-slate-500">
-                      Products in this category will use the selected chart.
-                    </p>
                   </div>
                 </div>
 
