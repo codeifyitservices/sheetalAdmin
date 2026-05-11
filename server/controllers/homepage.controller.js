@@ -28,6 +28,7 @@ export const getSections = async (req, res, next) => {
         if (!homepage) {
             homepage = await Homepage.create({});
         }
+        console.log(homepage)
 
         res.status(200).json({
             success: true,

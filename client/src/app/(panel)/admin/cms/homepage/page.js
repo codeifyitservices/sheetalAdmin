@@ -150,6 +150,7 @@ export default function HomepageSectionsForm() {
         if (nextTopInfoConfig.mode !== "hidden") {
           lastVisibleTopInfoModeRef.current = nextTopInfoConfig.mode;
         }
+
         toast.success("Homepage updated!");
       }
     } catch {
