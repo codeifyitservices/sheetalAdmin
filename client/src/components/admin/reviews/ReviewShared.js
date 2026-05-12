@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { Star } from "lucide-react";
+import AdminStatCard from "@/components/admin/common/AdminStatCard";
 
 const AVATAR_COLORS = [
   ["#e0e7ff", "#4f46e5"],
@@ -71,21 +72,5 @@ export function FilterTab({ label, active, count, onClick }) {
 }
 
 export function StatCard({ icon, label, value, color, subtext }) {
-  return (
-    <div className="bg-white rounded-2xl border border-slate-100 p-5 flex items-center gap-4 shadow-sm">
-      <div
-        className="w-11 h-11 rounded-xl flex items-center justify-center shrink-0"
-        style={{ backgroundColor: color + "18", color }}
-      >
-        {icon}
-      </div>
-      <div className="min-w-0">
-        <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-widest mb-0.5">
-          {label}
-        </p>
-        <p className="text-xl font-bold text-slate-900 leading-none">{value}</p>
-        {subtext && <div className="mt-1">{subtext}</div>}
-      </div>
-    </div>
-  );
+  return <AdminStatCard icon={icon} label={label} value={value} subtext={subtext} />;
 }

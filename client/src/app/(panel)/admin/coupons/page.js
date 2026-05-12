@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback } from "react";
 import CouponTable from "@/components/admin/coupon/CouponTable";
+import AdminStatCard from "@/components/admin/common/AdminStatCard";
 import PageHeader from "@/components/admin/layout/PageHeader";
 import { Ticket, Zap, Tag, Gift, Percent } from "lucide-react";
 import { getCouponStats } from "@/services/couponService";
@@ -44,13 +45,13 @@ export default function CouponsPage() {
       />
 
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
-        <StatCard
+        <AdminStatCard
           title="Total"
           count={stats.total}
           icon={<Ticket size={18} />}
           color="indigo"
         />
-        <StatCard
+        <AdminStatCard
           title="Active Now"
           count={stats.active}
           icon={<Zap size={18} />}

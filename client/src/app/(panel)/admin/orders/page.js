@@ -4,6 +4,7 @@ import { useMemo, useState, useEffect } from "react";
 import OrderTable from "@/components/admin/order/OrderTable";
 import PageHeader from "@/components/admin/layout/PageHeader";
 import ReportExportMenu from "@/components/admin/common/ReportExportMenu";
+import AdminStatCard from "@/components/admin/common/AdminStatCard";
 import {
   ShoppingBag,
   Truck,
@@ -169,26 +170,26 @@ export default function OrdersPage() {
       </div>
 
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
-        <StatCard
+        <AdminStatCard
           title="Total Revenue"
           count={stats.totalRevenue}
           icon={<IndianRupee size={20} />}
           color="indigo"
           isCurrency={true}
         />
-        <StatCard
+        <AdminStatCard
           title="Processing"
           count={stats.processing}
           icon={<Clock size={20} />}
           color="amber"
         />
-        <StatCard
+        <AdminStatCard
           title="In Transit"
           count={stats.shipped}
           icon={<Truck size={20} />}
           color="blue"
         />
-        <StatCard
+        <AdminStatCard
           title="Delivered"
           count={stats.delivered}
           icon={<CheckCircle size={20} />}
