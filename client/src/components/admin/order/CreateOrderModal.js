@@ -43,6 +43,7 @@ export default function CreateOrderModal({ isOpen, onClose, onSuccess }) {
   const [showCustomerDropdown, setShowCustomerDropdown] = useState(false);
 
   const [customerDetails, setCustomerDetails] = useState({
+    customerId: "",
     email: "",
     fullName: "",
     phoneNumber: "",
@@ -70,7 +71,7 @@ export default function CreateOrderModal({ isOpen, onClose, onSuccess }) {
   // --- Customer Search Logic ---
   const handleCustomerSearch = async (val) => {
     setCustomerSearch(val);
-    setCustomerDetails((prev) => ({ ...prev, email: val })); // Keep email synced
+    setCustomerDetails((prev) => ({ ...prev, customerId: "", email: val })); // Keep email synced
     if (val.length > 2) {
       try {
         const res = await getUsers(1, 10, val);
@@ -90,6 +91,7 @@ export default function CreateOrderModal({ isOpen, onClose, onSuccess }) {
   const selectCustomer = (user) => {
     const addr = user.addresses?.[0];
     setCustomerDetails({
+      customerId: user._id,
       email: user.email,
       fullName: addr ? `${addr.firstName} ${addr.lastName}` : user.name,
       phoneNumber: addr ? addr.phoneNumber : (user.phoneNumber || ""),
@@ -200,6 +202,7 @@ export default function CreateOrderModal({ isOpen, onClose, onSuccess }) {
           postalCode: customerDetails.postalCode,
           country: "India",
         },
+        customerId: customerDetails.customerId || undefined,
         userEmail: customerDetails.email,
         paymentInfo: { method: paymentMethod, status: "Pending" },
         itemsPrice: subTotal,
@@ -226,6 +229,7 @@ export default function CreateOrderModal({ isOpen, onClose, onSuccess }) {
   const resetForm = () => {
     setSelectedItems([]);
     setCustomerDetails({
+      customerId: "",
       email: "",
       fullName: "",
       phoneNumber: "",

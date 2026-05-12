@@ -76,6 +76,10 @@ const orderSchema = new mongoose.Schema(
       enum: ["cart", "buyNow"],
       default: "cart",
     },
+    inventoryAdjusted: {
+      type: Boolean,
+      default: false,
+    },
     orderStatus: {
       type: String,
       required: true,
