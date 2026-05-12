@@ -7,7 +7,7 @@ import { createShiprocketOrder, assignAwbService } from "../services/shiprocket.
 // --- 1. CREATE ORDER ---
 export const createOrder = async (req, res, next) => {
   try {
-    const data = await orderService.createOrderService(req.body, req.user._id);
+    const data = await orderService.createOrderService(req.body, req.user);
     return successResponse(res, 201, data, "Order place ho gaya successfully!");
   } catch (error) {
     next(error);

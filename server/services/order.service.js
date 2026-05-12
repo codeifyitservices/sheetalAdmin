@@ -9,8 +9,164 @@ import { completeAbandonedCartFlow } from "./abandonedCart.service.js";
 import { confirmCouponUsageForOrder } from "./coupon.service.js";
 import { redeemAbandonedCartCoupon } from "./abandonedcartcoupon.service.js";
 
+const normalizeOrderStats = (orderStats = {}) => {
+  if (!orderStats || typeof orderStats !== "object" || Array.isArray(orderStats)) {
+    return { totalOrders: 0, totalRevenue: 0 };
+  }
+
+  return {
+    totalOrders: Number(orderStats.totalOrders) || 0,
+    totalRevenue: Number(orderStats.totalRevenue) || 0,
+  };
+};
+
+const normalizeAddress = (address = {}) => ({
+  fullName: String(address?.fullName || "").trim(),
+  phoneNumber: String(address?.phoneNumber || "").trim(),
+  addressLine1: String(address?.addressLine1 || "").trim(),
+  city: String(address?.city || "").trim(),
+  state: String(address?.state || "").trim(),
+  postalCode: String(address?.postalCode || "").trim(),
+  country: String(address?.country || "India").trim() || "India",
+});
+
+const ensureAddress = (address, label) => {
+  const normalized = normalizeAddress(address);
+  const requiredFields = [
+    "fullName",
+    "phoneNumber",
+    "addressLine1",
+    "city",
+    "state",
+    "postalCode",
+  ];
+
+  for (const field of requiredFields) {
+    if (!normalized[field]) {
+      throw new ErrorResponse(`${label}.${field} is required`, 400);
+    }
+  }
+
+  return normalized;
+};
+
+export const applyOrderInventoryAdjustments = async (orderItems = []) => {
+  await Promise.all(orderItems.map(async (item) => {
+    const product = await Product.findOneAndUpdate(
+      { _id: item.product, stock: { $gte: item.quantity } },
+      [
+        {
+          $set: {
+            stock: { $subtract: ["$stock", item.quantity] },
+            orderStats: {
+              totalOrders: {
+                $add: [
+                  {
+                    $cond: [
+                      { $eq: [{ $type: "$orderStats" }, "object"] },
+                      { $ifNull: ["$orderStats.totalOrders", 0] },
+                      0,
+                    ],
+                  },
+                  item.quantity,
+                ],
+              },
+              totalRevenue: {
+                $add: [
+                  {
+                    $cond: [
+                      { $eq: [{ $type: "$orderStats" }, "object"] },
+                      { $ifNull: ["$orderStats.totalRevenue", 0] },
+                      0,
+                    ],
+                  },
+                  item.quantity * item.price,
+                ],
+              },
+            },
+          },
+        },
+      ],
+      { new: true, validateBeforeSave: false },
+    );
+
+    if (!product) {
+      const checkProduct = await Product.findById(item.product).lean();
+      if (!checkProduct) {
+        throw new ErrorResponse(`Product not found: ${item.product}`, 404);
+      }
+
+      throw new ErrorResponse(
+        `${checkProduct.name} ka stock khatam hai! (Available: ${checkProduct.stock})`,
+        400,
+      );
+    }
+  }));
+};
+
+export const revertOrderInventoryAdjustments = async (orderItems = []) => {
+  for (const item of orderItems) {
+    const product = await Product.findById(item.product);
+    if (!product) continue;
+
+    const orderStats = normalizeOrderStats(product.orderStats);
+    product.stock += item.quantity;
+    product.orderStats = {
+      totalOrders: Math.max(0, orderStats.totalOrders - item.quantity),
+      totalRevenue: Math.max(
+        0,
+        orderStats.totalRevenue - item.quantity * item.price,
+      ),
+    };
+    await product.save();
+  }
+};
+
+const resolveOrderUser = async (data, requester) => {
+  if (!requester?._id) {
+    throw new ErrorResponse("User not found", 404);
+  }
+
+  const isAdminOrder = data?.isCreatedByAdmin && requester.role === "admin";
+  if (!isAdminOrder) {
+    return requester._id;
+  }
+
+  if (data?.customerId) {
+    const customer = await User.findById(data.customerId).select("_id");
+    if (!customer) {
+      throw new ErrorResponse("Customer not found for manual order", 404);
+    }
+    return customer._id;
+  }
+
+  const normalizedEmail =
+    typeof data.userEmail === "string" ? data.userEmail.trim().toLowerCase() : "";
+  const normalizedPhone =
+    typeof data?.shippingAddress?.phoneNumber === "string"
+      ? data.shippingAddress.phoneNumber.trim()
+      : "";
+
+  const lookup = normalizedEmail
+    ? { email: normalizedEmail }
+    : normalizedPhone
+      ? { phoneNumber: normalizedPhone }
+      : null;
+
+  if (!lookup) {
+    throw new ErrorResponse("Existing customer email or phone number is required", 400);
+  }
+
+  const customer = await User.findOne(lookup).select("_id");
+  if (!customer) {
+    throw new ErrorResponse("Customer not found for manual order", 404);
+  }
+
+  return customer._id;
+};
+
 // --- CREATE NEW ORDER ---
-export const createOrderService = async (data, userId) => {
+export const createOrderService = async (data, requester) => {
   const {
     orderItems,
     shippingAddress,
@@ -23,8 +179,21 @@ export const createOrderService = async (data, userId) => {
     recoveryCartId = null,
     recoveryCycleId = null,
   } = data;
+  const userId = await resolveOrderUser(data, requester);
 
   const isBuyNow = Array.isArray(buyNowItems) && buyNowItems.length > 0;
+
+  if (!Array.isArray(orderItems) || orderItems.length === 0) {
+    throw new ErrorResponse("At least one order item is required", 400);
+  }
+
+  const normalizedShippingAddress = ensureAddress(
+    shippingAddress,
+    "shippingAddress",
+  );
+  const normalizedBillingAddress = billingAddress
+    ? ensureAddress(billingAddress, "billingAddress")
+    : { ...normalizedShippingAddress };
 
   // 1. Parallel pre-checks and data fetching
   const [user, abandonedCartCouponRecordId] = await Promise.all([
@@ -37,49 +206,14 @@ export const createOrderService = async (data, userId) => {
   if (!user) throw new ErrorResponse("User not found", 404);
 
   // 2. Atomic Stock check and update in parallel
-  await Promise.all(orderItems.map(async (item) => {
-    const product = await Product.findOneAndUpdate(
-      { _id: item.product, stock: { $gte: item.quantity } },
-      {
-        $inc: {
-          stock: -item.quantity,
-          "orderStats.totalOrders": item.quantity,
-          "orderStats.totalRevenue": item.quantity * item.price
-        }
-      },
-      { new: true, validateBeforeSave: false }
-    );
-
-    if (!product) {
-      // If product not found or insufficient stock
-      const checkProduct = await Product.findById(item.product).lean();
-      if (!checkProduct) throw new ErrorResponse(`Product not found: ${item.product}`, 404);
-      throw new ErrorResponse(`${checkProduct.name} ka stock khatam hai! (Available: ${checkProduct.stock})`, 400);
-    }
-  }));
+  await applyOrderInventoryAdjustments(orderItems);
 
   // 3. Build order document
   const finalOrderData = {
     user: userId,
     orderItems,
-    shippingAddress: {
-      fullName: shippingAddress.fullName,
-      phoneNumber: shippingAddress.phoneNumber,
-      addressLine1: shippingAddress.addressLine1,
-      city: shippingAddress.city,
-      state: shippingAddress.state,
-      postalCode: shippingAddress.postalCode,
-      country: shippingAddress.country || "India",
-    },
-    billingAddress: {
-      fullName: billingAddress?.fullName || shippingAddress.fullName,
-      phoneNumber: billingAddress?.phoneNumber || shippingAddress.phoneNumber,
-      addressLine1: billingAddress?.addressLine1 || shippingAddress.addressLine1,
-      city: billingAddress?.city || shippingAddress.city,
-      state: billingAddress?.state || shippingAddress.state,
-      postalCode: billingAddress?.postalCode || shippingAddress.postalCode,
-      country: billingAddress?.country || shippingAddress.country || "India",
-    },
+    shippingAddress: normalizedShippingAddress,
+    billingAddress: normalizedBillingAddress,
     paymentInfo: {
       id: paymentInfo?.id || `manual_${Date.now()}`,
       status: paymentInfo?.status || "Pending",
@@ -99,6 +233,7 @@ export const createOrderService = async (data, userId) => {
     recoveryCycleId: recoveryCycleId || null,
     recoveredAt: recoverySource ? new Date() : null,
     purchaseSource: isBuyNow ? "buyNow" : "cart",
+    inventoryAdjusted: true,
     orderStatus: "Processing",
     paidAt: paymentInfo?.method === "Online" ? Date.now() : null,
   };
@@ -163,20 +298,9 @@ export const updateOrderStatusService = async (
   }
 
   if (status === "Cancelled" || status === "Returned") {
-    for (const item of order.orderItems) {
-      const product = await Product.findById(item.product);
-      if (product) {
-        product.stock += item.quantity;
-        product.orderStats.totalOrders = Math.max(
-          0,
-          product.orderStats.totalOrders - item.quantity,
-        );
-        product.orderStats.totalRevenue = Math.max(
-          0,
-          product.orderStats.totalRevenue - item.quantity * item.price,
-        );
-        await product.save();
-      }
+    if (order.inventoryAdjusted) {
+      await revertOrderInventoryAdjustments(order.orderItems);
+      order.inventoryAdjusted = false;
     }
     try {
       await User.findByIdAndUpdate(order.user, {

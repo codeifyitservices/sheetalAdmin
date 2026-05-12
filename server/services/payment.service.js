@@ -9,6 +9,7 @@ import { createShiprocketOrder } from "./shiprocket.service.js";
 import { sendOrderConfirmationEmail } from "./order.email.service.js";
 import { completeAbandonedCartFlow } from "./abandonedCart.service.js";
 import { confirmCouponUsageForOrder } from "./coupon.service.js";
+import { applyOrderInventoryAdjustments } from "./order.service.js";
 
 const normalizePaymentDisplayMethod = (method) => {
   const normalizedMethod = String(method || "").trim().toLowerCase();
@@ -36,6 +37,39 @@ const normalizePaymentDisplayMethod = (method) => {
             .join(" ")
         : "Online";
   }
+};
+
+const normalizeCheckoutAddress = (address = {}) => ({
+  fullName: String(
+    address?.fullName ||
+      [address?.firstName, address?.lastName].filter(Boolean).join(" "),
+  ).trim(),
+  phoneNumber: String(address?.phoneNumber || address?.phone || "").trim(),
+  addressLine1: String(address?.addressLine1 || "").trim(),
+  city: String(address?.city || "").trim(),
+  state: String(address?.state || "").trim(),
+  postalCode: String(address?.postalCode || "").trim(),
+  country: String(address?.country || "India").trim() || "India",
+});
+
+const validateCheckoutAddress = (address, label) => {
+  const normalized = normalizeCheckoutAddress(address);
+  const requiredFields = [
+    "fullName",
+    "phoneNumber",
+    "addressLine1",
+    "city",
+    "state",
+    "postalCode",
+  ];
+
+  for (const field of requiredFields) {
+    if (!normalized[field]) {
+      throw ErrorResponse(`${label}.${field} is required`, 400);
+    }
+  }
+
+  return normalized;
 };
 
 export const createPaymentLinkService = async (
@@ -68,13 +102,23 @@ export const createPaymentLinkService = async (
     throw ErrorResponse(isBuyNow ? "No buy now item found" : "Cart is empty", 400);
   }
 
+  const validatedShippingAddress = validateCheckoutAddress(
+    shippingAddress,
+    "shippingAddress",
+  );
+  const validatedBillingAddress = billingAddress
+    ? validateCheckoutAddress(billingAddress, "billingAddress")
+    : { ...validatedShippingAddress };
+
   // 2. Calculate Total Amount
   let totalPrice = 0;
   const orderItems = [];
 
   for (const item of sourceItems) {
     const product = item.product || item;
-    if (!product) continue;
+    if (!product?._id) {
+      throw ErrorResponse("Invalid product data in checkout items", 400);
+    }
 
     let productPrice = 0;
 
@@ -96,24 +140,29 @@ export const createPaymentLinkService = async (
       productPrice = 0;
     }
 
-    totalPrice += productPrice * item.quantity;
+    const quantity = Number(item.quantity) || 0;
+    if (quantity <= 0) {
+      throw ErrorResponse("Invalid quantity in checkout items", 400);
+    }
+
+    if (productPrice <= 0) {
+      throw ErrorResponse(`Invalid price for product ${product.name || product._id}`, 400);
+    }
+
+    totalPrice += productPrice * quantity;
 
     orderItems.push({
       product: product._id,
       name: product.name,
       image: product.mainImage?.url || item.variantImage || "",
       price: productPrice,
-      quantity: item.quantity || 1,
+      quantity,
       variant: {
         size: item.size,
         color: item.color,
+        v_sku: item.variantSku || item.variant?.v_sku || item.v_sku || "",
       },
     });
-  }
-
-  // Ensure totalPrice is a valid number
-  if (isNaN(totalPrice)) {
-    totalPrice = 0;
   }
 
   // --- Calculate Fees ---
@@ -141,8 +190,8 @@ export const createPaymentLinkService = async (
   const order = await Order.create({
     user: userId,
     orderItems,
-    shippingAddress,
-    billingAddress: billingAddress || shippingAddress,
+    shippingAddress: validatedShippingAddress,
+    billingAddress: validatedBillingAddress,
     paymentInfo: {
       id: `pay_${Date.now()}`,
       status: "Pending",
@@ -165,6 +214,7 @@ export const createPaymentLinkService = async (
     recoveredAt: null,
     orderStatus: "Processing",
     purchaseSource: isBuyNow ? "buyNow" : "cart",
+    inventoryAdjusted: false,
   });
 
   // Ensure minimum amount for Razorpay (100 paise = 1 INR)
@@ -324,6 +374,11 @@ export const verifyOnlinePaymentService = async (params) => {
   // 6. Idempotency — if already paid, skip re-processing (handles double calls)
   if (order.paymentInfo?.status === "Paid") {
     return order;
+  }
+
+  if (!order.inventoryAdjusted) {
+    await applyOrderInventoryAdjustments(order.orderItems);
+    order.inventoryAdjusted = true;
   }
 
   // 7. Mark order as Paid

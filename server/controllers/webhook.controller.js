@@ -20,6 +20,7 @@ import User from "../models/user.model.js";
 import Cart from "../models/cart.model.js";
 import { createShiprocketOrder } from "../services/shiprocket.service.js";
 import { confirmCouponUsageForOrder } from "../services/coupon.service.js";
+import { applyOrderInventoryAdjustments } from "../services/order.service.js";
 
 // ---------------------------------------------------------------------------
 // Signature Verification
@@ -92,6 +93,11 @@ const handlePaymentLinkPaid = async (payload) => {
     }
 
     // --- Update order payment status ---
+    if (!order.inventoryAdjusted) {
+        await applyOrderInventoryAdjustments(order.orderItems);
+        order.inventoryAdjusted = true;
+    }
+
     order.paymentInfo.id = razorpayPaymentId;
     order.paymentInfo.status = "Paid";
     order.paidAt = new Date();

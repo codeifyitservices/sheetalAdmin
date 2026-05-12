@@ -823,9 +823,10 @@ export const getAbandonedCarts = async (req, res) => {
     const recoveredCount = data.filter(
       (cart) => cart.status === "recovered",
     ).length;
-    const recoveredAmount = data
-      .filter((cart) => cart.status === "recovered")
-      .reduce((sum, cart) => sum + cart.cartValue, 0);
+    const recoveredAmount = recoveryStats.reduce(
+      (sum, entry) => sum + Number(entry.totalRecoveredAmount || 0),
+      0,
+    );
     const retentionRate =
       abandonedCount + recoveredCount > 0
         ? (recoveredCount / (abandonedCount + recoveredCount)) * 100
