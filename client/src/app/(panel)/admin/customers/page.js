@@ -2,6 +2,7 @@
 
 import { useMemo, useState, useEffect } from "react";
 import CustomerTable from "@/components/admin/customer/CustomerTable";
+import AdminStatCard from "@/components/admin/common/AdminStatCard";
 import DateRangeControl from "@/components/admin/common/DateRangeControl";
 import PageHeader from "@/components/admin/layout/PageHeader";
 import { Users, UserCheck, UserMinus, Clock } from "lucide-react";
@@ -75,25 +76,25 @@ export default function CustomersPage() {
       </div>
 
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
-        <StatCard
+        <AdminStatCard
           title="Total Customers"
           count={stats.total}
           icon={<Users size={20} />}
           color="indigo"
         />
-        <StatCard
+        <AdminStatCard
           title="Active Now"
           count={stats.active}
           icon={<UserCheck size={20} />}
           color="emerald"
         />
-        <StatCard
+        <AdminStatCard
           title="Inactive"
           count={stats.inactive}
           icon={<UserMinus size={20} />}
           color="slate"
         />
-        <StatCard
+        <AdminStatCard
           title="New Today"
           count={stats.today}
           icon={<Clock size={20} />}

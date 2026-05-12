@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback } from "react";
 import BannerTable from "@/components/admin/cms/BannerTable";
+import AdminStatCard from "@/components/admin/common/AdminStatCard";
 import PageHeader from "@/components/admin/layout/PageHeader";
 import { ImageIcon, CheckCircle2, XCircle, Monitor } from "lucide-react";
 import { getBannerStats } from "@/services/bannerService";
@@ -34,25 +35,25 @@ export default function BannersPage() {
       />
 
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-8 mt-8">
-        <StatCard
+        <AdminStatCard
           title="Total Banners"
           count={stats.total}
           icon={<ImageIcon size={20} />}
           color="indigo"
         />
-        <StatCard
+        <AdminStatCard
           title="Active"
           count={stats.active}
           icon={<CheckCircle2 size={20} />}
           color="emerald"
         />
-        <StatCard
+        <AdminStatCard
           title="Inactive"
           count={stats.inactive}
           icon={<XCircle size={20} />}
           color="rose"
         />
-        <StatCard
+        <AdminStatCard
           title="Live Status"
           count={stats.active > 0 ? "Live" : "No"}
           icon={<Monitor size={20} />}

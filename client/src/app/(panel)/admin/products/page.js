@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback } from "react";
 import ProductTable from "@/components/admin/product/ProductTable";
+import AdminStatCard from "@/components/admin/common/AdminStatCard";
 import PageHeader from "@/components/admin/layout/PageHeader";
 import { Box, CheckCircle2, AlertTriangle, ShoppingCart } from "lucide-react";
 import { getProductStats } from "@/services/productService";
@@ -37,13 +38,13 @@ export default function ProductsPage() {
 
 
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
-        <StatCard
+        <AdminStatCard
           title="Total Products"
           count={stats.total}
           icon={<ShoppingCart size={20} />}
           color="indigo"
         />
-        <StatCard
+        <AdminStatCard
           title="Active"
           count={stats.active}
           icon={<CheckCircle2 size={20} />}

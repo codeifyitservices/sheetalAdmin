@@ -10,6 +10,7 @@ import {
 } from "lucide-react";
 import ReportExportMenu from "@/components/admin/common/ReportExportMenu";
 import DateRangeControl from "@/components/admin/common/DateRangeControl";
+import AdminStatCard from "@/components/admin/common/AdminStatCard";
 import PageHeader from "@/components/admin/layout/PageHeader";
 import BestSellingProducts from "@/components/admin/sales/BestSellingProducts";
 import { getBestSellingItems } from "@/services/salesService";
@@ -241,25 +242,25 @@ export default function BestSellingPage() {
       </div>
 
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
-        <StatCard
+        <AdminStatCard
           title="Total Products"
           value={stats.totalProducts}
           icon={<ShoppingBag size={20} />}
           color="indigo"
         />
-        <StatCard
+        <AdminStatCard
           title="Total Units Sold"
           value={stats.totalUnitsSold.toLocaleString()}
           icon={<PackageCheck size={20} />}
           color="emerald"
         />
-        <StatCard
+        <AdminStatCard
           title="Total Revenue"
           value={`Rs. ${stats.totalRevenue.toLocaleString()}`}
           icon={<IndianRupee size={20} />}
           color="amber"
         />
-        <StatCard
+        <AdminStatCard
           title="Top Product"
           value={activeTopProduct}
           icon={<TrendingUp size={20} />}

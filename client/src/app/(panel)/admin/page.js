@@ -6,7 +6,12 @@ import {
   ArrowRight,
   TrendingUp,
   TrendingDown,
+  IndianRupee,
+  ShoppingBag,
+  Users,
+  Package,
 } from "lucide-react";
+import AdminStatCard from "@/components/admin/common/AdminStatCard";
 import ReportExportMenu from "@/components/admin/common/ReportExportMenu";
 import SalesRevenueChart from "@/components/admin/layout/SalesRevenueChart";
 import BestSellingProducts from "@/components/admin/sales/BestSellingProducts";
@@ -391,6 +396,7 @@ export default function AdminDashboard() {
       change: salesTrend ? salesTrend.label : PERIOD_LABEL[period],
       positive: salesTrend?.positive ?? true,
       showArrow: Boolean(salesTrend),
+      icon: <IndianRupee size={20} />,
     },
     {
       label: "Total Orders",
@@ -398,6 +404,7 @@ export default function AdminDashboard() {
       change: ordersTrend ? ordersTrend.label : PERIOD_LABEL[period],
       positive: ordersTrend?.positive ?? true,
       showArrow: Boolean(ordersTrend),
+      icon: <ShoppingBag size={20} />,
     },
     {
       label: "New Users",
@@ -405,6 +412,7 @@ export default function AdminDashboard() {
       change: "",
       positive: true,
       showArrow: false,
+      icon: <Users size={20} />,
     },
     {
       label: "Total Products",
@@ -412,6 +420,7 @@ export default function AdminDashboard() {
       change: "",
       positive: true,
       showArrow: false,
+      icon: <Package size={20} />,
     },
   ];
 
@@ -442,31 +451,26 @@ export default function AdminDashboard() {
         {/* Top Stats Cards */}
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
           {topStats.map((stat, i) => (
-            <div
+            <AdminStatCard
               key={i}
-              className="bg-white rounded-2xl border border-slate-200 px-5 py-4 shadow-sm hover:shadow-md transition-all"
-            >
-              <p className="text-xs font-medium text-slate-400 mb-2">
-                {stat.label}
-              </p>
-              <div className="flex items-center gap-2 flex-wrap">
-                <h2 className="text-xl font-extrabold text-slate-900 tracking-wide leading-none">
-                  {stat.val}
-                </h2>
-                {stat.showArrow && stat.change ? (
+              title={stat.label}
+              value={stat.val}
+              icon={stat.icon}
+              subtext={
+                stat.showArrow && stat.change ? (
                   <span
-                    className={`text-[11px] font-semibold px-1.5 py-0.5 rounded-md flex items-center gap-0.5 ${
+                    className={`inline-flex text-[11px] font-semibold px-1.5 py-0.5 rounded-md items-center gap-0.5 ${
                       stat.positive
                         ? "bg-emerald-50 text-emerald-600"
                         : "bg-red-50 text-red-500"
                     }`}
                   >
-                    {stat.positive ? <TrendingUp /> : <TrendingDown />}
+                    {stat.positive ? <TrendingUp size={14} /> : <TrendingDown size={14} />}
                     {stat.change}
                   </span>
-                ) : null}
-              </div>
-            </div>
+                ) : null
+              }
+            />
           ))}
         </div>
 
