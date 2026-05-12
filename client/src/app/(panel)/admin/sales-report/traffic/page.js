@@ -12,6 +12,7 @@ import {
   RefreshCw,
   MousePointerClick,
 } from "lucide-react";
+import AdminStatCard from "@/components/admin/common/AdminStatCard";
 import PageHeader from "@/components/admin/layout/PageHeader";
 import TrafficSources from "@/components/admin/sales/TrafficSource";
 import { getPaginationRange } from "@/utils/pagination";
@@ -67,26 +68,26 @@ export default function TrafficSourcesPage() {
 
       {/* Stat Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
-        <StatCard
+        <AdminStatCard
           title="Total Visits"
           value={TOTAL_VISITS.toLocaleString()}
           icon={<Users size={20} />}
           color="indigo"
         />
-        <StatCard
+        <AdminStatCard
           title="Top Source"
           value={topSource?.label || "—"}
           icon={<TrendingUp size={20} />}
           color="emerald"
           isText
         />
-        <StatCard
+        <AdminStatCard
           title="Top Source Share"
           value={`${topSource?.percentage || 0}%`}
           icon={<Globe size={20} />}
           color="amber"
         />
-        <StatCard
+        <AdminStatCard
           title="Tracked Channels"
           value={sources.length}
           icon={<Link2 size={20} />}

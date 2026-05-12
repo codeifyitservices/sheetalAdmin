@@ -1,5 +1,6 @@
 "use client";
 import { useState, useEffect } from "react";
+import AdminStatCard from "@/components/admin/common/AdminStatCard";
 import Link from "next/link";
 import {
   Users,
@@ -120,29 +121,17 @@ export default function AdminDashboard() {
               bg: "bg-orange-100",
             },
           ].map((stat, i) => (
-            <div
+            <AdminStatCard
               key={i}
-              className="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm hover:border-indigo-300 transition-all group"
-            >
-              <div className="flex justify-between items-start">
-                <div
-                  className={`p-3 rounded-2xl ${stat.bg} ${stat.color} group-hover:scale-110 transition-transform`}
-                >
-                  {stat.icon}
-                </div>
-                <span className="text-[11px] font-bold px-3 py-1 rounded-full bg-slate-100 text-slate-700 border border-slate-200 uppercase">
+              title={stat.label}
+              value={loading ? "..." : stat.val}
+              icon={stat.icon}
+              subtext={
+                <span className="inline-flex text-[11px] font-bold px-3 py-1 rounded-full bg-slate-100 text-slate-700 border border-slate-200 uppercase">
                   {stat.status}
                 </span>
-              </div>
-              <div className="mt-6">
-                <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1">
-                  {stat.label}
-                </p>
-                <h2 className="text-3xl font-bold text-slate-900 tracking-tight">
-                  {loading ? "..." : stat.val}
-                </h2>
-              </div>
-            </div>
+              }
+            />
           ))}
         </div>
 

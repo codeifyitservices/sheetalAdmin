@@ -19,6 +19,7 @@ import toast from "react-hot-toast";
 
 import AddUserModal from "@/components/admin/customer/AddCustomerModal";
 import DeleteConfirmModal from "@/components/admin/common/DeleteConfirmModal";
+import AdminStatCard from "@/components/admin/common/AdminStatCard";
 import ViewOrderDrawer from "@/components/admin/order/ViewOrderDrawer";
 import AddressModal from "@/components/admin/customer/AddressModal";
 
@@ -142,25 +143,25 @@ export default function UserDetailPage() {
       </div>
 
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
-        <StatCard
+        <AdminStatCard
           title="Total Spent"
           count={`₹${(user.totalSpent || 0).toLocaleString()}`}
           icon={<Wallet size={20} />}
           color="indigo"
         />
-        <StatCard
+        <AdminStatCard
           title="Orders"
           count={user.orders?.length || 0}
           icon={<ShoppingBag size={20} />}
           color="emerald"
         />
-        <StatCard
+        <AdminStatCard
           title="Status"
           count={user.status}
           icon={<Calendar size={20} />}
           color="slate"
         />
-        <StatCard
+        <AdminStatCard
           title="Phone"
           count={user.phoneNumber || "N/A"}
           icon={<Phone size={20} />}

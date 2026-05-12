@@ -10,6 +10,7 @@ import {
 } from "lucide-react";
 import ReportExportMenu from "@/components/admin/common/ReportExportMenu";
 import DateRangeControl from "@/components/admin/common/DateRangeControl";
+import AdminStatCard from "@/components/admin/common/AdminStatCard";
 import PageHeader from "@/components/admin/layout/PageHeader";
 import MostViewedItems from "@/components/admin/sales/MostViewedItems";
 import { getMostViewedProducts } from "@/services/productService";
@@ -198,27 +199,27 @@ export default function MostViewedPage() {
       </div>
 
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
-        <StatCard
+        <AdminStatCard
           title="Showing"
           value={`Top ${limit}`}
           icon={<LayoutList size={20} />}
           color="indigo"
           isText
         />
-        <StatCard
+        <AdminStatCard
           title="Total Views"
           value={stats.totalViews.toLocaleString()}
           icon={<Eye size={20} />}
           color="emerald"
         />
-        <StatCard
+        <AdminStatCard
           title="Most Viewed"
           value={stats.topProduct}
           icon={<TrendingUp size={20} />}
           color="amber"
           isText
         />
-        <StatCard
+        <AdminStatCard
           title="Top Category"
           value={stats.topCategory}
           icon={<Package size={20} />}

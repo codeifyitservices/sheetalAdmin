@@ -1,10 +1,20 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Check, ChevronDown, Mail, RefreshCw, Trash2 } from "lucide-react";
+import {
+  Check,
+  ChevronDown,
+  Mail,
+  RefreshCw,
+  Trash2,
+  Users,
+  UserPlus,
+  BadgeCheck,
+} from "lucide-react";
 import toast from "react-hot-toast";
 
 import DateRangeControl from "@/components/admin/common/DateRangeControl";
+import AdminStatCard from "@/components/admin/common/AdminStatCard";
 import PageHeader from "@/components/admin/layout/PageHeader";
 import ReportExportMenu from "@/components/admin/common/ReportExportMenu";
 import DeleteConfirmModal from "@/components/admin/common/DeleteConfirmModal";
@@ -258,9 +268,21 @@ export default function NewsletterPage() {
       </div>
 
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
-        <StatCard label="Total Subscribers" value={counts.total} tone="slate" />
-        <StatCard label="New" value={counts.new} tone="amber" />
-        <StatCard label="Added" value={counts.added} tone="emerald" />
+        <AdminStatCard
+          title="Total Subscribers"
+          count={counts.total}
+          icon={<Users size={20} />}
+        />
+        <AdminStatCard
+          title="New"
+          count={counts.new}
+          icon={<UserPlus size={20} />}
+        />
+        <AdminStatCard
+          title="Added"
+          count={counts.added}
+          icon={<BadgeCheck size={20} />}
+        />
       </div>
 
       <div className="flex flex-col gap-4 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm lg:flex-row lg:items-end lg:justify-between">
@@ -392,23 +414,6 @@ export default function NewsletterPage() {
         entityName="subscriber"
         itemName={subscriberToDelete?.email}
       />
-    </div>
-  );
-}
-
-function StatCard({ label, value, tone }) {
-  const tones = {
-    slate: "border-slate-200 bg-white text-slate-900",
-    amber: "border-amber-200 bg-amber-50 text-amber-900",
-    emerald: "border-emerald-200 bg-emerald-50 text-emerald-900",
-  };
-
-  return (
-    <div className={`rounded-2xl border p-5 shadow-sm ${tones[tone]}`}>
-      <p className="text-xs font-semibold uppercase tracking-widest text-slate-500">
-        {label}
-      </p>
-      <p className="mt-2 text-3xl font-black">{value}</p>
     </div>
   );
 }

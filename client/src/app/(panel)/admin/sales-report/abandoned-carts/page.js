@@ -14,6 +14,7 @@ import {
 } from "lucide-react";
 import ReportExportMenu from "@/components/admin/common/ReportExportMenu";
 import DateRangeControl from "@/components/admin/common/DateRangeControl";
+import AdminStatCard from "@/components/admin/common/AdminStatCard";
 import PageHeader from "@/components/admin/layout/PageHeader";
 import AbandonedCartDetailsModal from "@/components/admin/sales/AbandonedCartDetailsModal";
 import AbandonedCartStepsModal from "@/components/admin/sales/AbandonedCartStepsModal";
@@ -265,25 +266,25 @@ export default function AbandonedCartsPage() {
       </div>
 
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
-        <StatCard
+        <AdminStatCard
           title="Abandoned Carts"
           value={stats.total}
           icon={<ShoppingCart size={20} />}
           color="rose"
         />
-        <StatCard
+        <AdminStatCard
           title="Total Cart Value"
           value={`₹ ${stats.totalValue.toLocaleString()}`}
           icon={<IndianRupee size={20} />}
           color="amber"
         />
-        <StatCard
+        <AdminStatCard
           title="Revenue Recovered"
           value={`₹ ${stats.recoveredRevenue.toLocaleString()}`}
           icon={<TrendingUp size={20} />}
           color="emerald"
         />
-        <StatCard
+        <AdminStatCard
           title="Retention Rate"
           value={`${stats.retentionRate.toFixed(1)}%`}
           icon={<Clock size={20} />}
