@@ -1,16 +1,15 @@
-import nodemailer from "nodemailer";
+import {
+    SMTP_MAIL,
+    createMailTransport,
+    ensureEmailConfig,
+} from "./mailTransport.js";
 
 const sendEmail = async (options) => {
-    const transporter = nodemailer.createTransport({
-        service: process.env.SMTP_SERVICE,
-        auth: {
-            user: process.env.SMTP_MAIL,
-            pass: process.env.SMTP_PASSWORD,
-        },
-    });
+    ensureEmailConfig();
+    const transporter = createMailTransport();
 
     const mailOptions = {
-        from: process.env.SMTP_MAIL,
+        from: SMTP_MAIL,
         to: options.email,
         subject: options.subject,
         html: options.html || options.message,

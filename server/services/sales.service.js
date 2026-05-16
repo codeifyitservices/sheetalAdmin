@@ -2,15 +2,13 @@
 // Abandoned Cart Recovery Email
 // ─────────────────────────────────────────────────────────────────────────────
 
-import nodemailer from "nodemailer";
+import {
+  SMTP_MAIL,
+  createMailTransport,
+  ensureEmailConfig,
+} from "../utils/mailTransport.js";
 
-const transporter = nodemailer.createTransport({
-  service: process.env.SMTP_SERVICE,
-  auth: {
-    user: process.env.SMTP_MAIL,
-    pass: process.env.SMTP_PASSWORD,
-  },
-});
+const transporter = createMailTransport();
 
 function buildAbandonedCartEmailHtml({ name, items, cartValue }) {
   const firstName = name?.split(" ")[0] || "there";
@@ -255,9 +253,10 @@ export async function sendAbandonedCartEmail({
   cartValue,
 }) {
   if (!email) throw new Error("sendAbandonedCartEmail: email is required");
+  ensureEmailConfig();
 
   await transporter.sendMail({
-    from: `"${process.env.STORE_NAME}" <${process.env.SMTP_MAIL}>`,
+    from: `"${process.env.STORE_NAME}" <${SMTP_MAIL}>`,
     to: email,
     subject: `${name?.split(" ")[0] || "Hey"}, your cart is waiting for you 🛒`,
     html: buildAbandonedCartEmailHtml({ name, items, cartValue }),

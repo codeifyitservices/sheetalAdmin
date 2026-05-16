@@ -1,30 +1,17 @@
-import nodemailer from "nodemailer";
 import { config } from "../config/config.js";
+import {
+  SMTP_MAIL,
+  createMailTransport,
+  ensureEmailConfig,
+} from "../utils/mailTransport.js";
 
-const SMTP_MAIL = (process.env.SMTP_MAIL || "").trim();
-const SMTP_PASSWORD = (process.env.SMTP_PASSWORD || "").trim();
-const SMTP_SERVICE = (process.env.SMTP_SERVICE || "gmail").trim();
 const STORE_NAME = (process.env.STORE_NAME || "Our Store").trim();
 const STORE_URL =
   (process.env.STORE_URL || "").trim() || config.frontendDomain || "#";
 
-const transporter = nodemailer.createTransport({
-  service: SMTP_SERVICE,
-  auth: {
-    user: SMTP_MAIL,
-    pass: SMTP_PASSWORD,
-  },
-});
+const transporter = createMailTransport();
 
 let verifyPromise = null;
-
-function ensureEmailConfig() {
-  if (!SMTP_MAIL || !SMTP_PASSWORD) {
-    throw new Error(
-      "SMTP email is not configured. Set SMTP_MAIL and SMTP_PASSWORD.",
-    );
-  }
-}
 
 async function verifyTransporter() {
   ensureEmailConfig();
