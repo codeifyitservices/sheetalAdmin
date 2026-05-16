@@ -205,7 +205,7 @@ export const searchService = async ({ query, limit, page }) => {
   const fuzzyMatchedProducts = productHits.filter((hit) =>
     shortPartialQuery
       ? productMatchesSearchIntent(hit.data, normalisedQuery)
-      : productHasFuzzyWordMatch(hit.data, normalisedQuery),
+      : productHasStrictFuzzyIntentMatch(hit.data, normalisedQuery),
   );
 
   return limitProductResults(
@@ -252,12 +252,11 @@ const dbAttributeScan = async (normalisedQuery) => {
     variantRegexes.map((rx) => ({ [field]: rx })),
   );
 
-  // Also check name, subCategory, shortDescription, description
+  // Also check name and subCategory. Avoid description fields here because
+  // generic single-word matches in long copy produce vague results.
   const textFieldConditions = [
     ...variantRegexes.map((rx) => ({ name: rx })),
     ...variantRegexes.map((rx) => ({ subCategory: rx })),
-    ...variantRegexes.map((rx) => ({ shortDescription: rx })),
-    ...variantRegexes.map((rx) => ({ description: rx })),
   ];
 
   // Variant color match via variants.color.name (requires $elemMatch on variants array)
@@ -709,6 +708,12 @@ const productMatchesStructuredFields = (product, normalisedQuery) => {
 
 const productMatchesTextFields = (product, normalisedQuery) => {
   if (!normalisedQuery) return false;
+  const queryWords = getQueryWords(normalisedQuery);
+
+  // Single-word description matches are usually too broad to be useful.
+  if (queryWords.length <= 1) {
+    return false;
+  }
 
   return TEXT_SEARCH_FIELDS.some((field) => {
     const value = product?.[field];
@@ -724,7 +729,6 @@ const productMatchesTextFields = (product, normalisedQuery) => {
       return true;
     }
 
-    const queryWords = getQueryWords(normalisedQuery);
     const valueWords = getSearchableWords([normalisedValue]);
     return queryWords.every((qWord) =>
       valueWords.some((valueWord) => wordsMatch(qWord, valueWord)),
@@ -815,6 +819,37 @@ const getProductIntentWords = (product) =>
           : [],
     ),
   ]);
+
+const productHasStrictFuzzyIntentMatch = (product, normalisedQuery) => {
+  const queryWords = getQueryWords(normalisedQuery);
+  if (queryWords.length === 0) return false;
+
+  const intentWords = getSearchableWords([
+    product.name,
+    product.slug,
+    product.subCategory,
+    getProductCategoryName(product),
+    ...getProductColorValues(product),
+    ...(Array.isArray(product.style) ? product.style : []),
+    ...(Array.isArray(product.tags) ? product.tags : []),
+    ...(Array.isArray(product.fabric) ? product.fabric : []),
+    ...(Array.isArray(product.work) ? product.work : []),
+    ...(Array.isArray(product.occasion) ? product.occasion : []),
+    ...(Array.isArray(product.wearType) ? product.wearType : []),
+    ...(Array.isArray(product.productType) ? product.productType : []),
+  ]);
+
+  return queryWords.every((qWord) =>
+    intentWords.some((candidate) => {
+      if (!candidate) return false;
+      if (candidate === qWord) return true;
+      if (candidate.startsWith(qWord) || qWord.startsWith(candidate)) {
+        return Math.abs(candidate.length - qWord.length) <= 2;
+      }
+      return wordsMatch(qWord, candidate);
+    }),
+  );
+};
 
 // ---------------------------------------------------------------------------
 // Hit hydration
