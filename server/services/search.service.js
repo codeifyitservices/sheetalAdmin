@@ -50,6 +50,7 @@ export const searchService = async ({ query, limit, page }) => {
   if (!normQ || normQ.length < MIN_QUERY_LENGTH) {
     return [];
   }
+  const resolvedCategoryProductIds = new Set();
 
   const maxProducts =
     Number.isFinite(Number(limit)) && Number(limit) > 0
@@ -75,13 +76,22 @@ export const searchService = async ({ query, limit, page }) => {
   // This prevents "Sarees" from leaking in products tagged "saree" that
   // belong to other categories.
   if (normQ.length >= 2) {
-    const matchedCategory = await findExactCategory(normQ);
-    if (matchedCategory) {
-      const categoryProducts = await getCategoryProducts(matchedCategory._id);
-      hydrated.unshift(
-        { type: "category", data: matchedCategory },
-        ...categoryProducts.map((p) => ({ type: "product", data: p })),
-      );
+    const matchedCategories = await findMatchingCategories(normQ);
+    if (matchedCategories.length > 0) {
+      const categoryBlocks = [];
+
+      for (const matchedCategory of matchedCategories) {
+        const categoryProducts = await getCategoryProducts(matchedCategory._id);
+        categoryProducts.forEach((product) =>
+          resolvedCategoryProductIds.add(product._id.toString()),
+        );
+        categoryBlocks.push(
+          { type: "category", data: matchedCategory },
+          ...categoryProducts.map((p) => ({ type: "product", data: p })),
+        );
+      }
+
+      hydrated.unshift(...categoryBlocks);
     }
   }
 
@@ -101,7 +111,15 @@ export const searchService = async ({ query, limit, page }) => {
   }
 
   // ── Step 5: Deduplicate and limit ────────────────────────────────────────
-  return limitResults(hydrated, maxProducts);
+  const vettedResults = hydrated.filter((hit) => {
+    if (hit.type === "category") return true;
+    if (hit.data?._id && resolvedCategoryProductIds.has(hit.data._id.toString())) {
+      return true;
+    }
+    return isStrictProductSearchMatch(hit.data, normQ);
+  });
+
+  return limitResults(vettedResults, maxProducts);
 };
 
 // ---------------------------------------------------------------------------
@@ -118,29 +136,44 @@ export const searchService = async ({ query, limit, page }) => {
  * Does NOT match partial names ("sa" should not resolve to "Sarees").
  * Min query length for fuzzy: 4 characters.
  */
-const findExactCategory = async (normQ) => {
+const findMatchingCategories = async (normQ) => {
   const categories = await Category.find({ status: "Active" })
     .select("_id name slug status")
     .lean();
 
-  const variants = buildWordVariants(normQ);
+  const queryTokens = normQ.split(" ").filter(Boolean);
+  const searchTerms = queryTokens.length > 1 ? queryTokens : [normQ];
+  const matches = [];
+  const seenCategoryIds = new Set();
 
-  for (const cat of categories) {
-    const normCat = normalise(cat.name);
+  for (const term of searchTerms) {
+    const variants = buildWordVariants(term);
 
-    // Exact or variant match
-    if (variants.some((v) => v === normCat)) return cat;
+    for (const cat of categories) {
+      const normCat = normalise(cat.name);
 
-    // Single-word fuzzy (distance 1) for longer queries
-    if (normQ.length >= 4 && !normQ.includes(" ")) {
-      if (Math.abs(normCat.length - normQ.length) <= 2 &&
-          levenshteinDistance(normQ, normCat) <= 1) {
-        return cat;
+      // Exact or variant match
+      if (variants.some((v) => v === normCat)) {
+        if (!seenCategoryIds.has(cat._id.toString())) {
+          seenCategoryIds.add(cat._id.toString());
+          matches.push(cat);
+        }
+        continue;
+      }
+
+      // Single-word typo tolerance for longer queries, kept strict enough to
+      // catch garment misspellings like "lenga" -> "lehenga" without making
+      // short generic queries too loose.
+      if (term.length >= 4 && isCategoryTypoMatch(term, normCat)) {
+        if (!seenCategoryIds.has(cat._id.toString())) {
+          seenCategoryIds.add(cat._id.toString());
+          matches.push(cat);
+        }
       }
     }
   }
 
-  return null;
+  return matches;
 };
 
 /**
@@ -175,23 +208,6 @@ const getCategoryProducts = async (categoryId) => {
     if (!seen.has(id)) { seen.add(id); merged.push(p); }
   }
   return merged;
-};
-
-// Levenshtein needed here too (can't import from ngram service)
-const levenshteinDistance = (a, b) => {
-  if (a === b) return 0;
-  if (!a.length) return b.length;
-  if (!b.length) return a.length;
-  const matrix = Array.from({ length: b.length + 1 }, (_, i) => [i]);
-  matrix[0] = Array.from({ length: a.length + 1 }, (_, i) => i);
-  for (let i = 1; i <= b.length; i++) {
-    for (let j = 1; j <= a.length; j++) {
-      matrix[i][j] = b[i-1] === a[j-1]
-        ? matrix[i-1][j-1]
-        : Math.min(matrix[i-1][j-1]+1, matrix[i][j-1]+1, matrix[i-1][j]+1);
-    }
-  }
-  return matrix[b.length][a.length];
 };
 
 // ---------------------------------------------------------------------------
@@ -233,6 +249,153 @@ const dbAttributeScan = async (normQ) => {
   })
     .populate("category", "name slug")
     .lean();
+};
+
+const levenshteinDistance = (a, b) => {
+  if (a === b) return 0;
+  if (!a.length) return b.length;
+  if (!b.length) return a.length;
+  const matrix = Array.from({ length: b.length + 1 }, (_, i) => [i]);
+  matrix[0] = Array.from({ length: a.length + 1 }, (_, i) => i);
+  for (let i = 1; i <= b.length; i++) {
+    for (let j = 1; j <= a.length; j++) {
+      matrix[i][j] = b[i - 1] === a[j - 1]
+        ? matrix[i - 1][j - 1]
+        : Math.min(
+            matrix[i - 1][j - 1] + 1,
+            matrix[i][j - 1] + 1,
+            matrix[i - 1][j] + 1,
+          );
+    }
+  }
+  return matrix[b.length][a.length];
+};
+
+const isStrictProductSearchMatch = (product, normQ) => {
+  if (!product || !normQ) return false;
+
+  if (nameMatchesQuery(normalise(product.name || ""), normQ)) return true;
+  if (fieldMatchesQuery(normalise(product.category?.name || ""), normQ)) {
+    return true;
+  }
+  if (fieldMatchesQuery(normalise(product.subCategory || ""), normQ)) {
+    return true;
+  }
+
+  for (const field of ATTRIBUTE_FIELDS) {
+    const values = Array.isArray(product[field]) ? product[field] : [];
+    if (values.some((value) => fieldMatchesQuery(normalise(value), normQ))) {
+      return true;
+    }
+  }
+
+  const colors = Array.isArray(product.variants)
+    ? product.variants.map((variant) => normalise(variant?.color?.name || ""))
+    : [];
+  return colors.some((value) => fieldMatchesQuery(value, normQ));
+};
+
+const fieldMatchesQuery = (value, query) => {
+  if (!value || !query) return false;
+  if (value === query) return true;
+  return value.split(" ").filter(Boolean).some((word) => word === query);
+};
+
+const isCategoryTypoMatch = (query, category) => {
+  if (!query || !category) return false;
+  if (query === category) return true;
+  if (query.includes(" ") || category.includes(" ")) return false;
+
+  const lengthDiff = Math.abs(query.length - category.length);
+  if (lengthDiff > 2) return false;
+  if (query[0] !== category[0]) return false;
+
+  const distance = levenshteinDistance(query, category);
+  if (distance <= 1) return true;
+  if (query.length < 5 || distance > 2) return false;
+
+  const queryKey = consonantKey(query);
+  const categoryKey = consonantKey(category);
+  if (
+    queryKey.length >= 3 &&
+    categoryKey.length >= 3 &&
+    (queryKey === categoryKey ||
+      queryKey.startsWith(categoryKey) ||
+      categoryKey.startsWith(queryKey))
+  ) {
+    return true;
+  }
+
+  return soundex(query) === soundex(category);
+};
+
+const nameMatchesQuery = (name, query) => {
+  if (!name || !query) return false;
+  if (name === query || name.includes(query)) return true;
+
+  const queryWords = query.split(" ").filter(Boolean);
+  const nameWords = name.split(" ").filter(Boolean);
+
+  return queryWords.every((queryWord) =>
+    nameWords.some((nameWord) => fuzzyWordsMatch(queryWord, nameWord)),
+  );
+};
+
+const soundex = (word) => {
+  if (!word) return "";
+  const map = {
+    b: 1, f: 1, p: 1, v: 1,
+    c: 2, g: 2, j: 2, k: 2, q: 2, s: 2, x: 2, z: 2,
+    d: 3, t: 3, l: 4, m: 5, n: 5, r: 6,
+  };
+  const lower = word.toLowerCase();
+  let code = lower[0].toUpperCase();
+  let previous = map[lower[0]] || 0;
+
+  for (let i = 1; i < lower.length && code.length < 4; i++) {
+    const current = map[lower[i]];
+    if (current && current !== previous) code += current;
+    previous = current || 0;
+  }
+
+  return code.padEnd(4, "0");
+};
+
+const consonantKey = (word) =>
+  word
+    .toLowerCase()
+    .replace(/[^a-z0-9]/g, "")
+    .replace(/[aeiou]/g, "")
+    .replace(/[cqx]/g, "k");
+
+const fuzzyWordsMatch = (queryWord, productWord) => {
+  if (queryWord === productWord) return true;
+  if (queryWord.length < 3 || productWord.length < 3) return false;
+  if (productWord.startsWith(queryWord) || queryWord.startsWith(productWord)) {
+    return true;
+  }
+
+  const queryKey = consonantKey(queryWord);
+  const productKey = consonantKey(productWord);
+  if (
+    queryKey.length >= 3 &&
+    productKey.length >= 3 &&
+    (queryKey === productKey ||
+      queryKey.startsWith(productKey) ||
+      productKey.startsWith(queryKey))
+  ) {
+    return true;
+  }
+
+  const maxDistance = queryWord.length <= 5 ? 1 : 2;
+  if (Math.abs(queryWord.length - productWord.length) <= maxDistance) {
+    if (levenshteinDistance(queryWord, productWord) <= maxDistance) {
+      return true;
+    }
+  }
+
+  return soundex(queryWord) === soundex(productWord) &&
+    queryWord[0] === productWord[0];
 };
 
 // ---------------------------------------------------------------------------
