@@ -333,7 +333,7 @@ export const getMyOrdersService = async (userId) => {
 export const getSingleOrderService = async (orderId, userId) => {
   const order = await Order.findById(orderId).populate(
     "orderItems.product",
-    "name mainImage slug",
+    "name mainImage slug gstPercent",
   );
   if (!order) throw new ErrorResponse("Order not found", 404);
   if (order.user.toString() !== userId.toString()) {
@@ -344,7 +344,7 @@ export const getSingleOrderService = async (orderId, userId) => {
 
 export const getSingleOrderAdminService = async (orderId) => {
   const order = await Order.findById(orderId)
-    .populate("orderItems.product", "name mainImage slug")
+    .populate("orderItems.product", "name mainImage slug gstPercent")
     .populate("user", "name email");
 
   if (!order) {

@@ -14,6 +14,7 @@ const orderSchema = new mongoose.Schema(
         image: { type: String, required: true },
         price: { type: Number, required: true },
         quantity: { type: Number, required: true },
+        gstPercent: { type: Number, default: 0 },
         variant: {
           size: String,
           color: String,

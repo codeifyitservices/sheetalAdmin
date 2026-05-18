@@ -157,6 +157,7 @@ export const createPaymentLinkService = async (
       image: product.mainImage?.url || item.variantImage || "",
       price: productPrice,
       quantity,
+      gstPercent: product.gstPercent || 0,
       variant: {
         size: item.size,
         color: item.color,
