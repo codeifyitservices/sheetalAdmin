@@ -457,7 +457,8 @@ const TIER = {
  *
  *   2000  Fuzzy match (>= MIN_FUZZY_LENGTH only)
  */
-const scoreNameMatch = (query, targetName, tierBase) => {
+const scoreNameMatch = (query, targetName, tierBase, options = {}) => {
+  const { allowFuzzy = true } = options;
   if (!query || !targetName) return null;
 
   const queryLen   = query.length;
@@ -499,7 +500,7 @@ const scoreNameMatch = (query, targetName, tierBase) => {
   }
 
   // ── Fuzzy — only for queries >= MIN_FUZZY_LENGTH ─────────────────────────
-  if (queryLen < MIN_FUZZY_LENGTH) return null;
+  if (!allowFuzzy || queryLen < MIN_FUZZY_LENGTH) return null;
 
   const queryWords = query.split(" ").filter(Boolean);
   const matchingWordsCount = queryWords.filter((qw) =>
@@ -635,9 +636,6 @@ export const searchNgram = async (query, options = {}) => {
     const entry = documentStore.get(docId);
     if (!entry) continue;
     const { doc } = entry;
-      if (doc.name?.toLowerCase().includes("test")) {
-    console.log("REACHED SCORING for Test Product, gramHits:", gramHits, "minGrams:", minGrams, "allowFuzzy:", allowFuzzy);
-  }
     const normName = normalise(doc.name);
     const normSubCat = normalise(doc.subCategory || "");
     const normCatName = normalise(
@@ -656,13 +654,23 @@ export const searchNgram = async (query, options = {}) => {
 
       // ── Tier 4: SubCategory ────────────────────────────────────────
       if (normSubCat) {
-        const subCatMatch = scoreNameMatch(normQ, normSubCat, TIER.PRODUCT_SUBCATEGORY);
+        const subCatMatch = scoreNameMatch(
+          normQ,
+          normSubCat,
+          TIER.PRODUCT_SUBCATEGORY,
+          { allowFuzzy: false },
+        );
         if (subCatMatch) finalScore = Math.max(finalScore, subCatMatch.score);
       }
 
       // ── Tier 4 (also): Category name on product ────────────────────
       if (normCatName) {
-        const catOnProductMatch = scoreNameMatch(normQ, normCatName, TIER.PRODUCT_SUBCATEGORY);
+        const catOnProductMatch = scoreNameMatch(
+          normQ,
+          normCatName,
+          TIER.PRODUCT_SUBCATEGORY,
+          { allowFuzzy: false },
+        );
         if (catOnProductMatch) finalScore = Math.max(finalScore, catOnProductMatch.score);
       }
 
@@ -678,7 +686,9 @@ export const searchNgram = async (query, options = {}) => {
     } else if (doc.type === "category") {
       // ── Tier 3: Category name ────────────────────────────────────────
       // Categories are always matched by name regardless of query length.
-      const catMatch = scoreNameMatch(normQ, normName, TIER.CATEGORY_NAME);
+      const catMatch = scoreNameMatch(normQ, normName, TIER.CATEGORY_NAME, {
+        allowFuzzy: false,
+      });
       if (!catMatch) continue;
       finalScore = catMatch.score;
     }
