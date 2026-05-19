@@ -8,8 +8,17 @@ import {
   AlertCircle,
   Package,
 } from "lucide-react";
-import { updateOrderStatus } from "@/services/orderService";
+import { updateOrderStatus, updateOrderItemStatus } from "@/services/orderService";
 import toast from "react-hot-toast";
+
+const ITEM_STATUS_OPTIONS = [
+  "Processing",
+  "Shipped",
+  "Delivered",
+  "Cancelled",
+  "Returned",
+  "Exchanged",
+];
 
 export default function OrderModal({
   isOpen,
@@ -19,6 +28,9 @@ export default function OrderModal({
 }) {
   const [status, setStatus] = useState("Processing");
   const [loading, setLoading] = useState(false);
+  const [localOrder, setLocalOrder] = useState(initialData);
+  const [itemStatusDrafts, setItemStatusDrafts] = useState({});
+  const [pendingItemId, setPendingItemId] = useState("");
 
   const [shippingInfo, setShippingInfo] = useState({
     carrier: "",
@@ -29,6 +41,15 @@ export default function OrderModal({
   // Reset and Load data when modal opens
   useEffect(() => {
     if (isOpen && initialData) {
+      setLocalOrder(initialData);
+      setItemStatusDrafts(
+        Object.fromEntries(
+          (initialData?.orderItems || []).map((item) => [
+            item._id,
+            item.itemStatus || "Processing",
+          ]),
+        ),
+      );
       setStatus(initialData.orderStatus || "Processing");
       setShippingInfo({
         carrier:
@@ -41,6 +62,37 @@ export default function OrderModal({
       });
     }
   }, [initialData, isOpen]);
+
+  const handleItemStatusUpdate = async (itemId) => {
+    const nextStatus = itemStatusDrafts[itemId];
+    if (!nextStatus) return;
+
+    setPendingItemId(itemId);
+    try {
+      const res = await updateOrderItemStatus(localOrder._id, itemId, {
+        status: nextStatus,
+      });
+
+      if (res.success && res.data) {
+        setLocalOrder(res.data);
+        setStatus(res.data.orderStatus || "Processing");
+        setItemStatusDrafts(
+          Object.fromEntries(
+            (res.data.orderItems || []).map((item) => [
+              item._id,
+              item.itemStatus || "Processing",
+            ]),
+          ),
+        );
+        if (onSuccess) onSuccess(res.data); 
+        toast.success(`Item status updated to ${nextStatus}`);
+      }
+    } catch (error) {
+      toast.error(error.message || "Failed to update item status");
+    } finally {
+      setPendingItemId("");
+    }
+  };
 
   const handleUpdate = async () => {
     // Validation: Shipped status ke liye details mandatory hain
@@ -59,22 +111,22 @@ export default function OrderModal({
         // Shipping info tabhi bhejte hain jab status Shipped ya Delivered ho
         shippingInfo:
           status === "Shipped" || status === "Delivered" ? shippingInfo : null,
-        shippedAt: status === "Shipped" ? new Date() : initialData?.shippedAt,
+        shippedAt: status === "Shipped" ? new Date() : localOrder?.shippedAt,
         deliveredAt:
-          status === "Delivered" ? new Date() : initialData?.deliveredAt,
+          status === "Delivered" ? new Date() : localOrder?.deliveredAt,
       };
 
-      const res = await updateOrderStatus(initialData._id, payload);
+      const res = await updateOrderStatus(localOrder?._id, payload);
 
       if (res.success || res.status === 200) {
         toast.success(`Order status updated to ${status}`);
-        onSuccess(); // Refresh parents data
+        if (onSuccess) onSuccess(res.data); // Refresh parents data
         onClose();
       }
     } catch (err) {
       console.error("Update Error:", err);
       toast.error(
-        err.response?.data?.message || "Failed to update order status",
+        err.message || "Failed to update order status",
       );
     } finally {
       setLoading(false);
@@ -97,7 +149,7 @@ export default function OrderModal({
                 Manage Order
               </h2>
               <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest mt-1.5">
-                ID: #{initialData?._id?.slice(-10)}
+                ID: #{localOrder?._id?.slice(-10)}
               </p>
             </div>
           </div>
@@ -205,6 +257,83 @@ export default function OrderModal({
               </div>
             </div>
           ) : null}
+
+          {/* Order Items Section */}
+          <div className="space-y-4">
+            <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">
+              Individual Item Status
+            </label>
+            <div className="space-y-3 max-h-[30vh] overflow-y-auto pr-1" style={{ scrollbarWidth: "none" }}>
+              {localOrder?.orderItems?.map((item) => {
+                const currentStatus = item.itemStatus || "Processing";
+                const nextStatus = itemStatusDrafts[item._id] || currentStatus;
+
+                return (
+                  <div
+                    key={item._id}
+                    className="p-4 bg-slate-50/50 rounded-2xl border border-slate-100 flex flex-col gap-3"
+                  >
+                    <div className="flex items-center gap-3">
+                      <div className="w-10 h-10 bg-white rounded-xl border border-slate-200 overflow-hidden shrink-0 shadow-sm">
+                        {item.image ? (
+                          <img
+                            src={item.image}
+                            alt={item.name}
+                            className="object-cover w-full h-full"
+                          />
+                        ) : (
+                          <div className="w-full h-full flex items-center justify-center">
+                            <Package size={16} className="text-slate-300" />
+                          </div>
+                        )}
+                      </div>
+                      <div className="flex-1">
+                        <p className="text-xs font-black text-slate-800 line-clamp-1">
+                          {item.name}
+                        </p>
+                        <p className="text-[10px] font-bold text-slate-500 uppercase mt-0.5">
+                          Qty: {item.quantity}
+                        </p>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <select
+                        value={nextStatus}
+                        onChange={(event) =>
+                          setItemStatusDrafts((current) => ({
+                            ...current,
+                            [item._id]: event.target.value,
+                          }))
+                        }
+                        className="flex-1 rounded-xl border border-slate-200 bg-white px-3 py-2 text-[11px] font-bold text-slate-700 outline-none focus:border-slate-900 transition-colors"
+                      >
+                        {ITEM_STATUS_OPTIONS.map((statusOpt) => (
+                          <option key={statusOpt} value={statusOpt}>
+                            {statusOpt}
+                          </option>
+                        ))}
+                      </select>
+                      <button
+                        type="button"
+                        onClick={() => handleItemStatusUpdate(item._id)}
+                        disabled={
+                          pendingItemId === item._id ||
+                          nextStatus === currentStatus
+                        }
+                        className="inline-flex min-w-[80px] items-center justify-center gap-2 rounded-xl bg-slate-900 px-3 py-2 text-[10px] font-black uppercase tracking-widest text-white transition-all disabled:cursor-not-allowed disabled:opacity-50 hover:bg-black"
+                      >
+                        {pendingItemId === item._id ? (
+                          <Loader2 size={12} className="animate-spin" />
+                        ) : (
+                          "Update"
+                        )}
+                      </button>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
         </div>
 
         {/* Actions */}

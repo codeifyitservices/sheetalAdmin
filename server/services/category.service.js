@@ -55,6 +55,7 @@ export const createCategoryService = async (data, files) => {
     occasion,
     byPrice,
     gstPercent,
+    hsnCode,
     sizeMode,
     sizeChart,
   } = data;
@@ -131,6 +132,7 @@ export const createCategoryService = async (data, files) => {
       Number(gstPercent) > 0
         ? Number(gstPercent)
         : await getGlobalTax(),
+    hsnCode: hsnCode || "",
     sizeMode: parsedSizing.sizeMode,
     sizeChart: parsedSizing.sizeChart,
   };
@@ -167,7 +169,7 @@ export const createCategoryService = async (data, files) => {
 export const getAllCategoriesService = async () => {
   const categories = await Category.find({ isActive: true })
     .select(
-      "name slug mainImage bannerImage parentCategory subCategories style work fabric productType wearType occasion byPrice sizeMode sizeChart gstPercent",
+      "name slug mainImage bannerImage parentCategory subCategories style work fabric productType wearType occasion byPrice sizeMode sizeChart gstPercent hsnCode",
     )
     .populate("parentCategory", "name")
     .populate("sizeChart", "name table howToMeasureImage")
@@ -295,6 +297,7 @@ export const updateCategoryService = async (id, data, files) => {
       Number(data.gstPercent) > 0
         ? Number(data.gstPercent)
         : await getGlobalTax(),
+    hsnCode: data.hsnCode || "",
     metaTitle: data.metaTitle,
     metaDescription: data.metaDescription,
     metaKeywords: data.metaKeywords,

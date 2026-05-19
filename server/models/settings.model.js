@@ -49,6 +49,7 @@ const settingsSchema = new mongoose.Schema(
     shippingFee: { type: Number, default: 0 },
     freeShippingThreshold: { type: Number, default: 0 },
     taxPercentage: { type: Number, default: 0 },
+    globalHsnCode: { type: String, trim: true, default: "" },
     abandonedCartInactivityMinutes: { type: Number, default: 20 },
     abandonedCartDiscountPercent: { type: Number, default: 10 },
     abandonedCartCouponCode: { type: String, default: "SAVE10" },
@@ -59,6 +60,8 @@ const settingsSchema = new mongoose.Schema(
       default:
         "Your satisfaction is our top priority. If you're not completely satisfied with the product, we offer a hassle-free, no questions asked 7 days return and refund.",
     },
+    deliveryPoint2: { type: String, default: "Pay on delivery available" },
+    deliveryPoint3: { type: String, default: "Easy 7 days return & exchange available" },
     supportEmail: { type: String, default: "info@studiobysheetal.com" },
     supportWhatsapp: { type: String, default: "919958813913" },
     navbarLayout: { type: [navbarItemSchema], default: [] },

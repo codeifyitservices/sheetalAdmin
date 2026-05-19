@@ -96,6 +96,9 @@ const handlePaymentLinkPaid = async (payload) => {
     if (!order.inventoryAdjusted) {
         await applyOrderInventoryAdjustments(order.orderItems);
         order.inventoryAdjusted = true;
+        order.orderItems.forEach((item) => {
+            item.inventoryAdjusted = true;
+        });
     }
 
     order.paymentInfo.id = razorpayPaymentId;

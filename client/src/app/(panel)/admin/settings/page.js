@@ -16,6 +16,7 @@ export default function SettingsPage() {
     shippingFee: 0,
     freeShippingThreshold: 0,
     taxPercentage: 0,
+    globalHsnCode: "",
   });
 
   const [isLoading, setIsLoading] = useState(true);
@@ -33,6 +34,7 @@ export default function SettingsPage() {
           shippingFee: settingsRes.data.shippingFee || 0,
           freeShippingThreshold: settingsRes.data.freeShippingThreshold || 0,
           taxPercentage: settingsRes.data.taxPercentage || 0,
+          globalHsnCode: settingsRes.data.globalHsnCode || "",
         });
       }
 
@@ -53,7 +55,7 @@ export default function SettingsPage() {
     const { name, value } = e.target;
     setGlobalSettings((prev) => ({
       ...prev,
-      [name]: Number(value),
+      [name]: name === "globalHsnCode" ? value : Number(value),
     }));
   };
 
@@ -164,6 +166,21 @@ export default function SettingsPage() {
                 />
                 <p className="text-[10px] text-slate-400 font-medium text-emerald-600">
                   Default GST for categories without a specific rate.
+                </p>
+              </div>
+
+              <div className="space-y-1.5">
+                <label className={labelStyle}>Global HSN Code</label>
+                <input
+                  type="text"
+                  name="globalHsnCode"
+                  value={globalSettings.globalHsnCode}
+                  onChange={handleGlobalSettingChange}
+                  className={inputStyle}
+                  placeholder="e.g. 6204"
+                />
+                <p className="text-[10px] text-slate-400">
+                  Default HSN code for items where the category does not define one.
                 </p>
               </div>
             </div>

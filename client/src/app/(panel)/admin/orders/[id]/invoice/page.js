@@ -6,6 +6,7 @@ import Link from "next/link";
 import { useRouter, useSearchParams, useParams } from "next/navigation";
 import { getAdminOrderById } from "@/services/orderService";
 import { getBasicInfo } from "@/services/basicInfoService";
+import { getSettings } from "@/services/settingsService";
 
 const emptyAddress = {
   addressLine: "",
@@ -49,6 +50,46 @@ const formatAddressLines = (address = emptyAddress) => {
   return lines.length > 0 ? lines : ["Not configured"];
 };
 
+const getVariantPrices = (item) => {
+  const product = item.product;
+  const sellingPrice = item.price; // default to order item price
+  let mrp = item.price; // default to order item price
+
+  if (product && Array.isArray(product.variants)) {
+    const colorName = item.variant?.color;
+    const sizeName = item.variant?.size;
+
+    let matchedVariant = null;
+    if (colorName) {
+      matchedVariant = product.variants.find(
+        (v) => v.color?.name?.toLowerCase() === colorName.toLowerCase()
+      );
+    }
+
+    if (!matchedVariant) {
+      // Look up size in any variant
+      for (const v of product.variants) {
+        const sz = v.sizes?.find(
+          (s) => s.name?.toLowerCase() === sizeName?.toLowerCase()
+        );
+        if (sz) {
+          mrp = sz.price || mrp;
+          break;
+        }
+      }
+    } else if (sizeName) {
+      const sz = matchedVariant.sizes?.find(
+        (s) => s.name?.toLowerCase() === sizeName.toLowerCase()
+      );
+      if (sz) {
+        mrp = sz.price || mrp;
+      }
+    }
+  }
+
+  return { mrp, sellingPrice };
+};
+
 function AdminInvoicePageInner() {
   const router = useRouter();
   const params = useParams();
@@ -63,6 +104,7 @@ function AdminInvoicePageInner() {
     shippingAddress: emptyAddress,
     billingAddress: emptyAddress,
   });
+  const [globalHsnCode, setGlobalHsnCode] = useState("");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
 
@@ -78,9 +120,10 @@ function AdminInvoicePageInner() {
         setLoading(true);
         setError("");
 
-        const [orderRes, basicInfoRes] = await Promise.allSettled([
+        const [orderRes, basicInfoRes, settingsRes] = await Promise.allSettled([
           getAdminOrderById(orderId),
           getBasicInfo(),
+          getSettings(),
         ]);
 
         if (orderRes.status === "fulfilled") {
@@ -102,6 +145,13 @@ function AdminInvoicePageInner() {
               shippingAddress: res.data.shippingAddress || emptyAddress,
               billingAddress: res.data.billingAddress || emptyAddress,
             });
+          }
+        }
+
+        if (settingsRes.status === "fulfilled") {
+          const res = settingsRes.value;
+          if (res?.success && res?.data) {
+            setGlobalHsnCode(res.data.globalHsnCode || "");
           }
         }
       } catch {
@@ -334,16 +384,20 @@ function AdminInvoicePageInner() {
                             <div className="invoice-print-x overflow-x-auto">
                               <table className="w-full border-collapse bg-white">
                                 <colgroup>
-                                  <col className="w-[47%]" />
+                                  <col className="w-[37%]" />
+                                  <col className="w-[13%]" />
                                   <col className="w-[15%]" />
-                                  <col className="w-[25%]" />
                                   <col className="w-[15%]" />
-                                  <col className="w-[15%]" />
+                                  <col className="w-[8%]" />
+                                  <col className="w-[12%]" />
                                 </colgroup>
                                 <thead>
                                   <tr className="bg-[#f6f6f6]">
                                     <th className="border border-[#ccc] p-[13px] text-left text-[16px] text-[#111111] font-semibold">
                                       Product List
+                                    </th>
+                                    <th className="border border-[#ccc] p-[13px] text-left text-[16px] text-[#111111] font-semibold">
+                                      HSN
                                     </th>
                                     <th className="border border-[#ccc] p-[13px] text-left text-[16px] text-[#111111] font-semibold">
                                       MRP
@@ -360,51 +414,58 @@ function AdminInvoicePageInner() {
                                   </tr>
                                 </thead>
                                 <tbody>
-                                  {order.orderItems.map((item) => (
-                                    <tr key={item._id}>
-                                      <td className="border border-[#ccc] p-[13px] text-[16px] text-[#111111]">
-                                        <div>
-                                          <div>{item.name}</div>
-                                          {(item.variant?.size ||
-                                            item.variant?.color ||
-                                            item.variant?.v_sku) && (
-                                            <div className="mt-1 text-[13px] leading-[20px] text-[#555555]">
-                                              {item.variant?.size && (
-                                                <div>
-                                                  <strong>Variant:</strong>{" "}
-                                                  {item.variant.size}
-                                                </div>
-                                              )}
-                                              {item.variant?.color && (
-                                                <div>
-                                                  <strong>Color:</strong>{" "}
-                                                  {item.variant.color}
-                                                </div>
-                                              )}
-                                              {item.variant?.v_sku && (
-                                                <div>
-                                                  <strong>SKU:</strong>{" "}
-                                                  {item.variant.v_sku}
-                                                </div>
-                                              )}
-                                            </div>
-                                          )}
-                                        </div>
-                                      </td>
-                                      <td className="border border-[#ccc] p-[13px] text-[16px] text-[#111111]">
-                                        {money(item.price)}
-                                      </td>
-                                      <td className="border border-[#ccc] p-[13px] text-[16px] text-[#111111]">
-                                        {money(item.price)}
-                                      </td>
-                                      <td className="border border-[#ccc] p-[13px] text-[16px] text-[#111111]">
-                                        {item.quantity}
-                                      </td>
-                                      <td className="border border-[#ccc] p-[13px] text-[16px] text-[#111111] text-right">
-                                        {money(item.price * item.quantity)}
-                                      </td>
-                                    </tr>
-                                  ))}
+                                  {order.orderItems.map((item) => {
+                                    const hsn = item.product?.category?.hsnCode || globalHsnCode || "—";
+                                    const { mrp, sellingPrice } = getVariantPrices(item);
+                                    return (
+                                      <tr key={item._id}>
+                                        <td className="border border-[#ccc] p-[13px] text-[16px] text-[#111111]">
+                                          <div>
+                                            <div>{item.name}</div>
+                                            {(item.variant?.size ||
+                                              item.variant?.color ||
+                                              item.variant?.v_sku) && (
+                                              <div className="mt-1 text-[13px] leading-[20px] text-[#555555]">
+                                                {item.variant?.size && (
+                                                  <div>
+                                                    <strong>Variant:</strong>{" "}
+                                                    {item.variant.size}
+                                                  </div>
+                                                )}
+                                                {item.variant?.color && (
+                                                  <div>
+                                                    <strong>Color:</strong>{" "}
+                                                    {item.variant.color}
+                                                  </div>
+                                                )}
+                                                {item.variant?.v_sku && (
+                                                  <div>
+                                                    <strong>SKU:</strong>{" "}
+                                                    {item.variant.v_sku}
+                                                  </div>
+                                                )}
+                                              </div>
+                                            )}
+                                          </div>
+                                        </td>
+                                        <td className="border border-[#ccc] p-[13px] text-[16px] text-[#111111]">
+                                          {hsn}
+                                        </td>
+                                        <td className="border border-[#ccc] p-[13px] text-[16px] text-[#111111]">
+                                          {money(mrp)}
+                                        </td>
+                                        <td className="border border-[#ccc] p-[13px] text-[16px] text-[#111111]">
+                                          {money(sellingPrice)}
+                                        </td>
+                                        <td className="border border-[#ccc] p-[13px] text-[16px] text-[#111111]">
+                                          {item.quantity}
+                                        </td>
+                                        <td className="border border-[#ccc] p-[13px] text-[16px] text-[#111111] text-right">
+                                          {money(sellingPrice * item.quantity)}
+                                        </td>
+                                      </tr>
+                                    );
+                                  })}
                                 </tbody>
                               </table>
                             </div>

@@ -38,6 +38,22 @@ export const updateOrderStatus = async (orderId, updateData) => {
   return handleResponse(res);
 };
 
+export const updateOrderItemStatus = async (orderId, itemId, updateData) => {
+  const res = await fetch(
+    `${API_BASE_URL}/orders/admin/update-item/${orderId}/${itemId}`,
+    {
+      method: "PUT",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      credentials: "include",
+      body: JSON.stringify(updateData),
+    },
+  );
+
+  return handleResponse(res);
+};
+
 export const getAdminOrderById = async (orderId) => {
   const res = await fetch(`${API_BASE_URL}/orders/admin/${orderId}`, {
     method: "GET",

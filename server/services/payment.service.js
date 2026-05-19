@@ -158,6 +158,8 @@ export const createPaymentLinkService = async (
       price: productPrice,
       quantity,
       gstPercent: product.gstPercent || 0,
+      itemStatus: "Processing",
+      inventoryAdjusted: false,
       variant: {
         size: item.size,
         color: item.color,
@@ -185,7 +187,8 @@ export const createPaymentLinkService = async (
     }
   }
 
-  const finalAmount = totalPrice + shippingPrice + platformFee;
+  const couponDiscount = Number(couponData.discountPrice) || 0;
+  const finalAmount = Math.max(0, totalPrice - couponDiscount) + shippingPrice + platformFee;
 
   // 3. Create Order in Database (Pending Payment)
   const order = await Order.create({
@@ -380,6 +383,9 @@ export const verifyOnlinePaymentService = async (params) => {
   if (!order.inventoryAdjusted) {
     await applyOrderInventoryAdjustments(order.orderItems);
     order.inventoryAdjusted = true;
+    order.orderItems.forEach((item) => {
+      item.inventoryAdjusted = true;
+    });
   }
 
   // 7. Mark order as Paid

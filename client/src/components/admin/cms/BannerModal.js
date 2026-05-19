@@ -121,6 +121,15 @@ export default function BannerModal({
         } else if (link.startsWith("/product-list?category=")) {
           setLinkType("category");
           setSelectedCategorySlug(link.split("=")[1]);
+        } else if (
+          link.startsWith("/") &&
+          !link.startsWith("/product/") &&
+          link !== "/about-us" &&
+          link !== "/contact-us" &&
+          link !== "/blogs"
+        ) {
+          setLinkType("category");
+          setSelectedCategorySlug(link.split("/")[1] || "");
         } else if (link.startsWith("/product/")) {
           setLinkType("product");
           setSelectedProductSlug(link.split("/")[2]);
@@ -223,7 +232,7 @@ export default function BannerModal({
         finalLink = "/";
         break;
       case "category":
-        finalLink = `/product-list?category=${selectedCategorySlug}`;
+        finalLink = `/${selectedCategorySlug}`;
         break;
       case "product":
         finalLink = `/product/${selectedProductSlug}`;

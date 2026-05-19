@@ -51,6 +51,7 @@ export default function CategoryModal({
     description: "",
     parentCategory: "",
     gstPercent: 0,
+    hsnCode: "",
     isFeatured: false,
     status: "Active",
     categoryBanner: "",
@@ -81,6 +82,7 @@ export default function CategoryModal({
         description: initialData?.description || "",
         parentCategory: initialData?.parentCategory?._id || "",
         gstPercent: initialData?.gstPercent ?? 0,
+        hsnCode: initialData?.hsnCode || "",
         isFeatured: initialData?.isFeatured || false,
         status: initialData?.isActive !== false ? "Active" : "Inactive",
         categoryBanner: initialData?.categoryBanner || "",
@@ -239,6 +241,7 @@ export default function CategoryModal({
     data.append("description", formData.description);
     data.append("parentCategory", formData.parentCategory || "");
     data.append("gstPercent", formData.gstPercent ?? 0);
+    data.append("hsnCode", formData.hsnCode || "");
     data.append("isFeatured", formData.isFeatured);
     data.append("status", formData.status);
     data.append("categoryBanner", formData.categoryBanner);
@@ -512,6 +515,24 @@ export default function CategoryModal({
                     <p className="text-[11px] text-slate-500">
                       Saving this updates GST for all products in this category.
                     </p>
+                  </div>
+
+                  <div className="space-y-1.5">
+                    <label className="text-xs font-bold text-slate-900 uppercase tracking-wider">
+                      HSN Code
+                    </label>
+                    <input
+                      type="text"
+                      value={formData.hsnCode || ""}
+                      onChange={(e) =>
+                        setFormData({
+                          ...formData,
+                          hsnCode: e.target.value,
+                        })
+                      }
+                      placeholder="e.g. 6204"
+                      className="w-full bg-white border border-slate-300 px-3 py-2.5 rounded-lg text-sm outline-none focus:border-slate-900 transition font-medium"
+                    />
                   </div>
 
                   {/* Subcategories */}

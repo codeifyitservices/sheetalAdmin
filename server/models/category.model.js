@@ -43,6 +43,7 @@ const categorySchema = new mongoose.Schema(
 
     categoryBanner: { type: String },
     gstPercent: { type: Number, default: 0, min: 0 },
+    hsnCode: { type: String, trim: true, default: "" },
     isFeatured: { type: Boolean, default: false },
     isActive: { type: Boolean, default: true },
     status: { type: String, enum: ["Active", "Inactive"], default: "Active" },

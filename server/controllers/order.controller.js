@@ -70,13 +70,34 @@ export const adminGetAllOrders = async (req, res, next) => {
 // --- 4. UPDATE ORDER STATUS (Admin) ---
 export const updateOrderStatus = async (req, res, next) => {
   try {
-    const { status, trackingId, courierPartner } = req.body;
+    const { status } = req.body;
+    const trackingId = req.body.trackingId || req.body.shippingInfo?.trackingId;
+    const courierPartner = req.body.courierPartner || req.body.shippingInfo?.carrier || req.body.shippingInfo?.courierPartner;
     const data = await orderService.updateOrderStatusService(
       req.params.id,
       status,
       { trackingId, courierPartner },
     );
     return successResponse(res, 200, data, `Order status updated to ${status}`);
+  } catch (error) {
+    next(error);
+  }
+};
+
+export const updateOrderItemStatus = async (req, res, next) => {
+  try {
+    const { status } = req.body;
+    const data = await orderService.updateOrderItemStatusService(
+      req.params.id,
+      req.params.itemId,
+      status,
+    );
+    return successResponse(
+      res,
+      200,
+      data,
+      `Order item status updated to ${status}`,
+    );
   } catch (error) {
     next(error);
   }

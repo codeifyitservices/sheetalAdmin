@@ -285,6 +285,16 @@ export const createOrderService = async (data, requester) => {
 };
 
 // --- UPDATE ORDER STATUS (Admin Only) ---
+const TERMINAL_ITEM_STATUSES = new Set(["Delivered", "Returned", "Cancelled"]);
+const VALID_ITEM_STATUSES = new Set([
+  "Processing",
+  "Shipped",
+  "Delivered",
+  "Returned",
+  "Exchanged",
+  "Cancelled",
+]);
+
 export const updateOrderStatusService = async (
   orderId,
   status,
@@ -293,7 +303,9 @@ export const updateOrderStatusService = async (
   const order = await Order.findById(orderId);
   if (!order) throw new ErrorResponse("Order nahi mila", 404);
 
-  if (order.orderStatus === "Delivered") {
+  const oldStatus = order.orderStatus;
+
+  if (oldStatus === "Delivered" && status === "Delivered") {
     throw new ErrorResponse("Ye order pehle hi deliver ho chuka hai", 400);
   }
 
@@ -301,6 +313,9 @@ export const updateOrderStatusService = async (
     if (order.inventoryAdjusted) {
       await revertOrderInventoryAdjustments(order.orderItems);
       order.inventoryAdjusted = false;
+      order.orderItems.forEach((item) => {
+        item.inventoryAdjusted = false;
+      });
     }
     try {
       await User.findByIdAndUpdate(order.user, {
@@ -320,8 +335,79 @@ export const updateOrderStatusService = async (
   if (trackingData.courierPartner)
     order.courierPartner = trackingData.courierPartner;
 
+  // Bulk overwrite individual item statuses if the new order status is a valid item status
+  if (status !== oldStatus && VALID_ITEM_STATUSES.has(status)) {
+    order.orderItems.forEach((item) => {
+      item.itemStatus = status;
+    });
+  }
+
   await order.save();
-  return order;
+
+  return await Order.findById(orderId)
+    .populate({
+      path: "orderItems.product",
+      select: "name mainImage slug gstPercent category",
+      populate: {
+        path: "category",
+        select: "name hsnCode",
+      },
+    })
+    .populate("user", "name email");
+};
+
+export const updateOrderItemStatusService = async (
+  orderId,
+  orderItemId,
+  status,
+) => {
+  const order = await Order.findById(orderId);
+  if (!order) throw new ErrorResponse("Order nahi mila", 404);
+
+  const orderItem = order.orderItems.id(orderItemId);
+  if (!orderItem) throw new ErrorResponse("Order item nahi mila", 404);
+
+  if (
+    TERMINAL_ITEM_STATUSES.has(orderItem.itemStatus) &&
+    orderItem.itemStatus !== status
+  ) {
+    throw new ErrorResponse(
+      `Item is already in a terminal state: ${orderItem.itemStatus}`,
+      400
+    );
+  }
+
+  if (status === "Cancelled" || status === "Returned") {
+    if (orderItem.inventoryAdjusted) {
+      await revertOrderInventoryAdjustments([orderItem]);
+      orderItem.inventoryAdjusted = false;
+    }
+  }
+
+  orderItem.itemStatus = status;
+
+  // Auto-calculate main order status if all items have the same status
+  const itemStatuses = order.orderItems.map((item) => item.itemStatus);
+  const uniqueStatuses = [...new Set(itemStatuses)];
+  if (uniqueStatuses.length === 1) {
+    order.orderStatus = uniqueStatuses[0];
+    if (uniqueStatuses[0] === "Delivered") {
+      order.deliveredAt = Date.now();
+    }
+  }
+
+  await order.save();
+
+  return await Order.findById(orderId)
+    .populate({
+      path: "orderItems.product",
+      select: "name mainImage slug gstPercent category",
+      populate: {
+        path: "category",
+        select: "name hsnCode",
+      },
+    })
+    .populate("user", "name email");
 };
 
 // --- GET MY ORDERS (User) ---
@@ -331,10 +417,14 @@ export const getMyOrdersService = async (userId) => {
 
 // --- GET SINGLE ORDER ---
 export const getSingleOrderService = async (orderId, userId) => {
-  const order = await Order.findById(orderId).populate(
-    "orderItems.product",
-    "name mainImage slug gstPercent",
-  );
+  const order = await Order.findById(orderId).populate({
+    path: "orderItems.product",
+    select: "name mainImage slug gstPercent category variants",
+    populate: {
+      path: "category",
+      select: "name hsnCode",
+    },
+  });
   if (!order) throw new ErrorResponse("Order not found", 404);
   if (order.user.toString() !== userId.toString()) {
     throw new ErrorResponse("You are not authorised to view this order", 403);
@@ -344,7 +434,14 @@ export const getSingleOrderService = async (orderId, userId) => {
 
 export const getSingleOrderAdminService = async (orderId) => {
   const order = await Order.findById(orderId)
-    .populate("orderItems.product", "name mainImage slug gstPercent")
+    .populate({
+      path: "orderItems.product",
+      select: "name mainImage slug gstPercent category variants",
+      populate: {
+        path: "category",
+        select: "name hsnCode",
+      },
+    })
     .populate("user", "name email");
 
   if (!order) {

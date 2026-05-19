@@ -15,6 +15,22 @@ const orderSchema = new mongoose.Schema(
         price: { type: Number, required: true },
         quantity: { type: Number, required: true },
         gstPercent: { type: Number, default: 0 },
+        itemStatus: {
+          type: String,
+          enum: [
+            "Processing",
+            "Shipped",
+            "Delivered",
+            "Returned",
+            "Exchanged",
+            "Cancelled",
+          ],
+          default: "Processing",
+        },
+        inventoryAdjusted: {
+          type: Boolean,
+          default: true,
+        },
         variant: {
           size: String,
           color: String,
@@ -89,6 +105,7 @@ const orderSchema = new mongoose.Schema(
         "Shipped",
         "Delivered",
         "Returned",
+        "Return Requested",
         "Exchanged",
         "Cancelled",
       ],

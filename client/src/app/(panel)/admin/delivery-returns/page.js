@@ -11,6 +11,8 @@ export default function DeliveryReturnsPage() {
     prepaidShippingCharge: "",
     codShippingCharge: "",
     returnPolicyContent: "",
+    deliveryPoint2: "",
+    deliveryPoint3: "",
     supportEmail: "",
     supportWhatsapp: "",
   });
@@ -29,6 +31,8 @@ export default function DeliveryReturnsPage() {
           prepaidShippingCharge: response.data.prepaidShippingCharge || "",
           codShippingCharge: response.data.codShippingCharge || "",
           returnPolicyContent: response.data.returnPolicyContent || "",
+          deliveryPoint2: response.data.deliveryPoint2 || "",
+          deliveryPoint3: response.data.deliveryPoint3 || "",
           supportEmail: response.data.supportEmail || "",
           supportWhatsapp: response.data.supportWhatsapp || "",
         });
@@ -129,6 +133,48 @@ export default function DeliveryReturnsPage() {
             <p className="mt-2 text-[10px] text-slate-400 font-bold uppercase tracking-widest">
               This text will be shown in the product details page.
             </p>
+          </div>
+        </div>
+
+        {/* Delivery Options Points */}
+        <div className="bg-white p-6 md:p-8 rounded-[28px] border border-slate-200 shadow-sm">
+          <h3 className="text-lg font-black text-slate-900 mb-6 flex items-center gap-2">
+            <Info size={18} className="text-indigo-500" /> Delivery Options Badges
+          </h3>
+          <div className="space-y-6">
+            <div>
+              <label className={labelStyle}>First Point (Delivery Date Estimation)</label>
+              <input
+                type="text"
+                value="Get it by [Estimated Date] (Dynamic)"
+                disabled
+                className={`${inputStyle} bg-slate-100 text-slate-400 cursor-not-allowed`}
+              />
+            </div>
+            <div>
+              <label className={labelStyle}>Second Point (Pay on Delivery)</label>
+              <input
+                type="text"
+                value={settings.deliveryPoint2}
+                onChange={(e) =>
+                  setSettings({ ...settings, deliveryPoint2: e.target.value })
+                }
+                placeholder="e.g. Pay on delivery available"
+                className={inputStyle}
+              />
+            </div>
+            <div>
+              <label className={labelStyle}>Third Point (Returns & Exchange)</label>
+              <input
+                type="text"
+                value={settings.deliveryPoint3}
+                onChange={(e) =>
+                  setSettings({ ...settings, deliveryPoint3: e.target.value })
+                }
+                placeholder="e.g. Easy 7 days return & exchange available"
+                className={inputStyle}
+              />
+            </div>
           </div>
         </div>
 

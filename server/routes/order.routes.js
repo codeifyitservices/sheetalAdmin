@@ -7,6 +7,7 @@ import {
   adminGetAllOrders,
   adminGetOrderStats,
   updateOrderStatus,
+  updateOrderItemStatus,
   pushToShiprocket,
   assignAwb,
 } from "../controllers/order.controller.js";
@@ -36,6 +37,12 @@ router.get("/admin/:id", isAuthenticated, isAdmin, adminGetSingleOrder);
 
 // 4. Admin order ka status (Shipped/Delivered/Return) update karne ke liye
 router.put("/admin/update/:id", isAuthenticated, isAdmin, updateOrderStatus);
+router.put(
+  "/admin/update-item/:id/:itemId",
+  isAuthenticated,
+  isAdmin,
+  updateOrderItemStatus,
+);
 
 // 5. Admin: Manually push an order to Shiprocket (testing + manual sync)
 router.post("/admin/push-to-shiprocket/:orderId", isAuthenticated, isAdmin, pushToShiprocket);

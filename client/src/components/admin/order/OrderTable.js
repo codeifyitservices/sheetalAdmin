@@ -451,13 +451,31 @@ export default function OrderTable({
       <OrderModal
         isOpen={showStatusModal}
         onClose={() => setShowStatusModal(false)}
-        onSuccess={fetchOrders}
+        onSuccess={(updatedOrder) => {
+          if (updatedOrder) {
+            setOrders((currentOrders) =>
+              currentOrders.map((order) =>
+                order._id === updatedOrder._id ? updatedOrder : order,
+              ),
+            );
+            setEditData(updatedOrder);
+          }
+          fetchOrders();
+        }}
         initialData={editData}
       />
       <ViewOrderDrawer
         isOpen={showDrawer}
         onClose={() => setShowDrawer(false)}
         order={viewOrder}
+        onOrderUpdated={(updatedOrder) => {
+          setViewOrder(updatedOrder);
+          setOrders((currentOrders) =>
+            currentOrders.map((order) =>
+              order._id === updatedOrder._id ? updatedOrder : order,
+            ),
+          );
+        }}
       />
     </div>
   );

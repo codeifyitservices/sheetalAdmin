@@ -3,6 +3,8 @@ import express from "express";
 import {
     getAboutPage,
     updateAboutPage,
+    getPageBySlug,
+    updatePageBySlug,
 } from "../controllers/pages.controller.js";
 import { isAuthenticated, isAdmin } from "../middlewares/auth.middleware.js";
 import { uploadTo } from "../middlewares/multer.middleware.js";
@@ -25,5 +27,11 @@ router.post(
     ]),
     updateAboutPage
 );
+
+// Get page by slug (public)
+router.get("/slug/:slug", getPageBySlug);
+
+// Update page by slug (admin)
+router.post("/slug/:slug", isAuthenticated, isAdmin, updatePageBySlug);
 
 export default router;
