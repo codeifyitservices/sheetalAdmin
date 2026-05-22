@@ -30,7 +30,10 @@ const fmtDate = (iso) =>
     year: "numeric",
   });
 
-const shortId = (id) => String(id || "").slice(-10).toUpperCase();
+const shortId = (id) =>
+  String(id || "")
+    .slice(-10)
+    .toUpperCase();
 
 const formatPaymentMode = (paymentInfo = {}) => {
   if (paymentInfo.displayMethod?.trim()) {
@@ -48,46 +51,6 @@ const formatAddressLines = (address = emptyAddress) => {
   ].filter(Boolean);
 
   return lines.length > 0 ? lines : ["Not configured"];
-};
-
-const getVariantPrices = (item) => {
-  const product = item.product;
-  const sellingPrice = item.price; // default to order item price
-  let mrp = item.price; // default to order item price
-
-  if (product && Array.isArray(product.variants)) {
-    const colorName = item.variant?.color;
-    const sizeName = item.variant?.size;
-
-    let matchedVariant = null;
-    if (colorName) {
-      matchedVariant = product.variants.find(
-        (v) => v.color?.name?.toLowerCase() === colorName.toLowerCase()
-      );
-    }
-
-    if (!matchedVariant) {
-      // Look up size in any variant
-      for (const v of product.variants) {
-        const sz = v.sizes?.find(
-          (s) => s.name?.toLowerCase() === sizeName?.toLowerCase()
-        );
-        if (sz) {
-          mrp = sz.price || mrp;
-          break;
-        }
-      }
-    } else if (sizeName) {
-      const sz = matchedVariant.sizes?.find(
-        (s) => s.name?.toLowerCase() === sizeName.toLowerCase()
-      );
-      if (sz) {
-        mrp = sz.price || mrp;
-      }
-    }
-  }
-
-  return { mrp, sellingPrice };
 };
 
 function AdminInvoicePageInner() {
@@ -165,7 +128,13 @@ function AdminInvoicePageInner() {
   }, [orderId]);
 
   useEffect(() => {
-    if (!shouldAutoPrint || loading || error || !order || hasPrintedRef.current) {
+    if (
+      !shouldAutoPrint ||
+      loading ||
+      error ||
+      !order ||
+      hasPrintedRef.current
+    ) {
       return;
     }
 
@@ -297,21 +266,19 @@ function AdminInvoicePageInner() {
       `}</style>
 
       <div className="invoice-print-root m-5 bg-white">
-        <div className="invoice-print-sheet w-full border border-[#01008b47]">
+        <div className="w-full border border-[#01008b47]">
           <div className="px-[30px] pt-[36px] pb-[42px]">
             <table className="w-full border-collapse mb-0">
               <tbody>
                 <tr>
                   <td className="align-top p-0 flex justify-center text-[#153643] w-25 h-25">
-                    <Link href="/admin/orders">
-                      <Image
-                        src="/favicon.png"
-                        alt="Studio By Sheetal"
-                        width={100}
-                        height={100}
-                        className="block h-full w-auto"
-                      />
-                    </Link>
+                    <Image
+                      src="/favicon.png"
+                      alt="Studio By Sheetal"
+                      width={100}
+                      height={100}
+                      className="block h-full w-auto"
+                    />
                   </td>
                   <td className="align-top text-right text-[#153643]">
                     <h1 className="text-[32px] font-bold my-5">
@@ -381,51 +348,59 @@ function AdminInvoicePageInner() {
 
                         <tr>
                           <td colSpan={2}>
-                            <div className="invoice-print-x overflow-x-auto">
+                            <div className="overflow-x-auto">
                               <table className="w-full border-collapse bg-white">
                                 <colgroup>
-                                  <col className="w-[37%]" />
-                                  <col className="w-[13%]" />
+                                  <col className="w-[35%]" />
                                   <col className="w-[15%]" />
                                   <col className="w-[15%]" />
-                                  <col className="w-[8%]" />
                                   <col className="w-[12%]" />
+                                  <col className="w-[8%]" />
+                                  <col className="w-[15%]" />
                                 </colgroup>
                                 <thead>
                                   <tr className="bg-[#f6f6f6]">
-                                    <th className="border border-[#ccc] p-[13px] text-left text-[16px] text-[#111111] font-semibold">
+                                    <th className="border border-[#ccc] p-[13px] text-left text-[14px] text-[#111111] font-semibold">
                                       Product List
                                     </th>
-                                    <th className="border border-[#ccc] p-[13px] text-left text-[16px] text-[#111111] font-semibold">
+                                    <th className="border border-[#ccc] p-[13px] text-left text-[14px] text-[#111111] font-semibold">
                                       HSN
                                     </th>
-                                    <th className="border border-[#ccc] p-[13px] text-left text-[16px] text-[#111111] font-semibold">
-                                      MRP
+                                    <th className="border border-[#ccc] p-[13px] text-left text-[14px] text-[#111111] font-semibold">
+                                      Price
                                     </th>
-                                    <th className="border border-[#ccc] p-[13px] text-left text-[16px] text-[#111111] font-semibold">
-                                      Selling Price
+                                    <th className="border border-[#ccc] p-[13px] text-left text-[14px] text-[#111111] font-semibold">
+                                      GST Rate
                                     </th>
-                                    <th className="border border-[#ccc] p-[13px] text-left text-[16px] text-[#111111] font-semibold">
+                                    <th className="border border-[#ccc] p-[13px] text-left text-[14px] text-[#111111] font-semibold">
                                       Qty
                                     </th>
-                                    <th className="border border-[#ccc] p-[13px] text-right text-[16px] text-[#111111] font-semibold">
+                                    <th className="border border-[#ccc] p-[13px] text-right text-[14px] text-[#111111] font-semibold">
                                       Amount
                                     </th>
                                   </tr>
                                 </thead>
                                 <tbody>
                                   {order.orderItems.map((item) => {
-                                    const hsn = item.product?.category?.hsnCode || globalHsnCode || "—";
-                                    const { mrp, sellingPrice } = getVariantPrices(item);
+                                    const hsn =
+                                      item.product?.category?.hsnCode ||
+                                      globalHsnCode ||
+                                      "—";
+                                    const gstRate =
+                                      item.gstPercent ||
+                                      item.product?.gstPercent ||
+                                      0;
+                                    const totalAmount =
+                                      item.price * item.quantity;
                                     return (
                                       <tr key={item._id}>
-                                        <td className="border border-[#ccc] p-[13px] text-[16px] text-[#111111]">
+                                        <td className="border border-[#ccc] p-[13px] text-[14px] text-[#111111]">
                                           <div>
                                             <div>{item.name}</div>
                                             {(item.variant?.size ||
                                               item.variant?.color ||
                                               item.variant?.v_sku) && (
-                                              <div className="mt-1 text-[13px] leading-[20px] text-[#555555]">
+                                              <div className="mt-1 text-[12px] leading-[18px] text-[#555555]">
                                                 {item.variant?.size && (
                                                   <div>
                                                     <strong>Variant:</strong>{" "}
@@ -448,20 +423,20 @@ function AdminInvoicePageInner() {
                                             )}
                                           </div>
                                         </td>
-                                        <td className="border border-[#ccc] p-[13px] text-[16px] text-[#111111]">
+                                        <td className="border border-[#ccc] p-[13px] text-[14px] text-[#111111]">
                                           {hsn}
                                         </td>
-                                        <td className="border border-[#ccc] p-[13px] text-[16px] text-[#111111]">
-                                          {money(mrp)}
+                                        <td className="border border-[#ccc] p-[13px] text-[14px] text-[#111111]">
+                                          {money(item.price)}
                                         </td>
-                                        <td className="border border-[#ccc] p-[13px] text-[16px] text-[#111111]">
-                                          {money(sellingPrice)}
+                                        <td className="border border-[#ccc] p-[13px] text-[14px] text-[#111111]">
+                                          {gstRate}%
                                         </td>
-                                        <td className="border border-[#ccc] p-[13px] text-[16px] text-[#111111]">
+                                        <td className="border border-[#ccc] p-[13px] text-[14px] text-[#111111]">
                                           {item.quantity}
                                         </td>
-                                        <td className="border border-[#ccc] p-[13px] text-[16px] text-[#111111] text-right">
-                                          {money(sellingPrice * item.quantity)}
+                                        <td className="border border-[#ccc] p-[13px] text-[14px] text-[#111111] text-right">
+                                          {money(totalAmount)}
                                         </td>
                                       </tr>
                                     );
@@ -470,7 +445,7 @@ function AdminInvoicePageInner() {
                               </table>
                             </div>
 
-                            <div className="invoice-print-x overflow-x-auto">
+                            <div className="overflow-x-auto">
                               <table className="w-full border-collapse bg-white">
                                 <colgroup>
                                   <col className="w-[39%]" />
@@ -488,13 +463,14 @@ function AdminInvoicePageInner() {
                                     </td>
                                     <td className="border-y border-[#ccc] text-[16px] leading-[1.55em] text-left text-[#111111]">
                                       <p className="text-[#111111] text-[16px] my-4">
+                                        Amount:
+                                      </p>
+                                      <p className="text-[#111111] text-[16px] my-4">
+                                        Discount:
+                                      </p>
+                                      <p className="text-[#111111] text-[16px] my-4 border-b border-gray-200 pb-2">
                                         Sub Total:
                                       </p>
-                                      {order.discountPrice > 0 && (
-                                        <p className="text-[#111111] text-[16px] my-4">
-                                          Discount:
-                                        </p>
-                                      )}
                                       <p className="text-[#111111] text-[16px] my-4">
                                         Shipping Charges:
                                       </p>
@@ -504,16 +480,19 @@ function AdminInvoicePageInner() {
                                     </td>
                                     <td className="border-y border-r border-[#ccc] text-[16px] leading-[1.55em] text-left text-[#111111]">
                                       <p className="text-[#111111] text-[16px] my-4 text-left">
+                                        {money(
+                                          order.itemsPrice +
+                                            (order.discountPrice || 0),
+                                        )}
+                                      </p>
+                                      <p className="text-[#111111] text-[16px] my-4 text-left">
+                                        {order.discountPrice > 0
+                                          ? `- ${money(order.discountPrice)}`
+                                          : money(0)}
+                                      </p>
+                                      <p className="text-[#111111] text-[16px] my-4 text-left border-b border-gray-200 pb-2">
                                         {money(order.itemsPrice)}
                                       </p>
-                                      {order.discountPrice > 0 && (
-                                        <p className="text-[#111111] text-[16px] my-4 text-left">
-                                          -{money(order.discountPrice)}
-                                          {order.couponCode
-                                            ? ` (${order.couponCode})`
-                                            : ""}
-                                        </p>
-                                      )}
                                       <p className="text-[#111111] text-[16px] my-4 text-left">
                                         {order.shippingPrice > 0
                                           ? money(order.shippingPrice)
@@ -569,8 +548,7 @@ function AdminInvoicePageInner() {
                               ))}
                             </p>
                             <p className="my-4">
-                              <strong>Email:</strong>{" "}
-                              {order.user?.email || "Not available"}
+                              <strong>Email:</strong> Not available
                             </p>
                             <p className="my-4">
                               <strong>Phone no.:</strong>{" "}
@@ -594,8 +572,7 @@ function AdminInvoicePageInner() {
                               ))}
                             </p>
                             <p className="my-4">
-                              <strong>Email:</strong>{" "}
-                              {order.user?.email || "Not available"}
+                              <strong>Email:</strong> Not available
                             </p>
                             <p className="my-4">
                               <strong>Phone no.:</strong>{" "}
@@ -682,7 +659,7 @@ function AdminInvoicePageInner() {
                   <td className="p-0 text-center">
                     <p className="m-0 text-[14px] leading-[16px] text-white">
                       © 2026{" "}
-                      <Link href="/admin/orders" className="text-white underline">
+                      <Link href="/" className="text-white underline">
                         Studio By Sheetal
                       </Link>
                     </p>

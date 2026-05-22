@@ -96,6 +96,66 @@ export default function PagesCMS() {
             Edit data protection rules, privacy claims, and terms
           </p>
         </Link>
+
+        <Link
+          href="/admin/cms/pages/shipping-policy"
+          className="group bg-white p-6 rounded-3xl border border-slate-200 shadow-sm hover:shadow-md transition-all hover:scale-[1.02]"
+        >
+          <div className="w-12 h-12 bg-sky-50 text-sky-600 rounded-2xl flex items-center justify-center mb-4 transition-colors group-hover:bg-sky-100">
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              width="24"
+              height="24"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            >
+              <path d="M3 7h13v10H3z" />
+              <path d="M16 10h3l2 2v5h-5z" />
+              <circle cx="7.5" cy="17.5" r="1.5" />
+              <circle cx="17.5" cy="17.5" r="1.5" />
+            </svg>
+          </div>
+          <h3 className="text-lg font-bold text-slate-900 group-hover:text-sky-700 transition-colors">
+            Shipping Policy
+          </h3>
+          <p className="text-sm text-slate-500 mt-2">
+            Edit delivery timelines, charges, and shipment terms
+          </p>
+        </Link>
+
+        <Link
+          href="/admin/cms/pages/return-exchange-policy"
+          className="group bg-white p-6 rounded-3xl border border-slate-200 shadow-sm hover:shadow-md transition-all hover:scale-[1.02]"
+        >
+          <div className="w-12 h-12 bg-rose-50 text-rose-600 rounded-2xl flex items-center justify-center mb-4 transition-colors group-hover:bg-rose-100">
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              width="24"
+              height="24"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            >
+              <path d="M17 2l4 4-4 4" />
+              <path d="M3 11V9a4 4 0 0 1 4-4h14" />
+              <path d="M7 22l-4-4 4-4" />
+              <path d="M21 13v2a4 4 0 0 1-4 4H3" />
+            </svg>
+          </div>
+          <h3 className="text-lg font-bold text-slate-900 group-hover:text-rose-700 transition-colors">
+            Return & Exchange Policy
+          </h3>
+          <p className="text-sm text-slate-500 mt-2">
+            Edit return windows, exchange rules, and refund terms
+          </p>
+        </Link>
       </div>
     </div>
   );

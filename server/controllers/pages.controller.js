@@ -141,6 +141,32 @@ export const getPageBySlug = async (req, res, next) => {
                     <h2>4. Cookies</h2>
                     <p>We use cookies to understand site usage and to improve the content and offerings on our sites. You can choose to disable cookies through your individual browser options.</p>
                 `.trim();
+            } else if (slug === "shipping-policy") {
+                defaultContent = `
+                    <h1>Shipping Policy</h1>
+                    <p>Thank you for shopping with Studio By Sheetal. This shipping policy explains how we process, dispatch, and deliver your orders.</p>
+                    <h2>1. Order Processing</h2>
+                    <p>Orders are typically processed within 1-3 business days after payment confirmation. Processing times may vary during sales, launches, or holidays.</p>
+                    <h2>2. Shipping Timelines</h2>
+                    <p>Estimated delivery timelines depend on your shipping location and courier availability. Delivery estimates are indicative and may vary due to external factors.</p>
+                    <h2>3. Shipping Charges</h2>
+                    <p>Applicable shipping charges, if any, will be displayed during checkout before you complete your purchase.</p>
+                    <h2>4. Delivery Delays</h2>
+                    <p>We are not liable for delays caused by courier partners, weather, public holidays, or other circumstances beyond our control. We will still do our best to keep you informed.</p>
+                `.trim();
+            } else if (slug === "return-exchange-policy") {
+                defaultContent = `
+                    <h1>Return & Exchange Policy</h1>
+                    <p>We want you to have a smooth shopping experience. This policy explains the conditions under which returns and exchanges may be accepted.</p>
+                    <h2>1. Eligibility</h2>
+                    <p>Items may be eligible for return or exchange only if they are unused, unwashed, and returned in their original condition with all tags and packaging intact.</p>
+                    <h2>2. Request Window</h2>
+                    <p>Return or exchange requests must be raised within the timeline communicated by Studio By Sheetal from the date of delivery.</p>
+                    <h2>3. Non-Returnable Items</h2>
+                    <p>Certain made-to-order, customized, discounted, intimate, or hygiene-sensitive items may not be eligible for return or exchange unless they arrive damaged or defective.</p>
+                    <h2>4. Refunds and Exchanges</h2>
+                    <p>Once the returned item is received and approved after quality inspection, the refund or exchange will be processed according to the applicable payment method and internal timelines.</p>
+                `.trim();
             } else {
                 defaultContent = `<h1>${defaultTitle}</h1><p>Please edit this page content from the admin dashboard.</p>`;
             }
