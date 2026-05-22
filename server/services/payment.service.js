@@ -9,7 +9,11 @@ import { createShiprocketOrder } from "./shiprocket.service.js";
 import { sendOrderConfirmationEmail } from "./order.email.service.js";
 import { completeAbandonedCartFlow } from "./abandonedCart.service.js";
 import { confirmCouponUsageForOrder } from "./coupon.service.js";
-import { applyOrderInventoryAdjustments } from "./order.service.js";
+import {
+  applyOrderInventoryAdjustments,
+  revertOrderInventoryAdjustments,
+  validateInventoryForOrderItems,
+} from "./order.service.js";
 
 const normalizePaymentDisplayMethod = (method) => {
   const normalizedMethod = String(method || "").trim().toLowerCase();
@@ -189,6 +193,8 @@ export const createPaymentLinkService = async (
 
   const couponDiscount = Number(couponData.discountPrice) || 0;
   const finalAmount = Math.max(0, totalPrice - couponDiscount) + shippingPrice + platformFee;
+
+  await validateInventoryForOrderItems(orderItems);
 
   // 3. Create Order in Database (Pending Payment)
   const order = await Order.create({
@@ -380,12 +386,14 @@ export const verifyOnlinePaymentService = async (params) => {
     return order;
   }
 
+  let inventoryAdjustedInThisAttempt = false;
   if (!order.inventoryAdjusted) {
     await applyOrderInventoryAdjustments(order.orderItems);
     order.inventoryAdjusted = true;
     order.orderItems.forEach((item) => {
       item.inventoryAdjusted = true;
     });
+    inventoryAdjustedInThisAttempt = true;
   }
 
   // 7. Mark order as Paid
@@ -408,7 +416,18 @@ export const verifyOnlinePaymentService = async (params) => {
   if (order.recoverySource && !order.recoveredAt) {
     order.recoveredAt = new Date();
   }
-  await order.save();
+  try {
+    await order.save();
+  } catch (saveError) {
+    if (inventoryAdjustedInThisAttempt) {
+      await revertOrderInventoryAdjustments(order.orderItems);
+      order.inventoryAdjusted = false;
+      order.orderItems.forEach((item) => {
+        item.inventoryAdjusted = false;
+      });
+    }
+    throw saveError;
+  }
 
   await confirmCouponUsageForOrder(order);
 

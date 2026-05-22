@@ -91,7 +91,7 @@ const defaultFooterLayout = [
       {
         id: createId(),
         label: "Return & Exchange Policy",
-        href: "/returne-policy",
+        href: "/return-exchange-policy",
         hidden: false,
       },
       {
@@ -103,7 +103,7 @@ const defaultFooterLayout = [
       {
         id: createId(),
         label: "Terms of Use",
-        href: "/terms-conditions",
+        href: "/terms-and-conditions",
         hidden: false,
       },
     ],

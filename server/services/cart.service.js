@@ -41,11 +41,89 @@ const tryRecalculateCoupon = async (cart) => {
   }
 };
 
+const normalizeQuantity = (quantity) => {
+  const parsed = Number(quantity);
+  return Number.isFinite(parsed) ? Math.max(0, Math.floor(parsed)) : 0;
+};
+
+const getVariantForCartItem = (product, cartItemLike) => {
+  if (!product || !Array.isArray(product.variants) || product.variants.length === 0) {
+    return null;
+  }
+
+  const requestedColor = String(cartItemLike?.color || "").trim().toLowerCase();
+  const requestedSize = String(cartItemLike?.size || "").trim().toLowerCase();
+
+  if (requestedColor) {
+    const variant = product.variants.find(
+      (entry) =>
+        String(entry?.color?.name || "").trim().toLowerCase() === requestedColor,
+    );
+    if (variant) return variant;
+  }
+
+  if (requestedSize) {
+    return (
+      product.variants.find((entry) =>
+        Array.isArray(entry?.sizes) &&
+        entry.sizes.some(
+          (size) => String(size?.name || "").trim().toLowerCase() === requestedSize,
+        ),
+      ) || null
+    );
+  }
+
+  return null;
+};
+
+const getSizeForCartItem = (variant, cartItemLike) => {
+  if (!variant || !Array.isArray(variant.sizes) || variant.sizes.length === 0) {
+    return null;
+  }
+
+  const requestedSize = String(cartItemLike?.size || "").trim().toLowerCase();
+  if (!requestedSize) {
+    return variant.sizes[0] || null;
+  }
+
+  return (
+    variant.sizes.find(
+      (size) => String(size?.name || "").trim().toLowerCase() === requestedSize,
+    ) || null
+  );
+};
+
+const getAvailableStockForCartItem = (product, cartItemLike) => {
+  const variant = getVariantForCartItem(product, cartItemLike);
+  const size = getSizeForCartItem(variant, cartItemLike);
+
+  if (variant && size) {
+    return Number(size.stock) || 0;
+  }
+
+  return Number(product?.stock) || 0;
+};
+
+const ensureCartItemStock = (product, cartItemLike, desiredQuantity) => {
+  const normalizedDesiredQuantity = normalizeQuantity(desiredQuantity);
+  if (normalizedDesiredQuantity <= 0) {
+    throw new ErrorResponse("Quantity must be at least 1", 400);
+  }
+
+  const availableStock = getAvailableStockForCartItem(product, cartItemLike);
+  if (availableStock < normalizedDesiredQuantity) {
+    throw new ErrorResponse(
+      `This item only has ${availableStock} left.`,
+      400,
+    );
+  }
+};
+
 export const getCartByUserIdService = async (userId) => {
   const cart = await Cart.findOne({ user: userId }).populate({
     path: "items.product",
     model: "Product",
-    select: "name mainImage.url category slug",
+    select: "name mainImage.url category slug stock variants",
     populate: {
       path: "category",
       model: "Category",
@@ -82,6 +160,7 @@ export const addToCartService = async (
   discountPrice,
   variantImage,
 ) => {
+  const normalizedQuantity = normalizeQuantity(quantity);
   const cart = await Cart.findOne({ user: userId });
   const product = await Product.findById(productId);
 
@@ -89,13 +168,18 @@ export const addToCartService = async (
     throw new ErrorResponse("Product not found", 404);
   }
 
+  if (normalizedQuantity <= 0) {
+    throw new ErrorResponse("Quantity must be at least 1", 400);
+  }
+
   if (!cart) {
+    ensureCartItemStock(product, { size, color }, normalizedQuantity);
     const newCart = await Cart.create({
       user: userId,
       items: [
         {
           product: productId,
-          quantity,
+          quantity: normalizedQuantity,
           size,
           color,
           price,
@@ -118,14 +202,17 @@ export const addToCartService = async (
   );
 
   if (existingItem) {
-    existingItem.quantity += quantity;
+    const desiredQuantity = existingItem.quantity + normalizedQuantity;
+    ensureCartItemStock(product, existingItem, desiredQuantity);
+    existingItem.quantity = desiredQuantity;
     existingItem.price = price;
     existingItem.discountPrice = discountPrice;
     existingItem.variantImage = variantImage;
   } else {
+    ensureCartItemStock(product, { size, color }, normalizedQuantity);
     cart.items.push({
       product: productId,
-      quantity,
+      quantity: normalizedQuantity,
       size,
       color,
       price,
@@ -203,6 +290,7 @@ export const updateCartItemQuantityService = async (
   itemId,
   newQuantity,
 ) => {
+  const normalizedQuantity = normalizeQuantity(newQuantity);
   const cart = await Cart.findOne({ user: userId });
 
   if (!cart) {
@@ -217,10 +305,16 @@ export const updateCartItemQuantityService = async (
     throw new ErrorResponse("Item not found in cart", 404);
   }
 
-  if (newQuantity <= 0) {
+  if (normalizedQuantity <= 0) {
     cart.items = cart.items.filter((item) => item._id.toString() !== itemId);
   } else {
-    itemToUpdate.quantity = newQuantity;
+    const product = await Product.findById(itemToUpdate.product);
+    if (!product) {
+      throw new ErrorResponse("Product not found", 404);
+    }
+
+    ensureCartItemStock(product, itemToUpdate, normalizedQuantity);
+    itemToUpdate.quantity = normalizedQuantity;
   }
 
   cart.abandonmentReminderAttempts =
@@ -304,6 +398,12 @@ export const mergeGuestCartService = async (userId, guestItems) => {
       discountPrice,
       variantImage,
     } = guestItem;
+    const normalizedQuantity = normalizeQuantity(quantity);
+    const product = await Product.findById(productId);
+
+    if (!product) {
+      continue;
+    }
 
     const existingItem = cart.items.find(
       (item) =>
@@ -313,14 +413,17 @@ export const mergeGuestCartService = async (userId, guestItems) => {
     );
 
     if (existingItem) {
-      existingItem.quantity += quantity;
+      const desiredQuantity = existingItem.quantity + normalizedQuantity;
+      ensureCartItemStock(product, existingItem, desiredQuantity);
+      existingItem.quantity = desiredQuantity;
       existingItem.price = price;
       existingItem.discountPrice = discountPrice;
       if (variantImage) existingItem.variantImage = variantImage;
     } else {
+      ensureCartItemStock(product, { size, color }, normalizedQuantity);
       cart.items.push({
         product: productId,
-        quantity,
+        quantity: normalizedQuantity,
         size,
         color,
         price,

@@ -292,6 +292,7 @@ const buildProductDoc = (product) => {
     id: product._id.toString(),
     type: "product",
     name: product.name || "",
+    isStarred: Boolean(product.isStarred),
     slug: product.slug || "",
     sku: product.sku || "",
     subCategory: product.subCategory || "",
@@ -360,6 +361,30 @@ const buildCategoryDoc = (category) => ({
   image: category.mainImage || null,
   status: category.status,
 });
+
+const compareTierTies = (leftDoc, rightDoc) => {
+  const leftStarred =
+    leftDoc?.type === "product" && leftDoc?.isStarred ? 1 : 0;
+  const rightStarred =
+    rightDoc?.type === "product" && rightDoc?.isStarred ? 1 : 0;
+
+  if (leftStarred !== rightStarred) {
+    return rightStarred - leftStarred;
+  }
+
+  const leftName = String(leftDoc?.name || "");
+  const rightName = String(rightDoc?.name || "");
+  const byName = leftName.localeCompare(rightName, "en", {
+    sensitivity: "base",
+    numeric: true,
+  });
+
+  if (byName !== 0) {
+    return byName;
+  }
+
+  return String(leftDoc?.id || "").localeCompare(String(rightDoc?.id || ""));
+};
 
 // ---------------------------------------------------------------------------
 // Hydration
@@ -747,7 +772,15 @@ export const searchNgram = async (query, options = {}) => {
   }
 
   // ── Step 4: Sort by finalScore descending ───────────────────────────────
-  tieredResults.sort((a, b) => b.finalScore - a.finalScore);
+  tieredResults.sort((a, b) => {
+    if (b.finalScore !== a.finalScore) {
+      return b.finalScore - a.finalScore;
+    }
+
+    const leftDoc = documentStore.get(a.docId)?.doc;
+    const rightDoc = documentStore.get(b.docId)?.doc;
+    return compareTierTies(leftDoc, rightDoc);
+  });
 
   // ── Step 5: Paginate ────────────────────────────────────────────────────
   const total = tieredResults.length;

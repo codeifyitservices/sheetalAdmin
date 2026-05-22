@@ -50,58 +50,145 @@ const ensureAddress = (address, label) => {
   return normalized;
 };
 
-export const applyOrderInventoryAdjustments = async (orderItems = []) => {
-  await Promise.all(orderItems.map(async (item) => {
-    const product = await Product.findOneAndUpdate(
-      { _id: item.product, stock: { $gte: item.quantity } },
-      [
-        {
-          $set: {
-            stock: { $subtract: ["$stock", item.quantity] },
-            orderStats: {
-              totalOrders: {
-                $add: [
-                  {
-                    $cond: [
-                      { $eq: [{ $type: "$orderStats" }, "object"] },
-                      { $ifNull: ["$orderStats.totalOrders", 0] },
-                      0,
-                    ],
-                  },
-                  item.quantity,
-                ],
-              },
-              totalRevenue: {
-                $add: [
-                  {
-                    $cond: [
-                      { $eq: [{ $type: "$orderStats" }, "object"] },
-                      { $ifNull: ["$orderStats.totalRevenue", 0] },
-                      0,
-                    ],
-                  },
-                  item.quantity * item.price,
-                ],
-              },
-            },
-          },
-        },
-      ],
-      { new: true, validateBeforeSave: false, updatePipeline: true },
-    );
+const normalizeItemQuantity = (quantity) => {
+  const parsed = Number(quantity);
+  return Number.isFinite(parsed) ? Math.max(0, Math.floor(parsed)) : 0;
+};
 
+const getProductVariantForOrderItem = (product, item) => {
+  if (!product || !Array.isArray(product.variants) || product.variants.length === 0) {
+    return null;
+  }
+
+  const requestedSku = String(item?.variant?.v_sku || "").trim().toUpperCase();
+  const requestedColor = String(item?.variant?.color || "").trim().toLowerCase();
+  const requestedSize = String(item?.variant?.size || "").trim().toLowerCase();
+
+  if (requestedSku) {
+    const bySku = product.variants.find(
+      (variant) => String(variant?.v_sku || "").trim().toUpperCase() === requestedSku,
+    );
+    if (bySku) return bySku;
+  }
+
+  if (requestedColor) {
+    const byColor = product.variants.find(
+      (variant) =>
+        String(variant?.color?.name || "").trim().toLowerCase() === requestedColor,
+    );
+    if (byColor) return byColor;
+  }
+
+  if (requestedSize) {
+    const bySize = product.variants.find((variant) =>
+      Array.isArray(variant?.sizes) &&
+      variant.sizes.some(
+        (size) => String(size?.name || "").trim().toLowerCase() === requestedSize,
+      ),
+    );
+    if (bySize) return bySize;
+  }
+
+  return null;
+};
+
+const getVariantSizeForOrderItem = (variant, item) => {
+  if (!variant || !Array.isArray(variant.sizes) || variant.sizes.length === 0) {
+    return null;
+  }
+
+  const requestedSize = String(item?.variant?.size || "").trim().toLowerCase();
+  if (!requestedSize) {
+    return variant.sizes[0] || null;
+  }
+
+  return (
+    variant.sizes.find(
+      (size) => String(size?.name || "").trim().toLowerCase() === requestedSize,
+    ) || null
+  );
+};
+
+const getAvailableStockForOrderItem = (product, item) => {
+  const variant = getProductVariantForOrderItem(product, item);
+  const size = getVariantSizeForOrderItem(variant, item);
+
+  if (variant && size) {
+    return Number(size.stock) || 0;
+  }
+
+  return Number(product?.stock) || 0;
+};
+
+const buildInventoryError = (product, item, availableStock) => {
+  return new ErrorResponse(
+    `This item only has ${availableStock} left.`,
+    400,
+  );
+};
+
+export const validateInventoryForOrderItems = async (orderItems = []) => {
+  for (const item of orderItems) {
+    const quantity = normalizeItemQuantity(item?.quantity);
+    if (quantity <= 0) {
+      throw new ErrorResponse("Invalid order quantity", 400);
+    }
+
+    const product = await Product.findById(item.product).lean();
     if (!product) {
-      const checkProduct = await Product.findById(item.product).lean();
-      if (!checkProduct) {
+      throw new ErrorResponse(`Product not found: ${item.product}`, 404);
+    }
+
+    const availableStock = getAvailableStockForOrderItem(product, item);
+    if (availableStock < quantity) {
+      throw buildInventoryError(product, item, availableStock);
+    }
+  }
+};
+
+export const applyOrderInventoryAdjustments = async (orderItems = []) => {
+  const appliedItems = [];
+
+  try {
+    for (const item of orderItems) {
+      const quantity = normalizeItemQuantity(item?.quantity);
+      if (quantity <= 0) {
+        throw new ErrorResponse("Invalid order quantity", 400);
+      }
+
+      const product = await Product.findById(item.product);
+      if (!product) {
         throw new ErrorResponse(`Product not found: ${item.product}`, 404);
       }
 
-      throw new ErrorResponse(
-        `${checkProduct.name} ka stock khatam hai! (Available: ${checkProduct.stock})`,
-        400,
-      );
+      const availableStock = getAvailableStockForOrderItem(product, item);
+      if (availableStock < quantity || (Number(product.stock) || 0) < quantity) {
+        throw buildInventoryError(product, item, Math.min(availableStock, Number(product.stock) || 0));
+      }
+
+      const variant = getProductVariantForOrderItem(product, item);
+      const size = getVariantSizeForOrderItem(variant, item);
+
+      if (variant && size) {
+        size.stock = Math.max(0, (Number(size.stock) || 0) - quantity);
+      }
+
+      product.stock = Math.max(0, (Number(product.stock) || 0) - quantity);
+      const orderStats = normalizeOrderStats(product.orderStats);
+      product.orderStats = {
+        totalOrders: orderStats.totalOrders + quantity,
+        totalRevenue: orderStats.totalRevenue + quantity * (Number(item.price) || 0),
+      };
+
+      await product.save();
+      appliedItems.push(item);
     }
-  }));
+  } catch (error) {
+    if (appliedItems.length > 0) {
+      await revertOrderInventoryAdjustments(appliedItems);
+    }
+    throw error;
+  }
 };
 
 export const revertOrderInventoryAdjustments = async (orderItems = []) => {
@@ -110,12 +197,20 @@ export const revertOrderInventoryAdjustments = async (orderItems = []) => {
     if (!product) continue;
 
     const orderStats = normalizeOrderStats(product.orderStats);
-    product.stock += item.quantity;
+    const quantity = normalizeItemQuantity(item?.quantity);
+    const variant = getProductVariantForOrderItem(product, item);
+    const size = getVariantSizeForOrderItem(variant, item);
+
+    if (variant && size) {
+      size.stock = (Number(size.stock) || 0) + quantity;
+    }
+
+    product.stock += quantity;
     product.orderStats = {
-      totalOrders: Math.max(0, orderStats.totalOrders - item.quantity),
+      totalOrders: Math.max(0, orderStats.totalOrders - quantity),
       totalRevenue: Math.max(
         0,
-        orderStats.totalRevenue - item.quantity * item.price,
+        orderStats.totalRevenue - quantity * (Number(item.price) || 0),
       ),
     };
     await product.save();
@@ -205,7 +300,9 @@ export const createOrderService = async (data, requester) => {
 
   if (!user) throw new ErrorResponse("User not found", 404);
 
-  // 2. Atomic Stock check and update in parallel
+  await validateInventoryForOrderItems(orderItems);
+
+  // 2. Stock check and update
   await applyOrderInventoryAdjustments(orderItems);
 
   // 3. Build order document
@@ -239,7 +336,13 @@ export const createOrderService = async (data, requester) => {
   };
 
   // 4. Persist Order
-  const order = await Order.create(finalOrderData);
+  let order;
+  try {
+    order = await Order.create(finalOrderData);
+  } catch (error) {
+    await revertOrderInventoryAdjustments(orderItems);
+    throw error;
+  }
 
   // 5. Background / Non-blocking tasks
   setImmediate(async () => {
