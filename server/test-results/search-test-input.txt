@@ -1,58 +1,8 @@
-# Add one search query per line.
-# Blank lines and lines starting with # are ignored.
-
-kurta
-kurti
-kurty
-kurte
-kurtha
-kurtaa
-kurtah
-kurda
-kurfa
-kurga
-kurva
-kurya
-kruta
-ukrta
-kurts
-kirts
-korts
-karts
-curtaa
-curta
-curtha
-kurta sets
-kurta stes
-kurta setss
-kuta sets
-krta sets
-kurta sts
-kurta ses
-kurta set
-kurtta sets
-kurtasets
-kurta setd
-kurta setz
-kurta sats
-kurta sits
-kurta suts
-kurta sots
-kirts sets
-korts sets
-karts sets
-kurts sets
-korta sets
-karta sets
-kirta sets
-curta sets
-curta stes
-curta setss
-curta sats
-kurta tets
-kurta fets
-kurta gets
-kurta wets
-
+kuta
 len
 leng
+lehenga
+lenga
+kurti
+saree
+sari

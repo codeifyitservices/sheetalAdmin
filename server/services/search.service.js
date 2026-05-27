@@ -217,7 +217,11 @@ const isCategoryTermMatch = (term, categoryWord, variants) => {
   const queryKey = consonantKey(term);
   const targetKey = consonantKey(categoryWord);
   if (queryKey.length >= 2 && targetKey.startsWith(queryKey)) {
-    return true;
+    // Stricter length check to prevent "kt" (kuta) matching "ktgry" (category)
+    const maxKeyDiff = queryKey.length <= 2 ? 1 : 2;
+    if (targetKey.length <= queryKey.length + maxKeyDiff) {
+      return true;
+    }
   }
 
   return false;
