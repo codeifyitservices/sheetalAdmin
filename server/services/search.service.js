@@ -41,11 +41,8 @@ const ATTRIBUTE_FIELDS = [
   "eventTags",
 ];
 
-const CATEGORY_TERM_ALIASES = new Map([
-  ["kurti", ["kurta"]],
-  ["kurty", ["kurta"]],
-  ["kurte", ["kurta"]],
-]);
+const CATEGORY_TERM_ALIASES = new Map();
+
 // ---------------------------------------------------------------------------
 // Main entry point
 // ---------------------------------------------------------------------------
@@ -200,15 +197,9 @@ const findMatchingCategories = async (normQ) => {
 const isCategoryTermMatch = (term, categoryWord, variants) => {
   if (!term || !categoryWord) return false;
 
-  const termVariants = new Set([
-    ...variants,
-    ...getCategoryTermAliases(term).flatMap((alias) => buildWordVariants(alias)),
-  ]);
-  const candidateWords = new Set([
-    categoryWord,
-    ...buildWordVariants(categoryWord),
-    ...getCategoryTermAliases(categoryWord),
-  ]);
+  const termVariants = new Set([...variants]);
+  const candidateWords = new Set([categoryWord, ...buildWordVariants(categoryWord)]);
+
   const maxSubsequenceSkips =
     term.length >= 5 && term[0] === categoryWord[0] && term.at(-1) === categoryWord.at(-1)
       ? 2
@@ -220,6 +211,13 @@ const isCategoryTermMatch = (term, categoryWord, variants) => {
     if (isOrderedSubsequenceMatch(term, candidate, maxSubsequenceSkips)) return true;
     if (term.length >= 4 && isCategoryTypoMatch(term, candidate)) return true;
     if (isStrongCategoryNearMiss(term, candidate)) return true;
+  }
+
+  // Final logic-based fallback: Consonant prefix match (handles len -> lehenga, kurti -> kurta)
+  const queryKey = consonantKey(term);
+  const targetKey = consonantKey(categoryWord);
+  if (queryKey.length >= 2 && targetKey.startsWith(queryKey)) {
+    return true;
   }
 
   return false;
@@ -541,7 +539,7 @@ const consonantKey = (word) =>
   word
     .toLowerCase()
     .replace(/[^a-z0-9]/g, "")
-    .replace(/[aeiou]/g, "")
+    .replace(/[aeiouh]/g, "") // 'h' is often interchangeable in garments (Lehenga/Lenga, Kurta/Kurtha)
     .replace(/[cqx]/g, "k");
 
 const fuzzyWordsMatch = (queryWord, productWord) => {
@@ -704,6 +702,3 @@ const buildWordVariants = (word) => {
   if (!word.endsWith("s")) variants.add(word + "s");
   return [...variants];
 };
-
-const getCategoryTermAliases = (word) =>
-  CATEGORY_TERM_ALIASES.get(word) || [];

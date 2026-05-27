@@ -230,7 +230,7 @@ const soundex = (word) => {
 };
 
 const consonantKey = (word) =>
-  word.toLowerCase().replace(/[^a-z0-9]/g, "").replace(/[aeiou]/g, "").replace(/[cqx]/g, "k");
+  word.toLowerCase().replace(/[^a-z0-9]/g, "").replace(/[aeiouh]/g, "").replace(/[cqx]/g, "k");
 
 /**
  * Returns true if qWord and pWord are "close enough" to be considered a match.
