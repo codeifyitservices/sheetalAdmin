@@ -2,6 +2,7 @@ import Order from "../models/order.model.js";
 import Product from "../models/product.model.js";
 import User from "../models/user.model.js";
 import Cart from "../models/cart.model.js";
+import Review from "../models/review.model.js";
 import ErrorResponse from "../utils/ErrorResponse.js";
 import { createShiprocketOrder } from "./shiprocket.service.js";
 import { sendOrderConfirmationEmail } from "./order.email.service.js";
@@ -453,7 +454,7 @@ export const updateOrderStatusService = async (
       select: "name mainImage slug gstPercent category",
       populate: {
         path: "category",
-        select: "name hsnCode",
+        select: "name hsnCode gstPercent",
       },
     })
     .populate("user", "name email");
@@ -507,7 +508,7 @@ export const updateOrderItemStatusService = async (
       select: "name mainImage slug gstPercent category",
       populate: {
         path: "category",
-        select: "name hsnCode",
+        select: "name hsnCode gstPercent",
       },
     })
     .populate("user", "name email");
@@ -525,13 +526,30 @@ export const getSingleOrderService = async (orderId, userId) => {
     select: "name mainImage slug gstPercent category variants",
     populate: {
       path: "category",
-      select: "name hsnCode",
+      select: "name hsnCode gstPercent",
     },
-  });
+  }).lean();
   if (!order) throw new ErrorResponse("Order not found", 404);
   if (order.user.toString() !== userId.toString()) {
     throw new ErrorResponse("You are not authorised to view this order", 403);
   }
+
+  // Add isReviewed flag and review details to each item
+  const userReviews = await Review.find({ user: userId }).select("product rating comment createdAt");
+  const reviewMap = new Map(userReviews.map(r => [r.product.toString(), r]));
+
+  order.orderItems.forEach(item => {
+    const review = reviewMap.get(item.product.toString());
+    item.isReviewed = !!review;
+    if (review) {
+      item.review = {
+        rating: review.rating,
+        comment: review.comment,
+        createdAt: review.createdAt,
+      };
+    }
+  });
+
   return order;
 };
 
@@ -542,7 +560,7 @@ export const getSingleOrderAdminService = async (orderId) => {
       select: "name mainImage slug gstPercent category variants",
       populate: {
         path: "category",
-        select: "name hsnCode",
+        select: "name hsnCode gstPercent",
       },
     })
     .populate("user", "name email");
@@ -584,6 +602,17 @@ export const getAllOrdersService = async (queryStr, userId = null) => {
     .skip(skip)
     .limit(limit)
     .lean();
+
+  if (userId) {
+    const userReviews = await Review.find({ user: userId }).select("product");
+    const reviewedProductIds = new Set(userReviews.map(r => r.product.toString()));
+
+    orders.forEach(order => {
+      order.orderItems.forEach(item => {
+        item.isReviewed = reviewedProductIds.has(item.product.toString());
+      });
+    });
+  }
 
   const totalOrders = await Order.countDocuments(filter);
 
