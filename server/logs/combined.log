@@ -3323,3 +3323,4 @@
 {"cartId":"69c4e97f53f31976a6aebd2c","cartTrackingId":"cart-1774512511944-1779444586723","cycleId":"932a7421-1a5d-4bae-bd89-83dba8b1cb4b","level":"info","message":"[AbandonedCart] Cart activity registered","source":"cart_update","timestamp":"2026-05-22T10:15:58.458Z","userId":"69c4ddf053f31976a6aeb57b"}
 {"level":"info","message":"S3 Object successfully deleted: products/products-1779445050961-248547659.mkv","timestamp":"2026-05-22T10:17:53.019Z"}
 {"cartId":"69c4e97f53f31976a6aebd2c","cartTrackingId":"cart-1774512511944-1779444586723","cycleId":"932a7421-1a5d-4bae-bd89-83dba8b1cb4b","level":"info","message":"[AbandonedCart] Cart marked as abandoned","reason":"inactivity","timestamp":"2026-05-22T10:36:08.217Z","userId":"69c4ddf053f31976a6aeb57b"}
+{"cartId":"69c4e97f53f31976a6aebd2c","cartTrackingId":null,"level":"info","message":"[AbandonedCart] Flow completed and reminders cancelled","timestamp":"2026-06-10T09:09:05.109Z","userId":"69c4ddf053f31976a6aeb57b"}

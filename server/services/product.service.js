@@ -274,7 +274,9 @@ export const getAllProductsService = async (queryStr) => {
           })();
 
           // isStarred always first, then search rank, then user sort
-          return { isStarred: -1, ...searchSort, ...userSort };
+          return sort === "price_asc" || sort === "price_desc"
+          ? { ...searchSort, ...userSort }
+          : { isStarred: -1, ...searchSort, ...userSort };
         })(),
       });
   }
@@ -372,7 +374,9 @@ export const getAllProductsService = async (queryStr) => {
           return { [sort]: 1 };
         })();
 
-        return { isStarred: -1, ...searchSort, ...userSort };
+        return sort === "price_asc" || sort === "price_desc"
+          ? { ...searchSort, ...userSort }
+          : { isStarred: -1, ...searchSort, ...userSort };
       })(),
     },
   ];
