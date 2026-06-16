@@ -1,4 +1,6 @@
 import ContactEnquiry from "../models/contactEnquiry.model.js";
+import sendEmail from "../utils/sendEmail.js";
+import Settings from "../models/settings.model.js";
 
 // @desc    Submit a contact enquiry
 // @route   POST /api/v1/contact-enquiries
@@ -98,7 +100,7 @@ export const getContactEnquiries = async (req, res, next) => {
 // @access  Private/Admin
 export const updateContactEnquiryStatus = async (req, res, next) => {
   try {
-    const { status } = req.body;
+    const { status, reply } = req.body;
 
     if (!["new", "read", "replied"].includes(status)) {
       return res
@@ -106,17 +108,93 @@ export const updateContactEnquiryStatus = async (req, res, next) => {
         .json({ success: false, message: "Invalid status" });
     }
 
-    const contactEnquiry = await ContactEnquiry.findByIdAndUpdate(
-      req.params.id,
-      { status },
-      { new: true },
-    );
-
+    const contactEnquiry = await ContactEnquiry.findById(req.params.id);
     if (!contactEnquiry) {
       return res
         .status(404)
         .json({ success: false, message: "Contact enquiry not found" });
     }
+
+    const oldStatus = contactEnquiry.status;
+
+    // Handle email logic first
+    if (status === "read" && oldStatus === "new") {
+      try {
+        const settings = await Settings.findOne();
+        let template = settings?.contactEnquiryProgressEmailTemplate;
+        if (template) {
+          const replacements = {
+            "{{name}}": contactEnquiry.name,
+            "{{query}}": contactEnquiry.query,
+          };
+          Object.keys(replacements).forEach((key) => {
+            template = template.replaceAll(key, replacements[key]);
+          });
+          await sendEmail({
+            email: contactEnquiry.email,
+            subject: "Your enquiry is under progress",
+            html: template,
+          });
+        } else {
+          await sendEmail({
+            email: contactEnquiry.email,
+            subject: "Your enquiry is under progress",
+            html: `<p>Dear ${contactEnquiry.name},</p>
+                   <p>Your query: "<strong>${contactEnquiry.query}</strong>" has been submitted and is under progress.</p>
+                   <p>Best regards,<br>Studio By Sheetal</p>`,
+          });
+        }
+      } catch (emailError) {
+        console.error("Progress email failed:", emailError);
+        return res.status(500).json({ 
+          success: false, 
+          message: "Failed to send progress email. Status not updated." 
+        });
+      }
+    } else if (status === "replied" && reply) {
+      try {
+        const settings = await Settings.findOne();
+        let template = settings?.contactEnquiryReplyEmailTemplate;
+        if (template) {
+          const replacements = {
+            "{{name}}": contactEnquiry.name,
+            "{{query}}": contactEnquiry.query,
+            "{{reply}}": reply,
+          };
+          Object.keys(replacements).forEach((key) => {
+            template = template.replaceAll(key, replacements[key]);
+          });
+          await sendEmail({
+            email: contactEnquiry.email,
+            subject: "Reply to your enquiry",
+            html: template,
+          });
+        } else {
+          await sendEmail({
+            email: contactEnquiry.email,
+            subject: "Reply to your enquiry",
+            html: `<p>Dear ${contactEnquiry.name},</p>
+                   <p>In response to your query: "<strong>${contactEnquiry.query}</strong>"</p>
+                   <p><strong>Our reply:</strong></p>
+                   <p>${reply}</p>
+                   <p>Best regards,<br>Studio By Sheetal</p>`,
+          });
+        }
+      } catch (emailError) {
+        console.error("Reply email failed:", emailError);
+        return res.status(500).json({ 
+          success: false, 
+          message: "Failed to send reply email. Status not updated." 
+        });
+      }
+    }
+
+    // If email succeeded (or wasn't needed), update the DB
+    contactEnquiry.status = status;
+    if (status === "replied" && reply) {
+      contactEnquiry.reply = reply;
+    }
+    await contactEnquiry.save();
 
     res.status(200).json({ success: true, contactEnquiry });
   } catch (error) {

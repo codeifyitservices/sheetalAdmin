@@ -1,6 +1,8 @@
 import Enquiry from "../models/enquiry.model.js";
+import Product from "../models/product.model.js";
 import { sendAvailabilityEmail } from "../services/enquiry.service.js";
 import mongoose from "mongoose";
+import { config } from "../config/config.js";
 
 // @desc    Submit an enquiry
 // @route   POST /api/v1/enquiries
@@ -103,6 +105,7 @@ export const getEnquiries = async (req, res, next) => {
     const totalPages = Math.ceil(totalEnquiries / limitNum);
 
     const enquiries = await Enquiry.find(query)
+      .populate("product", "mainImage slug")
       .sort({ createdAt: -1 })
       .skip(skip)
       .limit(limitNum);
@@ -127,23 +130,48 @@ export const getEnquiries = async (req, res, next) => {
 // @access  Private/Admin
 export const updateStatus = async (req, res, next) => {
   try {
-    const { status } = req.body;
+    const { status, reply } = req.body;
     if (!["new", "read", "replied"].includes(status)) {
       return res
         .status(400)
         .json({ success: false, message: "Invalid status" });
     }
 
-    const enquiry = await Enquiry.findByIdAndUpdate(
-      req.params.id,
-      { status },
-      { new: true },
-    );
-
+    const enquiry = await Enquiry.findById(req.params.id);
     if (!enquiry)
       return res
         .status(404)
         .json({ success: false, message: "Enquiry not found" });
+
+    if (status === "replied") {
+      try {
+        const product = await Product.findById(enquiry.product).populate("category", "slug");
+        const domain = (config.frontendDomain || "").replace(/\/$/, "");
+        const categorySlug = product?.category?.slug;
+        const productUrl = product 
+          ? (categorySlug ? `${domain}/${categorySlug}/${product.slug}` : `${domain}/product/${product.slug}`)
+          : "";
+
+        await sendAvailabilityEmail({
+          name: enquiry.name,
+          email: enquiry.email,
+          productName: enquiry.productName,
+          size: enquiry.size,
+          productImage: product?.mainImage?.url || "",
+          productUrl: productUrl,
+          reply: reply, // Pass custom reply if provided
+        });
+      } catch (emailError) {
+        console.error("Manual availability email failed:", emailError);
+        return res.status(500).json({ 
+          success: false, 
+          message: "Failed to send availability email. Status not updated." 
+        });
+      }
+    }
+
+    enquiry.status = status;
+    await enquiry.save();
 
     res.status(200).json({ success: true, enquiry });
   } catch (error) {
@@ -181,12 +209,29 @@ export const sendAvailability = async (req, res, next) => {
         .json({ success: false, message: "Enquiry not found" });
     }
 
-    await sendAvailabilityEmail({
-      name: enquiry.name,
-      email: enquiry.email,
-      productName: enquiry.productName,
-      size: enquiry.size,
-    });
+    try {
+      const product = await Product.findById(enquiry.product).populate("category", "slug");
+      const domain = (config.frontendDomain || "").replace(/\/$/, "");
+      const categorySlug = product?.category?.slug;
+      const productUrl = product 
+        ? (categorySlug ? `${domain}/${categorySlug}/${product.slug}` : `${domain}/product/${product.slug}`)
+        : "";
+
+      await sendAvailabilityEmail({
+        name: enquiry.name,
+        email: enquiry.email,
+        productName: enquiry.productName,
+        size: enquiry.size,
+        productImage: product?.mainImage?.url || "",
+        productUrl: productUrl,
+      });
+    } catch (emailError) {
+      console.error("Availability email trigger failed:", emailError);
+      return res.status(500).json({ 
+        success: false, 
+        message: "Failed to send availability email. Status not updated." 
+      });
+    }
 
     enquiry.status = "replied";
     await enquiry.save();

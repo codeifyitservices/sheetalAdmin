@@ -3,7 +3,7 @@ import StatusBadge from "./StatusBadge";
 import { formatEnquiryDate } from "@/services/enquiryService";
 
 const TABLE_HEADERS = ["Name", "Product", "Size", "Date", "Status", "Actions"];
-const CONTACT_TABLE_HEADERS = ["Name", "Email", "Phone", "Date", "Status", "Actions"];
+const CONTACT_TABLE_HEADERS = ["Name", "Email", "Query", "Date", "Status", "Actions"];
 
 export default function EnquiryTable({
   enquiries,
@@ -65,11 +65,15 @@ export default function EnquiryTable({
                 </button>
               </td>
               <td className="px-5 py-3.5 text-slate-600 font-medium">
-                {type === "contact" ? e.email : e.productName}
+                <span className="truncate max-w-[150px] block">
+                  {type === "contact" ? e.email : e.productName}
+                </span>
               </td>
               <td className="px-5 py-3.5">
                 {type === "contact" ? (
-                  <span className="text-slate-600 font-medium">{e.phone}</span>
+                  <span className="text-slate-600 font-medium truncate max-w-[250px] block">
+                    {e.query?.length > 40 ? e.query.substring(0, 40) + "..." : e.query}
+                  </span>
                 ) : (
                   <span className="bg-slate-100 text-slate-700 text-[10px] font-black px-2 py-0.5 rounded-full uppercase">
                     {e.size}

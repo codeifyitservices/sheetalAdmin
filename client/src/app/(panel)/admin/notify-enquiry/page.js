@@ -8,10 +8,11 @@ import EnquiryStatsCards from "@/components/admin/enquiry/EnquiryStatsCards";
 import EnquiryFilters from "@/components/admin/enquiry/EnquiryFilters";
 import EnquiryTable from "@/components/admin/enquiry/EnquiryTable";
 import EnquiryModal from "@/components/admin/enquiry/EnquiryModal";
+import NotifyEnquiryTemplateModal from "@/components/admin/enquiry/NotifyEnquiryTemplateModal";
 import DateRangeControl from "@/components/admin/common/DateRangeControl";
 import { downloadCsvReport, downloadPdfReport } from "@/utils/reportExport";
 import { useDateRange } from "@/hooks/useDateRange";
-import { ChevronLeft, ChevronRight } from "lucide-react";
+import { ChevronLeft, ChevronRight, Settings as SettingsIcon } from "lucide-react";
 
 import {
   fetchEnquiries,
@@ -30,6 +31,7 @@ export default function EnquiriesPage() {
   const [pendingAction, setPendingAction] = useState(null);
   const [counts, setCounts] = useState({ total: 0, new: 0, read: 0, replied: 0 });
   const [isExporting, setIsExporting] = useState(false);
+  const [showTemplateModal, setShowTemplateModal] = useState(false);
 
   const [currentPage, setCurrentPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
@@ -205,7 +207,14 @@ export default function EnquiriesPage() {
         </div>
       </div>
 
-      <div className="flex w-full justify-end">
+      <div className="flex w-full justify-end gap-3">
+        <button
+          onClick={() => setShowTemplateModal(true)}
+          className="flex items-center gap-2 px-4 py-2.5 bg-white border border-slate-200 text-slate-700 text-xs font-bold rounded-xl hover:border-slate-400 transition shadow-sm active:scale-95 cursor-pointer"
+        >
+          <SettingsIcon size={14} />
+          Email Settings
+        </button>
         <ReportExportMenu
             disabled={enquiries.length === 0}
             busy={isExporting}
@@ -339,6 +348,13 @@ export default function EnquiriesPage() {
           onStatusChange={handleStatusChange}
           onDelete={handleDelete}
           pendingAction={pendingAction}
+        />
+      )}
+
+      {showTemplateModal && (
+        <NotifyEnquiryTemplateModal
+          onClose={() => setShowTemplateModal(false)}
+          onSave={loadEnquiries}
         />
       )}
     </div>

@@ -11,6 +11,7 @@ const contactEnquirySchema = new mongoose.Schema(
       match: [/^\d{10}$/, "Phone must be a 10-digit number"],
     },
     query: { type: String, required: true, trim: true },
+    reply: { type: String, trim: true },
     status: {
       type: String,
       enum: ["new", "read", "replied"],

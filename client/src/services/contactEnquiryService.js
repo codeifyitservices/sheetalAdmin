@@ -32,10 +32,10 @@ export async function deleteContactEnquiry(id) {
   return data;
 }
 
-export async function updateContactEnquiryStatus(id, status) {
+export async function updateContactEnquiryStatus(id, status, reply) {
   const { data } = await axios.patch(
     `${API_BASE_URL}/contact-enquiries/${id}/status`,
-    { status },
+    { status, reply },
     { withCredentials: true },
   );
   if (!data.success) throw new Error("Failed to update contact enquiry status");

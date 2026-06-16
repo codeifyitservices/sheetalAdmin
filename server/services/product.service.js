@@ -997,7 +997,7 @@ export const updateProductService = async (id, data, files) => {
     id,
     { $set: { ...parsedData, stock: totalStock } },
     { new: true, runValidators: true },
-  );
+  ).populate("category", "slug");
 
   await syncToIndex(updatedProduct, "product");
 
@@ -1043,7 +1043,7 @@ export const updateProductService = async (id, data, files) => {
     }
 
     if (backInStockSizeNames.length > 0) {
-      const unrepliedEnquiries = await Enquiry.find({
+      const unrepliedEnquiries = await enquiryModel.find({
         $or: [
           { product: updatedProduct._id },
           { product: null, productName: updatedProduct.name },
@@ -1052,6 +1052,12 @@ export const updateProductService = async (id, data, files) => {
         status: { $ne: "replied" },
       });
 
+      const domain = (config.frontendDomain || "").replace(/\/$/, "");
+      const categorySlug = updatedProduct.category?.slug;
+      const productUrl = categorySlug 
+        ? `${domain}/${categorySlug}/${updatedProduct.slug}`
+        : `${domain}/product/${updatedProduct.slug}`;
+
       for (const enquiry of unrepliedEnquiries) {
         try {
           await sendAvailabilityEmail({
@@ -1059,6 +1065,8 @@ export const updateProductService = async (id, data, files) => {
             email: enquiry.email,
             productName: enquiry.productName,
             size: enquiry.size,
+            productImage: updatedProduct.mainImage?.url || "",
+            productUrl: productUrl,
           });
 
           enquiry.status = "replied";

@@ -540,7 +540,113 @@ const settingsSchema = new mongoose.Schema(
 </body>
 </html>`,
     },
-    navbarLayout: { type: [navbarItemSchema], default: [] },
+    contactEnquiryProgressEmailTemplate: {
+      type: String,
+      default: `<!DOCTYPE html>
+    <html>
+    <head>
+    <style>
+    body { font-family: 'Inter', sans-serif; color: #1e293b; line-height: 1.6; }
+    .container { max-width: 600px; margin: 20px auto; padding: 20px; border: 1px solid #e2e8f0; border-radius: 12px; }
+    .header { font-size: 24px; font-weight: bold; margin-bottom: 20px; color: #0f172a; }
+    .footer { margin-top: 30px; font-size: 14px; color: #64748b; }
+    </style>
+    </head>
+    <body>
+    <div class="container">
+    <div class="header">Enquiry Received</div>
+    <p>Dear {{name}},</p>
+    <p>Your query: "<strong>{{query}}</strong>" has been submitted and is under progress.</p>
+    <p>We will get back to you shortly.</p>
+    <div class="footer">
+      Best regards,<br>
+      Studio By Sheetal
+    </div>
+    </div>
+    </body>
+    </html>`,
+    },
+    contactEnquiryReplyEmailTemplate: {
+      type: String,
+      default: `<!DOCTYPE html>
+    <html>
+    <head>
+    <style>
+    body { font-family: 'Inter', sans-serif; color: #1e293b; line-height: 1.6; }
+    .container { max-width: 600px; margin: 20px auto; padding: 20px; border: 1px solid #e2e8f0; border-radius: 12px; }
+    .header { font-size: 24px; font-weight: bold; margin-bottom: 20px; color: #0f172a; }
+    .reply-box { background: #f8fafc; padding: 15px; border-radius: 8px; border-left: 4px solid #0f172a; margin: 20px 0; }
+    .footer { margin-top: 30px; font-size: 14px; color: #64748b; }
+    </style>
+    </head>
+    <body>
+    <div class="container">
+    <div class="header">Reply to your enquiry</div>
+    <p>Dear {{name}},</p>
+    <p>In response to your query: "<strong>{{query}}</strong>"</p>
+    <div class="reply-box">
+      <strong>Our reply:</strong><br>
+      {{reply}}
+    </div>
+    <div class="footer">
+      Best regards,<br>
+      Studio By Sheetal
+    </div>
+    </div>
+    </body>
+    </html>`,
+    },
+    notifyBackInStockEmailTemplate: {
+      type: String,
+      default: `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <style>
+    body { font-family: 'Inter', sans-serif; color: #1e293b; line-height: 1.6; margin: 0; padding: 0; background-color: #f8fafc; }
+    .container { max-width: 600px; margin: 40px auto; background-color: #ffffff; border-radius: 24px; overflow: hidden; box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1); }
+    .header { background: #0f172a; color: #ffffff; padding: 32px; text-align: center; }
+    .header h1 { margin: 0; font-size: 24px; }
+    .content { padding: 40px; }
+    .product-card { display: flex; gap: 24px; background: #f1f5f9; padding: 20px; border-radius: 16px; margin: 24px 0; }
+    .product-image { width: 120px; height: 160px; object-fit: cover; border-radius: 8px; }
+    .product-info { flex: 1; }
+    .product-name { font-size: 18px; font-weight: bold; color: #0f172a; margin: 0 0 8px; }
+    .product-size { font-size: 14px; color: #64748b; margin: 0 0 16px; }
+    .btn { display: inline-block; background: #0f172a; color: #ffffff; padding: 12px 24px; border-radius: 10px; text-decoration: none; font-weight: bold; font-size: 14px; }
+    .footer { padding: 32px; text-align: center; font-size: 12px; color: #94a3b8; border-top: 1px solid #f1f5f9; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="header">
+      <h1>Great News!</h1>
+    </div>
+    <div class="content">
+      <p>Dear {{name}},</p>
+      <p>The item you were looking for is now back in stock in your size!</p>
+      
+      <div class="product-card">
+        <img src="{{productImage}}" alt="{{productName}}" class="product-image">
+        <div class="product-info">
+          <p class="product-name">{{productName}}</p>
+          <p class="product-size">Size: <strong>{{size}}</strong></p>
+          <a href="{{productUrl}}" class="btn">Shop Now</a>
+        </div>
+      </div>
+      
+      <p>Hurry up and grab yours before it sells out again!</p>
+    </div>
+    <div class="footer">
+      &copy; Studio By Sheetal. All rights reserved.<br>
+      You received this email because you asked to be notified about this product.
+    </div>
+  </div>
+</body>
+</html>`,
+    },
+    navbarLayout: {
+ type: [navbarItemSchema], default: [] },
     footerLayout: { type: [mongoose.Schema.Types.Mixed], default: [] },
   },
   { timestamps: true },

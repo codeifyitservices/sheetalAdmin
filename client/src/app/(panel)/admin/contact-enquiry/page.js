@@ -8,8 +8,9 @@ import EnquiryStatsCards from "@/components/admin/enquiry/EnquiryStatsCards";
 import EnquiryFilters from "@/components/admin/enquiry/EnquiryFilters";
 import EnquiryTable from "@/components/admin/enquiry/EnquiryTable";
 import EnquiryModal from "@/components/admin/enquiry/EnquiryModal";
+import ContactEnquiryTemplateModal from "@/components/admin/enquiry/ContactEnquiryTemplateModal";
 import { downloadCsvReport, downloadPdfReport } from "@/utils/reportExport";
-import { ChevronLeft, ChevronRight } from "lucide-react";
+import { ChevronLeft, ChevronRight, Settings as SettingsIcon } from "lucide-react";
 
 import {
   fetchContactEnquiries,
@@ -38,6 +39,7 @@ export default function ContactEnquiriesPage() {
   const [totalPages, setTotalPages] = useState(1);
   const [totalEnquiries, setTotalEnquiries] = useState(0);
   const [rowsPerPage, setRowsPerPage] = useState(50);
+  const [showTemplateModal, setShowTemplateModal] = useState(false);
 
   const abortRef = useRef(null);
 
@@ -91,15 +93,15 @@ export default function ContactEnquiriesPage() {
     }
   };
 
-  const handleStatusChange = async (id, status, silent = false) => {
+  const handleStatusChange = async (id, status, silent = false, reply = null) => {
     setPendingAction({ id, action: "status", targetStatus: status });
     try {
-      const updated = await updateContactEnquiryStatus(id, status);
+      const updated = await updateContactEnquiryStatus(id, status, reply);
       await loadEnquiries();
       if (selected?._id === id) setSelected(updated);
-      if (!silent) toast.success("Status updated");
+      if (!silent) toast.success(status === "replied" ? "Reply sent successfully" : "Status updated");
     } catch {
-      if (!silent) toast.error("Failed to update status");
+      if (!silent) toast.error(status === "replied" ? "Failed to send reply" : "Failed to update status");
     } finally {
       setPendingAction(null);
     }
@@ -173,7 +175,14 @@ export default function ContactEnquiriesPage() {
 
   return (
     <div className="space-y-6 animate-in fade-in slide-in-from-bottom-2 duration-500">
-      <div className="flex w-full justify-end">
+      <div className="flex w-full justify-end gap-3">
+        <button
+          onClick={() => setShowTemplateModal(true)}
+          className="flex items-center gap-2 px-4 py-2.5 bg-white border border-slate-200 text-slate-700 text-xs font-bold rounded-xl hover:border-slate-400 transition shadow-sm active:scale-95 cursor-pointer"
+        >
+          <SettingsIcon size={14} />
+          Email Settings
+        </button>
         <ReportExportMenu
           disabled={enquiries.length === 0}
           busy={isExporting}
@@ -201,6 +210,7 @@ export default function ContactEnquiriesPage() {
 
       <div className="bg-white border border-slate-200 rounded-3xl shadow-sm overflow-hidden">
         <EnquiryTable
+          type="contact"
           enquiries={enquiries}
           isLoading={isLoading}
           deletingId={pendingAction?.action === "delete" ? pendingAction.id : null}
@@ -303,11 +313,19 @@ export default function ContactEnquiriesPage() {
 
       {selected && (
         <EnquiryModal
+          type="contact"
           enquiry={selected}
           onClose={() => setSelected(null)}
           onStatusChange={handleStatusChange}
           onDelete={handleDelete}
           pendingAction={pendingAction}
+        />
+      )}
+
+      {showTemplateModal && (
+        <ContactEnquiryTemplateModal
+          onClose={() => setShowTemplateModal(false)}
+          onSave={loadEnquiries}
         />
       )}
     </div>
