@@ -6,10 +6,15 @@ import { config } from "../config/config.js";
 const COUPON_TTL_HOURS = 24;
 
 const effectivePrice = (item) =>
-  Number(item.discountPrice) > 0 ? Number(item.discountPrice) : Number(item.price) || 0;
+  Number(item.discountPrice) > 0
+    ? Number(item.discountPrice)
+    : Number(item.price) || 0;
 
 const calculateCartTotal = (items = []) =>
-  items.reduce((sum, item) => sum + effectivePrice(item) * (Number(item.quantity) || 1), 0);
+  items.reduce(
+    (sum, item) => sum + effectivePrice(item) * (Number(item.quantity) || 1),
+    0,
+  );
 
 const resolveCouponCode = () =>
   (config?.abandonedCart?.couponCode || "SAVE10").toUpperCase().trim();
@@ -98,7 +103,9 @@ export const validateAndApplyAbandonedCartCoupon = async ({
   userId,
   cartId = null,
 }) => {
-  const normalizedCode = String(code || "").toUpperCase().trim();
+  const normalizedCode = String(code || "")
+    .toUpperCase()
+    .trim();
   if (!normalizedCode) {
     return { success: false, message: "Coupon code is required" };
   }
@@ -125,7 +132,10 @@ export const validateAndApplyAbandonedCartCoupon = async ({
   }
 
   if (cart.abandonmentStatus === "completed") {
-    return { success: false, message: "Your cart has already been checked out" };
+    return {
+      success: false,
+      message: "Your cart has already been checked out",
+    };
   }
 
   if (couponRecord.cartId.toString() !== cart._id.toString()) {
@@ -135,7 +145,10 @@ export const validateAndApplyAbandonedCartCoupon = async ({
     };
   }
 
-  if (cart.abandonmentCycleId && couponRecord.cycleId !== cart.abandonmentCycleId) {
+  if (
+    cart.abandonmentCycleId &&
+    couponRecord.cycleId !== cart.abandonmentCycleId
+  ) {
     return {
       success: false,
       message: "This coupon has expired - your cart was updated",
@@ -214,7 +227,10 @@ export const recalculateAbandonedCartDiscount = async (cart) => {
   return newDiscount;
 };
 
-export const redeemAbandonedCartCoupon = async ({ couponRecordId, orderId }) => {
+export const redeemAbandonedCartCoupon = async ({
+  couponRecordId,
+  orderId,
+}) => {
   if (!couponRecordId) return;
 
   const couponRecord = await AbandonedCartCoupon.findById(couponRecordId);

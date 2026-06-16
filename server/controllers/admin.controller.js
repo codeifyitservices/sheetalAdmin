@@ -9,7 +9,10 @@ export const changePassword = async (req, res, next) => {
 
     // Server-side validation (mirroring frontend requirements)
     if (!newPassword || newPassword.length < 8) {
-      return res.status(400).json({ success: false, message: "Password must be at least 8 characters long." });
+      return res.status(400).json({
+        success: false,
+        message: "Password must be at least 8 characters long.",
+      });
     }
 
     const salt = await bcrypt.genSalt(10);
@@ -18,14 +21,18 @@ export const changePassword = async (req, res, next) => {
     const user = await User.findByIdAndUpdate(
       req.user._id,
       { password: hashedPassword },
-      { new: true }
+      { new: true },
     );
 
     if (!user) {
-      return res.status(404).json({ success: false, message: "User not found." });
+      return res
+        .status(404)
+        .json({ success: false, message: "User not found." });
     }
 
-    res.status(200).json({ success: true, message: "Password updated successfully." });
+    res
+      .status(200)
+      .json({ success: true, message: "Password updated successfully." });
   } catch (error) {
     next(error);
   }
@@ -81,7 +88,6 @@ export const getAdminDashboardStats = async (req, res, next) => {
         .select("name stock"),
     ]);
 
-
     return res.status(200).json({
       success: true,
       data: {
@@ -93,8 +99,7 @@ export const getAdminDashboardStats = async (req, res, next) => {
         stockData,
       },
     });
-  }
-  catch (err) {
+  } catch (err) {
     next(err);
   }
 };

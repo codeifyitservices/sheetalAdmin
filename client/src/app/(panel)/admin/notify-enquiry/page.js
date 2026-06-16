@@ -11,6 +11,7 @@ import EnquiryModal from "@/components/admin/enquiry/EnquiryModal";
 import DateRangeControl from "@/components/admin/common/DateRangeControl";
 import { downloadCsvReport, downloadPdfReport } from "@/utils/reportExport";
 import { useDateRange } from "@/hooks/useDateRange";
+import { ChevronLeft, ChevronRight } from "lucide-react";
 
 import {
   fetchEnquiries,
@@ -29,6 +30,12 @@ export default function EnquiriesPage() {
   const [pendingAction, setPendingAction] = useState(null);
   const [counts, setCounts] = useState({ total: 0, new: 0, read: 0, replied: 0 });
   const [isExporting, setIsExporting] = useState(false);
+
+  const [currentPage, setCurrentPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
+  const [totalEnquiries, setTotalEnquiries] = useState(0);
+  const [rowsPerPage, setRowsPerPage] = useState(50);
+
   const {
     rangeType,
     setRangeType,
@@ -40,15 +47,9 @@ export default function EnquiriesPage() {
     dateRangeLabel,
   } = useDateRange("last_7_days");
 
-  // Ref holds the AbortController for the in-flight fetch pair so we can
-  // cancel it the moment a newer search/filter change comes in.
   const abortRef = useRef(null);
 
-  // ── Data fetching ──────────────────────────────────────────────────────────
-
   const loadEnquiries = useCallback(async () => {
-    // Cancel any previous in-flight request before starting a new one.
-    // This prevents an older slow response from overwriting newer state.
     if (abortRef.current) {
       abortRef.current.abort();
     }
@@ -58,44 +59,44 @@ export default function EnquiriesPage() {
 
     setIsLoading(true);
     try {
-      const [filtered, all] = await Promise.all([
+      const [filteredData, allData] = await Promise.all([
         fetchEnquiries({
           status: statusFilter,
           search,
           startDate: dateRange.startDate.toISOString().split("T")[0],
           endDate: dateRange.endDate.toISOString().split("T")[0],
+          page: currentPage,
+          limit: rowsPerPage,
         }, signal),
         fetchEnquiries({
           status: "all",
           startDate: dateRange.startDate.toISOString().split("T")[0],
           endDate: dateRange.endDate.toISOString().split("T")[0],
+          limit: 1000,
         }, signal),
       ]);
 
-      // If this request was aborted (a newer one started), do not commit.
       if (signal.aborted) return;
 
-      setEnquiries(filtered);
-      setCounts(deriveEnquiryCounts(all));
+      setEnquiries(filteredData.enquiries);
+      setTotalPages(filteredData.pagination.totalPages);
+      setTotalEnquiries(filteredData.pagination.totalEnquiries);
+      setCounts(deriveEnquiryCounts(allData.enquiries));
     } catch (err) {
-      // AbortError is expected when we cancel — don't surface it as a toast.
       if (err.name === "AbortError") return;
       toast.error("Failed to load enquiries");
     } finally {
       if (!signal.aborted) setIsLoading(false);
     }
-  }, [statusFilter, search, dateRange.endDate, dateRange.startDate]);
+  }, [statusFilter, search, dateRange.endDate, dateRange.startDate, currentPage, rowsPerPage]);
 
   useEffect(() => {
     const timer = setTimeout(() => loadEnquiries(), 300);
     return () => {
       clearTimeout(timer);
-      // Also abort if the component unmounts mid-flight.
       if (abortRef.current) abortRef.current.abort();
     };
   }, [loadEnquiries]);
-
-  // ── Handlers ───────────────────────────────────────────────────────────────
 
   const handleSelect = async (enquiry) => {
     setSelected(enquiry);
@@ -185,10 +186,6 @@ export default function EnquiriesPage() {
     }
   };
 
-
-
-  // ── Render ─────────────────────────────────────────────────────────────────
-
   return (
       <div className="space-y-6 animate-in fade-in slide-in-from-bottom-2 duration-500">
       <div className="flex w-full justify-between gap-4 rounded-2xl border border-slate-200 bg-white px-4 py-4 shadow-sm">
@@ -198,9 +195,10 @@ export default function EnquiriesPage() {
           customEndDate={customEndDate}
           onRangeTypeChange={(next) => {
             setRangeType(next);
+            setCurrentPage(1);
           }}
-          onCustomStartDateChange={setCustomStartDate}
-          onCustomEndDateChange={setCustomEndDate}
+          onCustomStartDateChange={(d) => { setCustomStartDate(d); setCurrentPage(1); }}
+          onCustomEndDateChange={(d) => { setCustomEndDate(d); setCurrentPage(1); }}
         />
         <div className="inline-flex items-center rounded-full border border-slate-200 bg-slate-50 px-4 h-auto text-sm font-medium text-slate-600">
           {dateRangeLabel}
@@ -218,16 +216,16 @@ export default function EnquiriesPage() {
       <EnquiryStatsCards
         counts={counts}
         statusFilter={statusFilter}
-        onFilterChange={setStatusFilter}
+        onFilterChange={(s) => { setStatusFilter(s); setCurrentPage(1); }}
         totalLabel="All notify enquiries"
       />
 
       <EnquiryFilters
         search={search}
-        onSearchChange={setSearch}
+        onSearchChange={(s) => { setSearch(s); setCurrentPage(1); }}
         statusFilter={statusFilter}
-        onStatusFilterChange={setStatusFilter}
-        count={enquiries.length}
+        onStatusFilterChange={(s) => { setStatusFilter(s); setCurrentPage(1); }}
+        count={totalEnquiries}
         title="Notify Enquiries"
         searchPlaceholder="Search by name, email or product..."
       />
@@ -240,6 +238,98 @@ export default function EnquiriesPage() {
           onSelect={handleSelect}
           onDelete={handleDelete}
         />
+
+        {/* Pagination UI */}
+        {!isLoading && totalEnquiries > 0 && (
+          <div className="p-4 border-t border-slate-100 flex flex-col md:flex-row items-center justify-between bg-slate-50/50 gap-4">
+            <div className="flex items-center gap-3">
+              <span className="text-[10px] font-bold text-slate-400 uppercase tracking-tighter">
+                Rows per page
+              </span>
+              <select
+                value={rowsPerPage}
+                onChange={(e) => {
+                  setRowsPerPage(Number(e.target.value));
+                  setCurrentPage(1);
+                }}
+                className="bg-white border border-slate-200 text-xs font-bold text-slate-700 py-1 px-2 rounded-md outline-none cursor-pointer"
+              >
+                {[10, 20, 50, 100].map((val) => (
+                  <option key={val} value={val}>
+                    {val}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div className="flex flex-col sm:flex-row items-center gap-4">
+              <div className="text-[11px] font-medium text-slate-500">
+                Showing{" "}
+                <span className="font-bold text-slate-900">
+                  {(currentPage - 1) * rowsPerPage + 1}
+                </span>{" "}
+                to{" "}
+                <span className="font-bold text-slate-900">
+                  {Math.min(currentPage * rowsPerPage, totalEnquiries)}
+                </span>{" "}
+                of{" "}
+                <span className="font-bold text-slate-900">
+                  {totalEnquiries}
+                </span>{" "}
+                results
+              </div>
+
+              <div className="flex items-center gap-1">
+                <button
+                  disabled={currentPage === 1 || isLoading}
+                  onClick={() => setCurrentPage((prev) => prev - 1)}
+                  className="p-2 border border-slate-200 rounded-lg cursor-pointer bg-white disabled:opacity-30 hover:bg-slate-50 shadow-sm transition-colors"
+                >
+                  <ChevronLeft size={16} className="text-slate-600" />
+                </button>
+
+                <div className="flex items-center gap-1">
+                  {Array.from({ length: totalPages }, (_, i) => i + 1).map(
+                    (page) => {
+                      if (
+                        totalPages > 5 &&
+                        page !== 1 &&
+                        page !== totalPages &&
+                        Math.abs(page - currentPage) > 1
+                      ) {
+                        if (Math.abs(page - currentPage) === 2) {
+                          return <span key={page} className="text-slate-400">...</span>;
+                        }
+                        return null;
+                      }
+                      return (
+                        <button
+                          key={page}
+                          onClick={() => setCurrentPage(page)}
+                          className={`h-8 min-w-[32px] px-2 rounded-lg text-xs font-bold transition-all ${
+                            currentPage === page
+                              ? "bg-slate-900 text-white shadow-md"
+                              : "bg-white border border-slate-100 text-slate-500 hover:border-slate-300"
+                          }`}
+                        >
+                          {page}
+                        </button>
+                      );
+                    }
+                  )}
+                </div>
+
+                <button
+                  disabled={currentPage >= totalPages || isLoading}
+                  onClick={() => setCurrentPage((prev) => prev + 1)}
+                  className="p-2 border border-slate-200 rounded-lg cursor-pointer bg-white disabled:opacity-30 hover:bg-slate-50 shadow-sm transition-colors"
+                >
+                  <ChevronRight size={16} className="text-slate-600" />
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
 
       {selected && (

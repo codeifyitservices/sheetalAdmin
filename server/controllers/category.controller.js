@@ -73,7 +73,7 @@ export const getCategoryBySlug = async (req, res, next) => {
 
 export const getAdminCategories = async (req, res, next) => {
   try {
-    const { page = 1, limit = 10, search = "" } = req.query;
+    const { page = 1, limit = 50, search = "" } = req.query;
     const result = await categoryService.getAdminCategoriesService({
       page: Number(page),
       limit: Number(limit),

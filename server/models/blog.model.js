@@ -46,6 +46,7 @@ const blogSchema = new mongoose.Schema(
     status: { type: String, enum: ["Active", "Inactive"], default: "Active" },
     isPublished: { type: Boolean, default: false, index: true },
     views: { type: Number, default: 0 },
+    order: { type: Number, default: 0 },
   },
   { timestamps: true },
 );

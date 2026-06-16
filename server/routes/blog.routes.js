@@ -6,6 +6,7 @@ import {
   updateBlog,
   deleteBlog,
   getBlogStats,
+  reorderBlogs,
 } from "../controllers/blog.controller.js";
 import { isAuthenticated, isAdmin } from "../middlewares/auth.middleware.js";
 import { uploadTo } from "../middlewares/multer.middleware.js";
@@ -17,6 +18,7 @@ router.get("/post/:slug", getSingleBlog);
 
 router.get("/admin/stats", isAuthenticated, isAdmin, getBlogStats);
 router.get("/admin/all", isAuthenticated, isAdmin, getBlogs);
+router.put("/admin/reorder", isAuthenticated, isAdmin, reorderBlogs);
 
 router.post(
   "/admin",

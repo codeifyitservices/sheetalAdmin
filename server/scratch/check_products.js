@@ -38,28 +38,42 @@ const hasPrefixTypoMatch = (queryWord, categoryWord) => {
   const queryPrefix = queryWord.slice(0, categoryWord.length);
 
   // Check: is the query word a typo for a prefix of the category word?
-  const queryIsTypoForCategoryPrefix = levenshteinDistance(queryWord, categoryPrefix) <= 1;
+  const queryIsTypoForCategoryPrefix =
+    levenshteinDistance(queryWord, categoryPrefix) <= 1;
 
   // Check: is the category word a prefix typo of the query word?
-  const categoryIsTypoForQueryPrefix = levenshteinDistance(queryPrefix, categoryWord) <= 1;
+  const categoryIsTypoForQueryPrefix =
+    levenshteinDistance(queryPrefix, categoryWord) <= 1;
 
   // Additionally, require that the match is "prefix-like": the matching part should be
   // at the beginning of BOTH words, or one word should be significantly shorter
-  const hasPrefixRelationship = queryWord.length <= categoryWord.length + 1 ||
+  const hasPrefixRelationship =
+    queryWord.length <= categoryWord.length + 1 ||
     categoryWord.length <= queryWord.length + 1;
 
-  return (queryIsTypoForCategoryPrefix || categoryIsTypoForQueryPrefix) && hasPrefixRelationship;
+  return (
+    (queryIsTypoForCategoryPrefix || categoryIsTypoForQueryPrefix) &&
+    hasPrefixRelationship
+  );
 };
 
 async function test() {
   // Test hasPrefixTypoMatch
-  console.log('Testing hasPrefixTypoMatch:');
-  console.log(`  festive vs test: ${hasPrefixTypoMatch('festive', 'test')}`);
-  console.log(`  festive vs shirt: ${hasPrefixTypoMatch('festive', 'shirt')}`);
-  console.log(`  shrt vs shirts (should be true): ${hasPrefixTypoMatch('shrt', 'shirts')}`);
-  console.log(`  shirt vs shirts (should be true): ${hasPrefixTypoMatch('shirt', 'shirts')}`);
-  console.log(`  sut vs suits (should be true - typo): ${hasPrefixTypoMatch('sut', 'suits')}`);
-  console.log(`  shirt vs suit (should be false): ${hasPrefixTypoMatch('shirt', 'suit')}`);
+  console.log("Testing hasPrefixTypoMatch:");
+  console.log(`  festive vs test: ${hasPrefixTypoMatch("festive", "test")}`);
+  console.log(`  festive vs shirt: ${hasPrefixTypoMatch("festive", "shirt")}`);
+  console.log(
+    `  shrt vs shirts (should be true): ${hasPrefixTypoMatch("shrt", "shirts")}`,
+  );
+  console.log(
+    `  shirt vs shirts (should be true): ${hasPrefixTypoMatch("shirt", "shirts")}`,
+  );
+  console.log(
+    `  sut vs suits (should be true - typo): ${hasPrefixTypoMatch("sut", "suits")}`,
+  );
+  console.log(
+    `  shirt vs suit (should be false): ${hasPrefixTypoMatch("shirt", "suit")}`,
+  );
 }
 
 test();

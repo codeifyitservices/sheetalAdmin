@@ -10,7 +10,7 @@ const handleResponse = async (res) => {
 /* =========================
    Get Categories (Admin)
    ========================= */
-export const getCategories = async (page = 1, limit = 10, search = "") => {
+export const getCategories = async (page = 1, limit = 50, search = "") => {
   const res = await fetch(
     `${API_BASE_URL}/categories/admin/all?page=${page}&limit=${limit}&search=${search}`,
     { credentials: "include" },

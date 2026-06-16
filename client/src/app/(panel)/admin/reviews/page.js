@@ -16,7 +16,7 @@ import {
   StarRow,
 } from "@/components/admin/reviews/ReviewShared";
 
-const PAGE_SIZE = 20;
+const PAGE_SIZE = 50;
 
 export default function ReviewsPage() {
   const [reviews, setReviews] = useState([]);

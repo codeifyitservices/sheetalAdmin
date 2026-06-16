@@ -582,7 +582,7 @@ export const getBestSellingProducts = async (req, res) => {
 // ─────────────────────────────────────────────────────────────────────────────
 // GET /api/sales/abandoned-carts
 // Returns carts not updated in 3+ days, with user + product details populated.
-// Query: ?limit=20 (default 20, max 100)
+// Query: ?limit=50 (default 50, max 100)
 // ─────────────────────────────────────────────────────────────────────────────
 const ABANDONED_CART_RECOVERY_STEPS = {
   1: "1 min reminder",
@@ -621,7 +621,7 @@ const getRecoveryStageLabel = (stage) =>
 
 export const getAbandonedCarts = async (req, res) => {
   try {
-    const limit = Math.min(parseInt(req.query.limit) || 20, 1000);
+    const limit = Math.min(parseInt(req.query.limit) || 50, 1000);
     const includeRecovered = req.query.includeRecovered === "true";
     const startDate = req.query.startDate || null;
     const endDate = req.query.endDate || null;

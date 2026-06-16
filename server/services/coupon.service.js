@@ -108,9 +108,15 @@ export const applyCouponService = async ({
   cartId = null,
 }) => {
   try {
-    const normalizedCode = String(code || "").toUpperCase().trim();
+    const normalizedCode = String(code || "")
+      .toUpperCase()
+      .trim();
     if (!normalizedCode) {
-      return { success: false, statusCode: 400, message: "Coupon code is required" };
+      return {
+        success: false,
+        statusCode: 400,
+        message: "Coupon code is required",
+      };
     }
 
     // ── 1. Abandoned-cart coupon intercept ──────────────────────────────────
@@ -147,10 +153,14 @@ export const applyCouponService = async ({
     });
 
     if (!coupon) {
-      return { success: false, statusCode: 404, message: "Invalid or inactive coupon" };
+      return {
+        success: false,
+        statusCode: 404,
+        message: "Invalid or inactive coupon",
+      };
     }
 
-    // Restriction: If coupon is marked as an abandoned cart coupon, 
+    // Restriction: If coupon is marked as an abandoned cart coupon,
     // it can ONLY be used via the abandoned cart flow logic.
     if (coupon.isAbandonedCartCoupon) {
       const result = await validateAndApplyAbandonedCartCoupon({
@@ -186,7 +196,8 @@ export const applyCouponService = async ({
       return {
         success: false,
         statusCode: 400,
-        message: "You have already used this coupon the maximum number of times",
+        message:
+          "You have already used this coupon the maximum number of times",
       };
     }
 
@@ -420,7 +431,11 @@ export const createCouponService = async (data) => {
     if (code) {
       const existing = await Coupon.findOne({ code });
       if (existing) {
-        return { success: false, statusCode: 400, message: "Coupon code already exists" };
+        return {
+          success: false,
+          statusCode: 400,
+          message: "Coupon code already exists",
+        };
       }
     }
 

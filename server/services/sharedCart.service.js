@@ -4,12 +4,10 @@ import SharedCart from "../models/sharedCart.model.js";
 const DEFAULT_SHARE_TTL_DAYS = 7;
 
 const normalizeItems = (items = []) =>
-  items
-    .filter(Boolean)
-    .map((item) => ({
-      ...item,
-      _id: item._id || item.id || randomUUID(),
-    }));
+  items.filter(Boolean).map((item) => ({
+    ...item,
+    _id: item._id || item.id || randomUUID(),
+  }));
 
 export const createSharedCartService = async ({
   items = [],
@@ -28,7 +26,12 @@ export const createSharedCartService = async ({
 
     const token = randomUUID().replace(/-/g, "");
     const expiresAt = new Date(
-      Date.now() + Math.max(1, Number(expiresInDays) || DEFAULT_SHARE_TTL_DAYS) * 24 * 60 * 60 * 1000,
+      Date.now() +
+        Math.max(1, Number(expiresInDays) || DEFAULT_SHARE_TTL_DAYS) *
+          24 *
+          60 *
+          60 *
+          1000,
     );
 
     const sharedCart = await SharedCart.create({

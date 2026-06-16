@@ -1,4 +1,3 @@
-
 import express from "express";
 import {
   createBanner,
@@ -45,4 +44,3 @@ router
   .delete(isAuthenticated, isAdmin, deleteBanner);
 
 export default router;
-

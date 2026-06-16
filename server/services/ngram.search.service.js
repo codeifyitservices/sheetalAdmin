@@ -39,9 +39,9 @@ import Category from "../models/category.model.js";
 // Constants
 // ---------------------------------------------------------------------------
 
-const MAX_HITS = 200;             // hard cap before pagination
+const MAX_HITS = 200; // hard cap before pagination
 const INDEX_TTL_MS = 15 * 60 * 1000; // 15 min stale threshold
-const MIN_FUZZY_LENGTH = 3;       // fuzzy only for queries >= this length
+const MIN_FUZZY_LENGTH = 3; // fuzzy only for queries >= this length
 // ---------------------------------------------------------------------------
 // In-Memory Index State
 // ---------------------------------------------------------------------------
@@ -90,19 +90,22 @@ const generateNgrams = (text) => {
   const words = new Set();
   if (!norm) return { grams, words };
 
-  norm.split(" ").filter(Boolean).forEach((w) => {
-    words.add(w);
-    // Generate prefixes
-    for (let i = 1; i <= w.length; i++) {
-      grams.add(w.slice(0, i));
-    }
-    // Generate exact infixes (length >= 1)
-    for (let start = 1; start < w.length; start++) {
-      for (let len = 1; start + len <= w.length; len++) {
-        grams.add(w.substr(start, len));
+  norm
+    .split(" ")
+    .filter(Boolean)
+    .forEach((w) => {
+      words.add(w);
+      // Generate prefixes
+      for (let i = 1; i <= w.length; i++) {
+        grams.add(w.slice(0, i));
       }
-    }
-  });
+      // Generate exact infixes (length >= 1)
+      for (let start = 1; start < w.length; start++) {
+        for (let len = 1; start + len <= w.length; len++) {
+          grams.add(w.substr(start, len));
+        }
+      }
+    });
 
   return { grams, words };
 };
@@ -132,9 +135,7 @@ const documentNgrams = (doc) => {
   }
 
   // Category type
-  const blob = [doc.name, doc.slug, doc.description]
-    .filter(Boolean)
-    .join(" ");
+  const blob = [doc.name, doc.slug, doc.description].filter(Boolean).join(" ");
 
   return generateNgrams(blob);
 };
@@ -163,9 +164,7 @@ const documentPrimaryNgrams = (doc) => {
     return generateNgrams(blob);
   }
 
-  const blob = [doc.name, doc.slug, doc.category]
-    .filter(Boolean)
-    .join(" ");
+  const blob = [doc.name, doc.slug, doc.category].filter(Boolean).join(" ");
   return generateNgrams(blob);
 };
 
@@ -184,7 +183,11 @@ const levenshteinDistance = (a, b) => {
       matrix[i][j] =
         b[i - 1] === a[j - 1]
           ? matrix[i - 1][j - 1]
-          : Math.min(matrix[i - 1][j - 1] + 1, matrix[i][j - 1] + 1, matrix[i - 1][j] + 1);
+          : Math.min(
+              matrix[i - 1][j - 1] + 1,
+              matrix[i][j - 1] + 1,
+              matrix[i - 1][j] + 1,
+            );
     }
   }
   return matrix[b.length][a.length];
@@ -198,7 +201,8 @@ const isOrderedSubsequenceMatch = (left, right, maxSkips = 2) => {
   const lengthDiff = longer.length - shorter.length;
 
   if (lengthDiff < 1 || lengthDiff > maxSkips) return false;
-  if (shorter[0] !== longer[0] || shorter.at(-1) !== longer.at(-1)) return false;
+  if (shorter[0] !== longer[0] || shorter.at(-1) !== longer.at(-1))
+    return false;
 
   let shortIndex = 0;
   let longIndex = 0;
@@ -216,11 +220,28 @@ const isOrderedSubsequenceMatch = (left, right, maxSkips = 2) => {
 const soundex = (word) => {
   if (!word) return "";
   const map = {
-    b:1,f:1,p:1,v:1, c:2,g:2,j:2,k:2,q:2,s:2,x:2,z:2,
-    d:3,t:3, l:4, m:5,n:5, r:6,
+    b: 1,
+    f: 1,
+    p: 1,
+    v: 1,
+    c: 2,
+    g: 2,
+    j: 2,
+    k: 2,
+    q: 2,
+    s: 2,
+    x: 2,
+    z: 2,
+    d: 3,
+    t: 3,
+    l: 4,
+    m: 5,
+    n: 5,
+    r: 6,
   };
   const w = word.toLowerCase();
-  let code = w[0].toUpperCase(), prev = map[w[0]] || 0;
+  let code = w[0].toUpperCase(),
+    prev = map[w[0]] || 0;
   for (let i = 1; i < w.length && code.length < 4; i++) {
     const curr = map[w[i]];
     if (curr && curr !== prev) code += curr;
@@ -230,7 +251,11 @@ const soundex = (word) => {
 };
 
 const consonantKey = (word) =>
-  word.toLowerCase().replace(/[^a-z0-9]/g, "").replace(/[aeiouh]/g, "").replace(/[cqx]/g, "k");
+  word
+    .toLowerCase()
+    .replace(/[^a-z0-9]/g, "")
+    .replace(/[aeiouh]/g, "")
+    .replace(/[cqx]/g, "k");
 
 /**
  * Returns true if qWord and pWord are "close enough" to be considered a match.
@@ -238,7 +263,8 @@ const consonantKey = (word) =>
  */
 const fuzzyWordsMatch = (qWord, pWord) => {
   if (qWord === pWord) return true;
-  if (qWord.length < MIN_FUZZY_LENGTH || pWord.length < MIN_FUZZY_LENGTH) return false;
+  if (qWord.length < MIN_FUZZY_LENGTH || pWord.length < MIN_FUZZY_LENGTH)
+    return false;
 
   // Prefix containment
   if (pWord.startsWith(qWord) || qWord.startsWith(pWord)) return true;
@@ -294,15 +320,24 @@ const removeDocumentFromIndex = (docId) => {
 
   grams.forEach((g) => {
     const b = invertedIndex.get(g);
-    if (b) { b.delete(docId); if (!b.size) invertedIndex.delete(g); }
+    if (b) {
+      b.delete(docId);
+      if (!b.size) invertedIndex.delete(g);
+    }
   });
   words.forEach((w) => {
     const b = wordIndex.get(w);
-    if (b) { b.delete(docId); if (!b.size) wordIndex.delete(w); }
+    if (b) {
+      b.delete(docId);
+      if (!b.size) wordIndex.delete(w);
+    }
   });
   primaryWords.forEach((w) => {
     const b = primaryWordIndex.get(w);
-    if (b) { b.delete(docId); if (!b.size) primaryWordIndex.delete(w); }
+    if (b) {
+      b.delete(docId);
+      if (!b.size) primaryWordIndex.delete(w);
+    }
   });
 
   documentStore.delete(docId);
@@ -346,12 +381,20 @@ const buildProductDoc = (product) => {
     eventTags: product.eventTags || [],
     keyBenefits: product.keyBenefits || [],
     specifications: Array.isArray(product.specifications)
-      ? product.specifications.flatMap((s) => [s?.key, s?.value].filter(Boolean))
+      ? product.specifications.flatMap((s) =>
+          [s?.key, s?.value].filter(Boolean),
+        )
       : [],
     stock: product.stock,
     status: product.status,
     sizes: product.variants
-      ? [...new Set(product.variants.flatMap((v) => (v.sizes || []).map((s) => s?.name).filter(Boolean)))]
+      ? [
+          ...new Set(
+            product.variants.flatMap((v) =>
+              (v.sizes || []).map((s) => s?.name).filter(Boolean),
+            ),
+          ),
+        ]
       : [],
     colors: product.variants
       ? [...new Set(product.variants.map((v) => v.color?.name).filter(Boolean))]
@@ -359,11 +402,16 @@ const buildProductDoc = (product) => {
   };
 
   if (product.variants?.length) {
-    let minPrice = Infinity, relatedMrp = 0;
+    let minPrice = Infinity,
+      relatedMrp = 0;
     product.variants.forEach((v) => {
       v.sizes?.forEach((s) => {
-        const eff = s.discountPrice && s.discountPrice > 0 ? s.discountPrice : s.price;
-        if (eff < minPrice) { minPrice = eff; relatedMrp = s.price; }
+        const eff =
+          s.discountPrice && s.discountPrice > 0 ? s.discountPrice : s.price;
+        if (eff < minPrice) {
+          minPrice = eff;
+          relatedMrp = s.price;
+        }
       });
     });
     if (minPrice !== Infinity) {
@@ -388,8 +436,7 @@ const buildCategoryDoc = (category) => ({
 });
 
 const compareTierTies = (leftDoc, rightDoc) => {
-  const leftStarred =
-    leftDoc?.type === "product" && leftDoc?.isStarred ? 1 : 0;
+  const leftStarred = leftDoc?.type === "product" && leftDoc?.isStarred ? 1 : 0;
   const rightStarred =
     rightDoc?.type === "product" && rightDoc?.isStarred ? 1 : 0;
 
@@ -419,14 +466,26 @@ const hydrateIndex = async () => {
   if (hydrationPromise) return hydrationPromise;
 
   hydrationPromise = (async () => {
-    const si = new Map(), sw = new Map(), sp = new Map(), ss = new Map();
+    const si = new Map(),
+      sw = new Map(),
+      sp = new Map(),
+      ss = new Map();
 
     const stageDoc = (doc) => {
       const { grams, words } = documentNgrams(doc);
       const { words: primaryWords } = documentPrimaryNgrams(doc);
-      grams.forEach((g) => { if (!si.has(g)) si.set(g, new Set()); si.get(g).add(doc.id); });
-      words.forEach((w) => { if (!sw.has(w)) sw.set(w, new Set()); sw.get(w).add(doc.id); });
-      primaryWords.forEach((w) => { if (!sp.has(w)) sp.set(w, new Set()); sp.get(w).add(doc.id); });
+      grams.forEach((g) => {
+        if (!si.has(g)) si.set(g, new Set());
+        si.get(g).add(doc.id);
+      });
+      words.forEach((w) => {
+        if (!sw.has(w)) sw.set(w, new Set());
+        sw.get(w).add(doc.id);
+      });
+      primaryWords.forEach((w) => {
+        if (!sp.has(w)) sp.set(w, new Set());
+        sp.get(w).add(doc.id);
+      });
       ss.set(doc.id, { doc, grams, words, primaryWords });
     };
 
@@ -438,14 +497,20 @@ const hydrateIndex = async () => {
     products.forEach((p) => stageDoc(buildProductDoc(p)));
     categories.forEach((c) => stageDoc(buildCategoryDoc(c)));
 
-    invertedIndex.clear();   si.forEach((v, k) => invertedIndex.set(k, v));
-    wordIndex.clear();       sw.forEach((v, k) => wordIndex.set(k, v));
-    primaryWordIndex.clear(); sp.forEach((v, k) => primaryWordIndex.set(k, v));
-    documentStore.clear();   ss.forEach((v, k) => documentStore.set(k, v));
+    invertedIndex.clear();
+    si.forEach((v, k) => invertedIndex.set(k, v));
+    wordIndex.clear();
+    sw.forEach((v, k) => wordIndex.set(k, v));
+    primaryWordIndex.clear();
+    sp.forEach((v, k) => primaryWordIndex.set(k, v));
+    documentStore.clear();
+    ss.forEach((v, k) => documentStore.set(k, v));
 
     isHydrated = true;
     lastHydratedAt = Date.now();
-  })().finally(() => { hydrationPromise = null; });
+  })().finally(() => {
+    hydrationPromise = null;
+  });
 
   return hydrationPromise;
 };
@@ -477,11 +542,11 @@ const ensureHydrated = async () => {
  *   appearing in results alongside — or above — products whose name matches.
  */
 const TIER = {
-  PRODUCT_NAME_STARTS:   50000,
+  PRODUCT_NAME_STARTS: 50000,
   PRODUCT_NAME_CONTAINS: 40000,
-  CATEGORY_NAME:         30000,
-  PRODUCT_SUBCATEGORY:   20000,
-  PRODUCT_ATTRIBUTE:     10000,
+  CATEGORY_NAME: 30000,
+  PRODUCT_SUBCATEGORY: 20000,
+  PRODUCT_ATTRIBUTE: 10000,
 };
 
 /**
@@ -511,7 +576,7 @@ const scoreNameMatch = (query, targetName, tierBase, options = {}) => {
   const { allowFuzzy = true } = options;
   if (!query || !targetName) return null;
 
-  const queryLen   = query.length;
+  const queryLen = query.length;
   const targetWords = targetName.split(" ").filter(Boolean);
 
   // ── Exact full-string match ──────────────────────────────────────────────
@@ -521,7 +586,7 @@ const scoreNameMatch = (query, targetName, tierBase, options = {}) => {
 
   // ── Full name starts with query ──────────────────────────────────────────
   if (targetName.startsWith(query)) {
-    const nextChar       = targetName[queryLen];
+    const nextChar = targetName[queryLen];
     const atWordBoundary = !nextChar || nextChar === " ";
     return { score: tierBase + (atWordBoundary ? 8500 : 8000) };
   }
@@ -532,7 +597,10 @@ const scoreNameMatch = (query, targetName, tierBase, options = {}) => {
       if (i === 0) {
         return { score: tierBase + 7500 };
       } else {
-        const containsTierBase = tierBase === TIER.PRODUCT_NAME_STARTS ? TIER.PRODUCT_NAME_CONTAINS : tierBase;
+        const containsTierBase =
+          tierBase === TIER.PRODUCT_NAME_STARTS
+            ? TIER.PRODUCT_NAME_CONTAINS
+            : tierBase;
         const bonus = Math.max(2000, 6500 - (i - 1) * 1000);
         return { score: containsTierBase + bonus };
       }
@@ -543,7 +611,10 @@ const scoreNameMatch = (query, targetName, tierBase, options = {}) => {
   if (queryLen >= 1) {
     const idx = targetName.indexOf(query);
     if (idx !== -1) {
-      const containsTierBase = tierBase === TIER.PRODUCT_NAME_STARTS ? TIER.PRODUCT_NAME_CONTAINS : tierBase;
+      const containsTierBase =
+        tierBase === TIER.PRODUCT_NAME_STARTS
+          ? TIER.PRODUCT_NAME_CONTAINS
+          : tierBase;
       const positionPenalty = Math.min(idx, 20) * 30;
       return { score: containsTierBase + 3500 - positionPenalty };
     }
@@ -554,7 +625,9 @@ const scoreNameMatch = (query, targetName, tierBase, options = {}) => {
 
   const queryWords = query.split(" ").filter(Boolean);
   const matchingWordsCount = queryWords.filter((qw) =>
-    targetWords.some((tw) => fuzzyWordsMatch(qw, tw) || tw.startsWith(qw) || tw.includes(qw))
+    targetWords.some(
+      (tw) => fuzzyWordsMatch(qw, tw) || tw.startsWith(qw) || tw.includes(qw),
+    ),
   ).length;
 
   if (matchingWordsCount > 0) {
@@ -645,9 +718,11 @@ export const searchNgram = async (query, options = {}) => {
   await ensureHydrated();
 
   const parsedLimit = Number(options.limit);
-  const parsedPage  = Number(options.page);
-  const limit = Number.isInteger(parsedLimit) ? Math.min(Math.max(parsedLimit, 1), MAX_HITS) : 10;
-  const page  = Number.isInteger(parsedPage)  ? Math.max(parsedPage, 1) : 1;
+  const parsedPage = Number(options.page);
+  const limit = Number.isInteger(parsedLimit)
+    ? Math.min(Math.max(parsedLimit, 1), MAX_HITS)
+    : 10;
+  const page = Number.isInteger(parsedPage) ? Math.max(parsedPage, 1) : 1;
 
   if (!query || query.trim().length === 0) {
     return { hits: [], total: 0, page, totalPages: 0 };
@@ -689,7 +764,9 @@ export const searchNgram = async (query, options = {}) => {
     const normName = normaliseSearchText(doc.name);
     const normSubCat = normaliseSearchText(doc.subCategory || "");
     const normCatName = normaliseSearchText(
-      typeof doc.category === "string" ? doc.category : (doc.category?.name || "")
+      typeof doc.category === "string"
+        ? doc.category
+        : doc.category?.name || "",
     );
 
     let finalScore = 0;
@@ -697,7 +774,11 @@ export const searchNgram = async (query, options = {}) => {
     if (doc.type === "product") {
       // ── Tier 1 & 2: Product name ─────────────────────────────────────
       // Always evaluated regardless of query length.
-      const nameMatch = scoreNameMatch(normQ, normName, TIER.PRODUCT_NAME_STARTS);
+      const nameMatch = scoreNameMatch(
+        normQ,
+        normName,
+        TIER.PRODUCT_NAME_STARTS,
+      );
       if (nameMatch) {
         finalScore = Math.max(finalScore, nameMatch.score);
       }
@@ -721,7 +802,8 @@ export const searchNgram = async (query, options = {}) => {
           TIER.PRODUCT_SUBCATEGORY,
           { allowFuzzy: false },
         );
-        if (catOnProductMatch) finalScore = Math.max(finalScore, catOnProductMatch.score);
+        if (catOnProductMatch)
+          finalScore = Math.max(finalScore, catOnProductMatch.score);
       }
 
       // ── Tier 5: Attributes / Tags ──────────────────────────────────
@@ -732,7 +814,6 @@ export const searchNgram = async (query, options = {}) => {
 
       // Drop products that didn't match in any tier
       if (finalScore === 0) continue;
-
     } else if (doc.type === "category") {
       // ── Tier 3: Category name ────────────────────────────────────────
       // Categories are always matched by name regardless of query length.
@@ -753,7 +834,9 @@ export const searchNgram = async (query, options = {}) => {
   // Skipped entirely for short queries (allowFuzzy = false).
   if (allowFuzzy) {
     const seenDocIds = new Set(tieredResults.map((r) => r.docId));
-    const queryWords = normQ.split(" ").filter((w) => w.length >= MIN_FUZZY_LENGTH);
+    const queryWords = normQ
+      .split(" ")
+      .filter((w) => w.length >= MIN_FUZZY_LENGTH);
 
     if (queryWords.length > 0) {
       primaryWordIndex.forEach((bucket, indexWord) => {
@@ -779,14 +862,21 @@ export const searchNgram = async (query, options = {}) => {
           const searchableWords = searchable.split(" ").filter(Boolean);
 
           const matchingCount = qWords.filter((qw) =>
-            searchableWords.some((sw) => fuzzyWordsMatch(qw, sw) || sw.startsWith(qw) || sw.includes(qw))
+            searchableWords.some(
+              (sw) =>
+                fuzzyWordsMatch(qw, sw) || sw.startsWith(qw) || sw.includes(qw),
+            ),
           ).length;
           if (matchingCount === 0) return;
 
           // Score fuzzy expansions below direct-hit results within each tier
-          const nameMatch = scoreNameMatch(normQ, normName, TIER.PRODUCT_NAME_STARTS);
+          const nameMatch = scoreNameMatch(
+            normQ,
+            normName,
+            TIER.PRODUCT_NAME_STARTS,
+          );
           const fuzzyScore = nameMatch
-            ? nameMatch.score - 2000  // deduct 2000 to rank below direct hits
+            ? nameMatch.score - 2000 // deduct 2000 to rank below direct hits
             : TIER.PRODUCT_ATTRIBUTE + 3000; // attribute-level fuzzy
 
           seenDocIds.add(docId);
@@ -829,9 +919,12 @@ export const searchNgram = async (query, options = {}) => {
 
 export const syncToIndex = async (item, type) => {
   try {
-    const doc = type === "product" ? buildProductDoc(item)
-              : type === "category" ? buildCategoryDoc(item)
-              : null;
+    const doc =
+      type === "product"
+        ? buildProductDoc(item)
+        : type === "category"
+          ? buildCategoryDoc(item)
+          : null;
     if (doc) upsertDocumentIntoIndex(doc);
   } catch (err) {
     console.error("[NGramSearch] syncToIndex error:", err);

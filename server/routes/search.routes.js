@@ -1,5 +1,8 @@
 import express from "express";
-import { searchController, rebuildIndexController } from "../controllers/search.controller.js";
+import {
+  searchController,
+  rebuildIndexController,
+} from "../controllers/search.controller.js";
 import { isAuthenticated, isAdmin } from "../middlewares/auth.middleware.js";
 
 const router = express.Router();

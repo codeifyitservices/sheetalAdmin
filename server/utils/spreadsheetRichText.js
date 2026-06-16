@@ -79,13 +79,17 @@ const renderInlineMarkdown = (text = "") => {
 };
 
 const markdownToHtml = (text = "") => {
-  const lines = String(text ?? "").replace(/\r\n?/g, "\n").split("\n");
+  const lines = String(text ?? "")
+    .replace(/\r\n?/g, "\n")
+    .split("\n");
   const blocks = [];
   let bulletItems = [];
 
   const flushBullets = () => {
     if (!bulletItems.length) return;
-    blocks.push(`<ul>${bulletItems.map((item) => `<li>${item}</li>`).join("")}</ul>`);
+    blocks.push(
+      `<ul>${bulletItems.map((item) => `<li>${item}</li>`).join("")}</ul>`,
+    );
     bulletItems = [];
   };
 
@@ -102,7 +106,9 @@ const markdownToHtml = (text = "") => {
     if (headingMatch) {
       flushBullets();
       const level = headingMatch[1].length;
-      blocks.push(`<h${level}>${renderInlineMarkdown(headingMatch[2].trim())}</h${level}>`);
+      blocks.push(
+        `<h${level}>${renderInlineMarkdown(headingMatch[2].trim())}</h${level}>`,
+      );
       continue;
     }
 
@@ -124,7 +130,10 @@ export const spreadsheetCellToHtml = (cell) => {
   if (!cell) return "";
 
   const plainText = cell.v ?? cell.w ?? "";
-  if (typeof plainText === "string" && /(?:^|\n)\s*-\s*(?:\S|$)/.test(plainText)) {
+  if (
+    typeof plainText === "string" &&
+    /(?:^|\n)\s*-\s*(?:\S|$)/.test(plainText)
+  ) {
     return markdownToHtml(plainText);
   }
 

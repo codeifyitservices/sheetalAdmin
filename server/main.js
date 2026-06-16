@@ -32,14 +32,14 @@ import paymentRoutes from "./routes/payment.routes.js";
 import webhookRoutes from "./routes/webhook.routes.js";
 import abandonedCartRoutes from "./routes/abandonedCart.routes.js";
 import sharedCartRoutes from "./routes/sharedCart.routes.js";
-import salesRouter from './routes/sales.routes.js'
-import instaRouter from './routes/instagram.routes.js'
-import testimonialRouter from './routes/testimonial.routes.js'
-import appointmentRouter from './routes/appointment.routes.js'
-import homepageRouter from './routes/homepage.routes.js'
-import enquiryRouter from './routes/enquiry.routes.js'
-import contactEnquiryRouter from './routes/contactEnquiry.routes.js'
-import newsletterRouter from "./routes/newsletter.routes.js"
+import salesRouter from "./routes/sales.routes.js";
+import instaRouter from "./routes/instagram.routes.js";
+import testimonialRouter from "./routes/testimonial.routes.js";
+import appointmentRouter from "./routes/appointment.routes.js";
+import homepageRouter from "./routes/homepage.routes.js";
+import enquiryRouter from "./routes/enquiry.routes.js";
+import contactEnquiryRouter from "./routes/contactEnquiry.routes.js";
+import newsletterRouter from "./routes/newsletter.routes.js";
 
 import errorHandler from "./middlewares/error.middleware.js";
 import sanitizeBody from "./middlewares/sanitize.middleware.js";
@@ -47,10 +47,7 @@ const app = express();
 app.set("trust proxy", 1);
 
 const normalizeOrigin = (value = "") => String(value).trim().replace(/\/$/, "");
-const configuredOrigins = [
-  process.env.ALLOWED_ORIGINS,
-  config.frontendDomain,
-]
+const configuredOrigins = [process.env.ALLOWED_ORIGINS, config.frontendDomain]
   .filter(Boolean)
   .flatMap((value) => value.split(","))
   .map(normalizeOrigin)
@@ -65,7 +62,7 @@ const localOrigins = [
   "http://192.168.1.10:3000",
   "http://192.168.0.141:3000",
   "http://192.168.0.227:4000",
-  "https://sheetal-admin.vercel.app"
+  "https://sheetal-admin.vercel.app",
 ].map(normalizeOrigin);
 
 const allowedOrigins = new Set([...localOrigins, ...configuredOrigins]);
@@ -192,14 +189,14 @@ app.use("/api/v1/pages", pagesRoutes);
 app.use("/api/v1/payment", paymentRoutes);
 app.use("/api/v1/abandoned-cart", abandonedCartRoutes);
 app.use("/api/v1/shared-cart", sharedCartRoutes);
-app.use('/api/v1/sales', salesRouter)
-app.use('/api/v1/instacards', instaRouter)
-app.use('/api/v1/testimonials', testimonialRouter)
-app.use('/api/v1/appointments', appointmentRouter)
-app.use('/api/v1/homepage', homepageRouter)
-app.use('/api/v1/enquiry', enquiryRouter)
-app.use('/api/v1/contact-enquiries', contactEnquiryRouter)
-app.use('/api/v1/newsletter', newsletterRouter)
+app.use("/api/v1/sales", salesRouter);
+app.use("/api/v1/instacards", instaRouter);
+app.use("/api/v1/testimonials", testimonialRouter);
+app.use("/api/v1/appointments", appointmentRouter);
+app.use("/api/v1/homepage", homepageRouter);
+app.use("/api/v1/enquiry", enquiryRouter);
+app.use("/api/v1/contact-enquiries", contactEnquiryRouter);
+app.use("/api/v1/newsletter", newsletterRouter);
 
 app.get("/", (req, res) => {
   const clientIp = req.headers["x-forwarded-for"] || req.socket.remoteAddress;

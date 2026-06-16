@@ -16,7 +16,9 @@ import {
 } from "./order.service.js";
 
 const normalizePaymentDisplayMethod = (method) => {
-  const normalizedMethod = String(method || "").trim().toLowerCase();
+  const normalizedMethod = String(method || "")
+    .trim()
+    .toLowerCase();
 
   switch (normalizedMethod) {
     case "card":
@@ -103,7 +105,10 @@ export const createPaymentLinkService = async (
       : cart?.items || [];
 
   if (!sourceItems || sourceItems.length === 0) {
-    throw ErrorResponse(isBuyNow ? "No buy now item found" : "Cart is empty", 400);
+    throw ErrorResponse(
+      isBuyNow ? "No buy now item found" : "Cart is empty",
+      400,
+    );
   }
 
   const validatedShippingAddress = validateCheckoutAddress(
@@ -150,7 +155,10 @@ export const createPaymentLinkService = async (
     }
 
     if (productPrice <= 0) {
-      throw ErrorResponse(`Invalid price for product ${product.name || product._id}`, 400);
+      throw ErrorResponse(
+        `Invalid price for product ${product.name || product._id}`,
+        400,
+      );
     }
 
     totalPrice += productPrice * quantity;
@@ -192,7 +200,8 @@ export const createPaymentLinkService = async (
   }
 
   const couponDiscount = Number(couponData.discountPrice) || 0;
-  const finalAmount = Math.max(0, totalPrice - couponDiscount) + shippingPrice + platformFee;
+  const finalAmount =
+    Math.max(0, totalPrice - couponDiscount) + shippingPrice + platformFee;
 
   await validateInventoryForOrderItems(orderItems);
 
@@ -292,8 +301,8 @@ export const createPaymentLinkService = async (
     const paymentLink = await razorpay.paymentLink.create(paymentLinkOptions);
 
     // Update order with payment link ID just in case
-  order.paymentInfo.id = paymentLink.id;
-  await order.save();
+    order.paymentInfo.id = paymentLink.id;
+    await order.save();
 
     return paymentLink;
   } catch (error) {
@@ -349,9 +358,7 @@ export const verifyOnlinePaymentService = async (params) => {
     );
   }
 
-  // 3. Verify with Razorpay API directly — fetch the payment link and confirm it is paid
-  //    This is more reliable than HMAC verification for payment links since Razorpay's
-  //    exact signature formula can vary between test and live modes.
+  // 3. Verify with Razorpay API — Fetch only the essential payment link first
   let paymentLink;
   try {
     paymentLink = await razorpay.paymentLink.fetch(razorpay_payment_link_id);
@@ -369,7 +376,7 @@ export const verifyOnlinePaymentService = async (params) => {
     );
   }
 
-  // 4. Confirm the reference_id matches (security: prevents one order's link from paying another)
+  // 4. Confirm the reference_id matches
   const orderId = paymentLink.reference_id;
   if (!orderId) {
     throw ErrorResponse("Cannot determine order from payment link", 400);
@@ -381,7 +388,7 @@ export const verifyOnlinePaymentService = async (params) => {
     throw ErrorResponse(`Order ${orderId} not found`, 404);
   }
 
-  // 6. Idempotency — if already paid, skip re-processing (handles double calls)
+  // 6. Idempotency
   if (order.paymentInfo?.status === "Paid") {
     return order;
   }
@@ -396,26 +403,15 @@ export const verifyOnlinePaymentService = async (params) => {
     inventoryAdjustedInThisAttempt = true;
   }
 
-  // 7. Mark order as Paid
-  let paymentDetails = null;
-  try {
-    paymentDetails = await razorpay.payments.fetch(razorpay_payment_id);
-  } catch (paymentFetchError) {
-    console.error(
-      "[PaymentVerify] Failed to fetch payment details:",
-      paymentFetchError.message,
-    );
-  }
-
+  // 7. Mark order as Paid and Save immediately to release the user
   order.paymentInfo.id = razorpay_payment_id;
   order.paymentInfo.status = "Paid";
-  order.paymentInfo.displayMethod = normalizePaymentDisplayMethod(
-    paymentDetails?.method,
-  );
+  order.paymentInfo.displayMethod = "Online"; // Default, updated in background
   order.paidAt = new Date();
   if (order.recoverySource && !order.recoveredAt) {
     order.recoveredAt = new Date();
   }
+
   try {
     await order.save();
   } catch (saveError) {
@@ -429,51 +425,75 @@ export const verifyOnlinePaymentService = async (params) => {
     throw saveError;
   }
 
-  await confirmCouponUsageForOrder(order);
-
-  // 8. Clear the cart only for cart-based orders.
-  if (order.purchaseSource !== "buyNow") {
+  // 8. Background / Non-blocking tasks
+  setImmediate(async () => {
     try {
-      await Cart.findOneAndUpdate({ user: order.user }, { $set: { items: [] } });
-    } catch (cartErr) {
-      console.error("[PaymentVerify] Cart clear failed:", cartErr.message);
-    }
-  }
+      const orderIdStr = order._id.toString();
 
-  try {
-    await completeAbandonedCartFlow({ userId: order.user });
-  } catch (abandonErr) {
-    console.error(
-      "[PaymentVerify] Failed to complete abandoned-cart flow:",
-      abandonErr.message,
-    );
-  }
+      // 8a. Fetch specific payment details for accurate displayMethod
+      try {
+        const paymentDetails =
+          await razorpay.payments.fetch(razorpay_payment_id);
+        if (paymentDetails?.method) {
+          await Order.findByIdAndUpdate(orderIdStr, {
+            "paymentInfo.displayMethod": normalizePaymentDisplayMethod(
+              paymentDetails.method,
+            ),
+          });
+        }
+      } catch (payErr) {
+        console.error("[Background] Payment Detail Fetch Error:", payErr.message);
+      }
 
-  const user = await User.findById(order.user).select("name email").lean();
-
-  try {
-    await sendOrderConfirmationEmail({ order, user });
-  } catch (emailErr) {
-    console.error(
-      `[PaymentVerify] Confirmation email failed for order ${order._id}:`,
-      emailErr.message,
-    );
-  }
-
-  // 9. Push to Shiprocket (skip if already synced)
-  if (!order.shiprocketOrderId) {
-    try {
-      const { shiprocketOrderId, shipmentId } = await createShiprocketOrder(
-        order,
-        user,
+      // 8b. Coupon confirmation
+      await confirmCouponUsageForOrder(order).catch((err) =>
+        console.error("[Background] Coupon Confirm Error:", err.message),
       );
-      await Order.findByIdAndUpdate(orderId, { shiprocketOrderId, shipmentId });
-      order.shiprocketOrderId = shiprocketOrderId;
-      order.shipmentId = shipmentId;
-    } catch (srErr) {
-      console.error("[PaymentVerify] Shiprocket push failed:", srErr.message);
+
+      // 8c. Clear the cart
+      if (order.purchaseSource !== "buyNow") {
+        await Cart.findOneAndUpdate(
+          { user: order.user },
+          { $set: { items: [] } },
+        ).catch((err) =>
+          console.error("[Background] Cart Clear Error:", err.message),
+        );
+      }
+
+      // 8d. Complete abandoned cart flow
+      await completeAbandonedCartFlow({ userId: order.user }).catch((err) =>
+        console.error("[Background] Abandoned Cart Error:", err.message),
+      );
+
+      // 8e. Fetch user for email and Shiprocket
+      const user = await User.findById(order.user)
+        .select("name email phoneNumber")
+        .lean();
+
+      // 8f. Order confirmation email
+      await sendOrderConfirmationEmail({ order, user }).catch((err) =>
+        console.error("[Background] Email Error:", err.message),
+      );
+
+      // 8g. Shiprocket Integration
+      if (!order.shiprocketOrderId) {
+        try {
+          const { shiprocketOrderId, shipmentId } = await createShiprocketOrder(
+            order,
+            user,
+          );
+          await Order.findByIdAndUpdate(orderIdStr, {
+            shiprocketOrderId,
+            shipmentId,
+          });
+        } catch (srErr) {
+          console.error("[Background] Shiprocket Error:", srErr.message);
+        }
+      }
+    } catch (bgError) {
+      console.error("[PaymentVerify Background Task Failure]:", bgError);
     }
-  }
+  });
 
   return order;
 };

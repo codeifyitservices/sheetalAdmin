@@ -7,7 +7,7 @@ import { rebuildIndex } from "../services/ngram.search.service.js";
  * Searches products and categories using the n-gram index.
  */
 export const searchController = asyncHandler(async (req, res) => {
-  const { q, limit = 10, page = 1 } = req.query;
+  const { q, limit = 50, page = 1 } = req.query;
 
   if (!q) {
     res

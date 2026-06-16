@@ -102,3 +102,19 @@ export const getBlogStats = async (req, res, next) => {
     next(error);
   }
 };
+
+export const reorderBlogs = async (req, res, next) => {
+  try {
+    const { reorderedIds } = req.body;
+    if (!reorderedIds || !Array.isArray(reorderedIds)) {
+      return res
+        .status(400)
+        .json({ success: false, message: "reorderedIds array is required" });
+    }
+    const result = await blogService.reorderBlogsService(reorderedIds);
+    if (!result.success) return res.status(400).json(result);
+    successResponse(res, 200, null, "Blogs reordered successfully");
+  } catch (error) {
+    next(error);
+  }
+};

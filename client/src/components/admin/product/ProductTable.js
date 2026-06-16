@@ -9,7 +9,6 @@ import {
   ChevronLeft,
   ChevronRight,
   ImageIcon,
-  Settings as SettingsIcon,
   UploadCloud,
   CheckSquare,
   Square,
@@ -17,8 +16,25 @@ import {
   ListChecks,
   X,
   Star,
+  GripVertical,
 } from "lucide-react";
 import toast from "react-hot-toast";
+import {
+  DndContext,
+  closestCenter,
+  KeyboardSensor,
+  PointerSensor,
+  useSensor,
+  useSensors,
+} from "@dnd-kit/core";
+import {
+  arrayMove,
+  SortableContext,
+  sortableKeyboardCoordinates,
+  useSortable,
+  verticalListSortingStrategy,
+} from "@dnd-kit/sortable";
+import { CSS } from "@dnd-kit/utilities";
 
 import ProductModal from "./ProductModal";
 import ViewProductDrawer from "./ViewProductDrawer";
@@ -30,9 +46,209 @@ import {
   getProducts,
   deleteProduct,
   starProduct,
+  reorderProducts,
 } from "@/services/productService";
 import { getCategories } from "@/services/categoryService";
 import { useProductModal } from "@/hooks/useProductModal";
+
+function SortableProductRow({
+  product,
+  isSelected,
+  toggleSelectOne,
+  selectMode,
+  setViewProduct,
+  setShowDrawer,
+  handleStar,
+  starringId,
+  setEditData,
+  setShowModal,
+  setDeleteId,
+  setShowDeleteModal,
+  setSelectedProductName,
+  i,
+  currentPage,
+  rowsPerPage,
+}) {
+  const { attributes, listeners, setNodeRef, transform, transition } =
+    useSortable({ id: product._id });
+
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+  };
+
+  return (
+    <tr
+      ref={setNodeRef}
+      style={style}
+      className={`transition-colors ${selectMode ? "cursor-pointer" : ""} ${isSelected ? "bg-slate-50" : "hover:bg-slate-50/80"} bg-white`}
+    >
+      <td className="px-4 py-3 text-slate-500 font-medium text-center touch-none">
+        <button
+          {...listeners}
+          {...attributes}
+          className="cursor-grab p-2 hover:bg-slate-200 rounded-lg"
+        >
+          <GripVertical size={16} />
+        </button>
+      </td>
+      {selectMode && (
+        <td className="px-4 py-4" onClick={(e) => e.stopPropagation()}>
+          <button
+            onClick={() => toggleSelectOne(product._id)}
+            className="flex cursor-pointer items-center justify-center text-slate-400 hover:text-slate-700 transition-colors"
+          >
+            {isSelected ? (
+              <CheckSquare size={16} className="text-slate-900" />
+            ) : (
+              <Square size={16} />
+            )}
+          </button>
+        </td>
+      )}
+
+      <td className="px-4 py-4 text-slate-500 font-medium text-center">
+        {(currentPage - 1) * rowsPerPage + i + 1}
+      </td>
+
+      <td className="px-4 py-4">
+        <div
+          className="w-10 h-10 mx-auto rounded-lg bg-slate-100 border border-slate-200 overflow-hidden flex items-center justify-center cursor-pointer"
+          onClick={(e) => {
+            e.stopPropagation();
+            setViewProduct(product);
+            setShowDrawer(true);
+          }}
+        >
+          {product.images?.[0]?.url || product.mainImage?.url ? (
+            <img
+              src={(
+                product.images?.[0]?.url || product.mainImage?.url
+              ).replace(/\\/g, "/")}
+              alt=""
+              className="w-full h-full object-cover"
+            />
+          ) : (
+            <ImageIcon size={16} className="text-slate-300" />
+          )}
+        </div>
+      </td>
+
+      <td className="px-4 py-4">
+        <div className="flex flex-col">
+          <div className="flex items-center gap-1.5">
+            <span className="font-bold text-slate-900">{product.name}</span>
+          </div>
+          <span className="text-[10px] text-slate-400 uppercase font-black tracking-tighter">
+            SKU: {product.sku || "N/A"}
+          </span>
+        </div>
+      </td>
+
+      <td className="px-4 py-4">
+        <div className="flex flex-wrap gap-1 max-w-xs">
+          {product.wearType?.slice(0, 2).map((tag, idx) => (
+            <span
+              key={idx}
+              className="bg-purple-100 text-purple-700 text-[9px] font-bold px-1.5 py-0.5 rounded uppercase"
+            >
+              {tag}
+            </span>
+          ))}
+          {product.occasion?.slice(0, 2).map((tag, idx) => (
+            <span
+              key={idx}
+              className="bg-pink-100 text-pink-700 text-[9px] font-bold px-1.5 py-0.5 rounded uppercase"
+            >
+              {tag}
+            </span>
+          ))}
+          {product.tags?.slice(0, 1).map((tag, idx) => (
+            <span
+              key={idx}
+              className="bg-slate-100 text-slate-700 text-[9px] font-bold px-1.5 py-0.5 rounded uppercase"
+            >
+              {tag}
+            </span>
+          ))}
+          {(product.wearType?.length > 2 ||
+            product.occasion?.length > 2 ||
+            product.tags?.length > 1) && (
+            <span className="text-[9px] text-slate-400 font-medium">+more</span>
+          )}
+        </div>
+      </td>
+
+      <td className="px-4 py-4 text-slate-600 font-medium">
+        {product.category?.name || (
+          <span className="text-slate-400 text-xs italic">Uncategorized</span>
+        )}
+      </td>
+
+      <td className="px-4 py-4 text-slate-600 font-medium">
+        {product.subCategory || <span className="text-slate-400 text-xs">-</span>}
+      </td>
+
+      <td className="px-4 py-4">
+        {product.lowStockVariantCount > 0 ? (
+          <span className="bg-red-100 text-red-800 text-xs font-medium px-2.5 py-0.5 rounded-full">
+            {product.lowStockVariantCount} Variant
+            {product.lowStockVariantCount > 1 ? "s" : ""} Low Stock
+            {product.lowStockThreshold !== undefined && (
+              <span className="ml-1 text-red-600 font-normal">
+                (≤{product.lowStockThreshold})
+              </span>
+            )}
+          </span>
+        ) : (
+          <span className="text-slate-300 text-xs">—</span>
+        )}
+      </td>
+
+      <td className="px-4 py-4 text-right" onClick={(e) => e.stopPropagation()}>
+        <div className="flex justify-end gap-4 text-slate-400">
+          <button
+            title={product.isStarred ? "Unstar" : "Star"}
+            disabled={starringId === product._id}
+            onClick={(e) => handleStar(e, product._id)}
+            className={`transition-colors cursor-pointer disabled:opacity-40 ${
+              product.isStarred
+                ? "text-amber-400 hover:text-slate-400"
+                : "hover:text-amber-400"
+            }`}
+          >
+            <Star
+              size={18}
+              className={product.isStarred ? "fill-amber-400" : ""}
+            />
+          </button>
+
+          <button
+            title="Edit"
+            className="hover:text-blue-600 cursor-pointer transition-colors"
+            onClick={() => {
+              setEditData(product);
+              setShowModal(true);
+            }}
+          >
+            <Edit3 size={18} />
+          </button>
+          <button
+            title="Delete"
+            className="hover:text-rose-600 cursor-pointer transition-colors"
+            onClick={() => {
+              setDeleteId(product._id);
+              setSelectedProductName(product.name);
+              setShowDeleteModal(true);
+            }}
+          >
+            <Trash2 size={18} />
+          </button>
+        </div>
+      </td>
+    </tr>
+  );
+}
 
 export default function ProductTable({ refreshStats }) {
   const [products, setProducts] = useState([]);
@@ -41,15 +257,16 @@ export default function ProductTable({ refreshStats }) {
   const [totalProducts, setTotalProducts] = useState(0);
   const [categories, setCategories] = useState([]);
   const [selectedCategory, setSelectedCategory] = useState("all");
-
-  const [rowsPerPage, setRowsPerPage] = useState(10);
+  const [rowsPerPage, setRowsPerPage] = useState(50);
   const [currentPage, setCurrentPage] = useState(1);
-
   const [sortConfig, setSortConfig] = useState({
     key: "createdAt",
     direction: "desc",
   });
-
+  const [selectMode, setSelectMode] = useState(false);
+  const [selectedIds, setSelectedIds] = useState(new Set());
+  const [showBulkDeleteModal, setShowBulkDeleteModal] = useState(false);
+  const [bulkDeleting, setBulkDeleting] = useState(false);
   const [showModal, setShowModal] = useState(false);
   const [editData, setEditData] = useState(null);
   const [viewProduct, setViewProduct] = useState(null);
@@ -59,17 +276,37 @@ export default function ProductTable({ refreshStats }) {
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [showSettingsModal, setShowSettingsModal] = useState(false);
   const [showBulkImportModal, setShowBulkImportModal] = useState(false);
-
-  // ── Multiselect state ──
-  const [selectMode, setSelectMode] = useState(false);
-  const [selectedIds, setSelectedIds] = useState(new Set());
-  const [showBulkDeleteModal, setShowBulkDeleteModal] = useState(false);
-  const [bulkDeleting, setBulkDeleting] = useState(false);
-
-  // ── Star state ──
+  const [isReorderMode, setIsReorderMode] = useState(false);
   const [starringId, setStarringId] = useState(null);
   const [bulkStarring, setBulkStarring] = useState(false);
 
+  // ── Drag and Drop state ──
+  const sensors = useSensors(
+    useSensor(PointerSensor),
+    useSensor(KeyboardSensor, {
+      coordinateGetter: sortableKeyboardCoordinates,
+    }),
+  );
+
+  const handleDragEnd = async (event) => {
+    const { active, over } = event;
+    if (active.id !== over.id) {
+      const oldIndex = products.findIndex((p) => p._id === active.id);
+      const newIndex = products.findIndex((p) => p._id === over.id);
+      const newOrder = arrayMove(products, oldIndex, newIndex);
+      setProducts(newOrder);
+
+      try {
+        const orderedIds = newOrder.map((p) => p._id);
+        const res = await reorderProducts(orderedIds);
+        if (res.success) toast.success("Order saved!");
+        else toast.error("Failed to save order.");
+      } catch (err) {
+        toast.error("Failed to save order.");
+        fetchProducts(); // Revert
+      }
+    }
+  };
   const { openProductId, closeModal } = useProductModal();
 
   useEffect(() => {
@@ -451,6 +688,27 @@ export default function ProductTable({ refreshStats }) {
         </button>
 
         <button
+          onClick={() => setIsReorderMode(!isReorderMode)}
+          className={`p-2.5 rounded-lg transition-all cursor-pointer ${
+            isReorderMode
+              ? "bg-amber-500 text-white hover:bg-amber-400"
+              : "text-slate-500 hover:text-slate-900 hover:bg-slate-100"
+          }`}
+          title="Reorder Products"
+        >
+          <ListChecks size={18} />
+        </button>
+
+        {isReorderMode && (
+          <button
+            onClick={saveOrder}
+            className="bg-emerald-600 cursor-pointer hover:bg-emerald-500 text-white px-5 py-2 rounded text-sm font-bold transition-all shadow-sm active:scale-95"
+          >
+            Save Order
+          </button>
+        )}
+
+        <button
           onClick={() => {
             setEditData(null);
             setShowModal(true);
@@ -462,239 +720,84 @@ export default function ProductTable({ refreshStats }) {
       </div>
 
       {/* ── Table ── */}
-      <div className="overflow-x-auto min-h-[300px]">
-        <table className="w-full text-sm text-left">
-          <thead className="bg-slate-50 text-slate-900 font-bold border-b border-slate-200 uppercase text-[11px] tracking-wider">
-            <tr>
-              {selectMode && (
-                <th className="px-4 py-4 w-10">
-                  <button
-                    onClick={toggleSelectAll}
-                    className="flex items-center justify-center text-slate-400 hover:text-slate-700 transition-colors"
-                  >
-                    {allCurrentSelected ? (
-                      <CheckSquare size={16} className="text-slate-900" />
-                    ) : someSelected ? (
-                      <Minus size={16} className="text-slate-500" />
-                    ) : (
-                      <Square size={16} />
-                    )}
-                  </button>
-                </th>
-              )}
-              <th className="px-4 py-4 w-12 text-center">#</th>
-              <th className="px-4 py-4 w-16 text-center">Image</th>
-              <th className="px-4 py-4">Product Details</th>
-              <th className="px-4 py-4">Tags</th>
-              <th className="px-4 py-4">Category</th>
-              <th className="px-4 py-4">Sub Category</th>
-              <th className="px-4 py-4">Status</th>
-              <th className="px-4 py-4 text-right">Actions</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-slate-100">
-            {orderedProducts.length > 0 ? (
-              orderedProducts.map((product, i) => {
-                const isSelected = selectedIds.has(product._id);
-                return (
-                  <tr
-                    key={product._id}
-                    onClick={
-                      selectMode
-                        ? () => toggleSelectOne(product._id)
-                        : undefined
-                    }
-                    className={`transition-colors ${
-                      selectMode ? "cursor-pointer" : ""
-                    } ${isSelected ? "bg-slate-50" : "hover:bg-slate-50/80"}`}
-                  >
-                    {selectMode && (
-                      <td
-                        className="px-4 py-4"
-                        onClick={(e) => e.stopPropagation()}
-                      >
-                        <button
-                          onClick={() => toggleSelectOne(product._id)}
-                          className="flex cursor-pointer items-center justify-center text-slate-400 hover:text-slate-700 transition-colors"
-                        >
-                          {isSelected ? (
-                            <CheckSquare size={16} className="text-slate-900" />
-                          ) : (
-                            <Square size={16} />
-                          )}
-                        </button>
-                      </td>
-                    )}
-
-                    <td className="px-4 py-4 text-slate-500 font-medium text-center">
-                      {(currentPage - 1) * rowsPerPage + i + 1}
-                    </td>
-
-                    <td className="px-4 py-4">
-                      <div
-                        className="w-10 h-10 mx-auto rounded-lg bg-slate-100 border border-slate-200 overflow-hidden flex items-center justify-center cursor-pointer"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          setViewProduct(product);
-                          setShowDrawer(true);
-                        }}
-                      >
-                        {product.images?.[0]?.url || product.mainImage?.url ? (
-                          <img
-                            src={(
-                              product.images?.[0]?.url || product.mainImage?.url
-                            ).replace(/\\/g, "/")}
-                            alt=""
-                            className="w-full h-full object-cover"
-                          />
-                        ) : (
-                          <ImageIcon size={16} className="text-slate-300" />
-                        )}
-                      </div>
-                    </td>
-
-                    <td className="px-4 py-4">
-                      <div className="flex flex-col">
-                        <div className="flex items-center gap-1.5">
-                          <span className="font-bold text-slate-900">
-                            {product.name}
-                          </span>
-                        </div>
-                        <span className="text-[10px] text-slate-400 uppercase font-black tracking-tighter">
-                          SKU: {product.sku || "N/A"}
-                        </span>
-                      </div>
-                    </td>
-
-                    <td className="px-4 py-4">
-                      <div className="flex flex-wrap gap-1 max-w-xs">
-                        {product.wearType?.slice(0, 2).map((tag, idx) => (
-                          <span
-                            key={idx}
-                            className="bg-purple-100 text-purple-700 text-[9px] font-bold px-1.5 py-0.5 rounded uppercase"
-                          >
-                            {tag}
-                          </span>
-                        ))}
-                        {product.occasion?.slice(0, 2).map((tag, idx) => (
-                          <span
-                            key={idx}
-                            className="bg-pink-100 text-pink-700 text-[9px] font-bold px-1.5 py-0.5 rounded uppercase"
-                          >
-                            {tag}
-                          </span>
-                        ))}
-                        {product.tags?.slice(0, 1).map((tag, idx) => (
-                          <span
-                            key={idx}
-                            className="bg-slate-100 text-slate-700 text-[9px] font-bold px-1.5 py-0.5 rounded uppercase"
-                          >
-                            {tag}
-                          </span>
-                        ))}
-                        {(product.wearType?.length > 2 ||
-                          product.occasion?.length > 2 ||
-                          product.tags?.length > 1) && (
-                          <span className="text-[9px] text-slate-400 font-medium">
-                            +more
-                          </span>
-                        )}
-                      </div>
-                    </td>
-
-                    <td className="px-4 py-4 text-slate-600 font-medium">
-                      {product.category?.name || (
-                        <span className="text-slate-400 text-xs italic">
-                          Uncategorized
-                        </span>
-                      )}
-                    </td>
-
-                    <td className="px-4 py-4 text-slate-600 font-medium">
-                      {product.subCategory || (
-                        <span className="text-slate-400 text-xs">-</span>
-                      )}
-                    </td>
-
-                    <td className="px-4 py-4">
-                      {product.lowStockVariantCount > 0 ? (
-                        <span className="bg-red-100 text-red-800 text-xs font-medium px-2.5 py-0.5 rounded-full">
-                          {product.lowStockVariantCount} Variant
-                          {product.lowStockVariantCount > 1 ? "s" : ""} Low
-                          Stock
-                          {product.lowStockThreshold !== undefined && (
-                            <span className="ml-1 text-red-600 font-normal">
-                              (≤{product.lowStockThreshold})
-                            </span>
-                          )}
-                        </span>
-                      ) : (
-                        <span className="text-slate-300 text-xs">—</span>
-                      )}
-                    </td>
-
-                    <td
-                      className="px-4 py-4 text-right"
-                      onClick={(e) => e.stopPropagation()}
+      <DndContext
+        sensors={sensors}
+        collisionDetection={closestCenter}
+        onDragEnd={handleDragEnd}
+      >
+        <div className="overflow-x-auto min-h-[300px]">
+          <table className="w-full text-sm text-left">
+            <thead className="bg-slate-50 text-slate-900 font-bold border-b border-slate-200 uppercase text-[11px] tracking-wider">
+              <tr>
+                {selectMode && (
+                  <th className="px-4 py-4 w-10">
+                    <button
+                      onClick={toggleSelectAll}
+                      className="flex items-center justify-center text-slate-400 hover:text-slate-700 transition-colors"
                     >
-                      <div className="flex justify-end gap-4 text-slate-400">
-                        {/* ── Star toggle ── */}
-                        <button
-                          title={product.isStarred ? "Unstar" : "Star"}
-                          disabled={starringId === product._id}
-                          onClick={(e) => handleStar(e, product._id)}
-                          className={`transition-colors cursor-pointer disabled:opacity-40 ${
-                            product.isStarred
-                              ? "text-amber-400 hover:text-slate-400"
-                              : "hover:text-amber-400"
-                          }`}
-                        >
-                          <Star
-                            size={18}
-                            className={
-                              product.isStarred ? "fill-amber-400" : ""
-                            }
-                          />
-                        </button>
-
-                        <button
-                          title="Edit"
-                          className="hover:text-blue-600 cursor-pointer transition-colors"
-                          onClick={() => {
-                            setEditData(product);
-                            setShowModal(true);
-                          }}
-                        >
-                          <Edit3 size={18} />
-                        </button>
-                        <button
-                          title="Delete"
-                          className="hover:text-rose-600 cursor-pointer transition-colors"
-                          onClick={() => {
-                            setDeleteId(product._id);
-                            setShowDeleteModal(true);
-                          }}
-                        >
-                          <Trash2 size={18} />
-                        </button>
-                      </div>
+                      {allCurrentSelected ? (
+                        <CheckSquare size={16} className="text-slate-900" />
+                      ) : someSelected ? (
+                        <Minus size={16} className="text-slate-500" />
+                      ) : (
+                        <Square size={16} />
+                      )}
+                    </button>
+                  </th>
+                )}
+                <th className="px-4 py-4 w-12 text-center"></th>
+                <th className="px-4 py-4 w-12 text-center">#</th>
+                <th className="px-4 py-4 w-16 text-center">Image</th>
+                <th className="px-4 py-4">Product Details</th>
+                <th className="px-4 py-4">Tags</th>
+                <th className="px-4 py-4">Category</th>
+                <th className="px-4 py-4">Sub Category</th>
+                <th className="px-4 py-4">Status</th>
+                <th className="px-4 py-4 text-right">Actions</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-100">
+              <SortableContext
+                items={products.map((p) => p._id)}
+                strategy={verticalListSortingStrategy}
+              >
+                {orderedProducts.length > 0 ? (
+                  orderedProducts.map((product, i) => (
+                    <SortableProductRow
+                      key={product._id}
+                      product={product}
+                      isSelected={selectedIds.has(product._id)}
+                      toggleSelectOne={toggleSelectOne}
+                      selectMode={selectMode}
+                      setViewProduct={setViewProduct}
+                      setShowDrawer={setShowDrawer}
+                      handleStar={handleStar}
+                      starringId={starringId}
+                      setEditData={setEditData}
+                      setShowModal={setShowModal}
+                      setDeleteId={setDeleteId}
+                      setShowDeleteModal={setShowDeleteModal}
+                      setSelectedProductName={setSelectedProductName}
+                      i={i}
+                      currentPage={currentPage}
+                      rowsPerPage={rowsPerPage}
+                    />
+                  ))
+                ) : (
+                  <tr>
+                    <td
+                      colSpan={selectMode ? 10 : 9}
+                      className="px-4 py-20 text-center text-slate-500 font-medium italic"
+                    >
+                      {loading ? "Syncing data..." : "No products found."}
                     </td>
                   </tr>
-                );
-              })
-            ) : (
-              <tr>
-                <td
-                  colSpan={selectMode ? 9 : 8}
-                  className="px-4 py-20 text-center text-slate-500 font-medium italic"
-                >
-                  {loading ? "Syncing data..." : "No products found."}
-                </td>
-              </tr>
-            )}
-          </tbody>
-        </table>
-      </div>
+                )}
+              </SortableContext>
+            </tbody>
+          </table>
+        </div>
+      </DndContext>
 
       {/* ── Pagination ── */}
       <div className="p-4 border-t border-slate-100 flex flex-col md:flex-row items-center justify-between bg-slate-50/50 gap-4">

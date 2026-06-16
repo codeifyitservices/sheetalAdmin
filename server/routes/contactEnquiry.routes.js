@@ -11,7 +11,12 @@ const router = express.Router();
 
 router.post("/", createContactEnquiry);
 router.get("/", isAuthenticated, isAdmin, getContactEnquiries);
-router.patch("/:id/status", isAuthenticated, isAdmin, updateContactEnquiryStatus);
+router.patch(
+  "/:id/status",
+  isAuthenticated,
+  isAdmin,
+  updateContactEnquiryStatus,
+);
 router.delete("/:id", isAuthenticated, isAdmin, deleteContactEnquiry);
 
 export default router;

@@ -47,28 +47,42 @@ const normalizeQuantity = (quantity) => {
 };
 
 const getVariantForCartItem = (product, cartItemLike) => {
-  if (!product || !Array.isArray(product.variants) || product.variants.length === 0) {
+  if (
+    !product ||
+    !Array.isArray(product.variants) ||
+    product.variants.length === 0
+  ) {
     return null;
   }
 
-  const requestedColor = String(cartItemLike?.color || "").trim().toLowerCase();
-  const requestedSize = String(cartItemLike?.size || "").trim().toLowerCase();
+  const requestedColor = String(cartItemLike?.color || "")
+    .trim()
+    .toLowerCase();
+  const requestedSize = String(cartItemLike?.size || "")
+    .trim()
+    .toLowerCase();
 
   if (requestedColor) {
     const variant = product.variants.find(
       (entry) =>
-        String(entry?.color?.name || "").trim().toLowerCase() === requestedColor,
+        String(entry?.color?.name || "")
+          .trim()
+          .toLowerCase() === requestedColor,
     );
     if (variant) return variant;
   }
 
   if (requestedSize) {
     return (
-      product.variants.find((entry) =>
-        Array.isArray(entry?.sizes) &&
-        entry.sizes.some(
-          (size) => String(size?.name || "").trim().toLowerCase() === requestedSize,
-        ),
+      product.variants.find(
+        (entry) =>
+          Array.isArray(entry?.sizes) &&
+          entry.sizes.some(
+            (size) =>
+              String(size?.name || "")
+                .trim()
+                .toLowerCase() === requestedSize,
+          ),
       ) || null
     );
   }
@@ -81,14 +95,19 @@ const getSizeForCartItem = (variant, cartItemLike) => {
     return null;
   }
 
-  const requestedSize = String(cartItemLike?.size || "").trim().toLowerCase();
+  const requestedSize = String(cartItemLike?.size || "")
+    .trim()
+    .toLowerCase();
   if (!requestedSize) {
     return variant.sizes[0] || null;
   }
 
   return (
     variant.sizes.find(
-      (size) => String(size?.name || "").trim().toLowerCase() === requestedSize,
+      (size) =>
+        String(size?.name || "")
+          .trim()
+          .toLowerCase() === requestedSize,
     ) || null
   );
 };
@@ -112,10 +131,7 @@ const ensureCartItemStock = (product, cartItemLike, desiredQuantity) => {
 
   const availableStock = getAvailableStockForCartItem(product, cartItemLike);
   if (availableStock < normalizedDesiredQuantity) {
-    throw new ErrorResponse(
-      `This item only has ${availableStock} left.`,
-      400,
-    );
+    throw new ErrorResponse(`This item only has ${availableStock} left.`, 400);
   }
 };
 
@@ -221,8 +237,7 @@ export const addToCartService = async (
     });
   }
 
-  cart.abandonmentReminderAttempts =
-    sanitizeAbandonmentReminderAttempts(cart);
+  cart.abandonmentReminderAttempts = sanitizeAbandonmentReminderAttempts(cart);
   await cart.save();
 
   // Adding items changes the cart total, so recalculate the abandoned-cart
@@ -317,8 +332,7 @@ export const updateCartItemQuantityService = async (
     itemToUpdate.quantity = normalizedQuantity;
   }
 
-  cart.abandonmentReminderAttempts =
-    sanitizeAbandonmentReminderAttempts(cart);
+  cart.abandonmentReminderAttempts = sanitizeAbandonmentReminderAttempts(cart);
   await cart.save();
 
   // Quantity change affects cart total — recalculate discount.
@@ -354,8 +368,7 @@ export const clearCartService = async (userId) => {
   // Clearing the cart zeros the discount and clears the applied coupon —
   // no point keeping it when the cart is empty.
   cart.appliedAbandonedCoupon = null;
-  cart.abandonmentReminderAttempts =
-    sanitizeAbandonmentReminderAttempts(cart);
+  cart.abandonmentReminderAttempts = sanitizeAbandonmentReminderAttempts(cart);
   await cart.save();
 
   try {
@@ -433,8 +446,7 @@ export const mergeGuestCartService = async (userId, guestItems) => {
     }
   }
 
-  cart.abandonmentReminderAttempts =
-    sanitizeAbandonmentReminderAttempts(cart);
+  cart.abandonmentReminderAttempts = sanitizeAbandonmentReminderAttempts(cart);
   await cart.save();
 
   // Merging adds items — re-enforce the cap.

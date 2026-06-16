@@ -63,11 +63,10 @@ export const uploadS3File = async (filePath, folderName) => {
     return {
       url,
       key, // store key for deletion
-      public_id: key
+      public_id: key,
     };
   } catch (error) {
     logger.error(`S3 Upload failed for ${filePath}: ${error.message}`);
     throw error;
   }
 };
-

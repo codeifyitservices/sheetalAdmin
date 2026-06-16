@@ -92,6 +92,14 @@ export const updateProfileService = async (
     data.profilePictureKey = profilePictureFile.key;
   }
 
+  // Sanitize unique fields to avoid E11000 duplicate key error on empty strings
+  if (typeof data.email === "string" && data.email.trim() === "") {
+    data.email = null;
+  }
+  if (typeof data.phoneNumber === "string" && data.phoneNumber.trim() === "") {
+    data.phoneNumber = null;
+  }
+
   const updatedUser = await User.findByIdAndUpdate(userId, data, {
     new: true,
     runValidators: true,
@@ -156,6 +164,17 @@ export const updateUserService = async (id, updateData) => {
     updateData.password = await bcrypt.hash(updateData.password, 10);
   } else {
     delete updateData.password;
+  }
+
+  // Sanitize unique fields to avoid E11000 duplicate key error on empty strings
+  if (typeof updateData.email === "string" && updateData.email.trim() === "") {
+    updateData.email = null;
+  }
+  if (
+    typeof updateData.phoneNumber === "string" &&
+    updateData.phoneNumber.trim() === ""
+  ) {
+    updateData.phoneNumber = null;
   }
 
   const user = await User.findByIdAndUpdate(
@@ -247,9 +266,7 @@ export const getUserStatsService = async ({ startDate, endDate } = {}) => {
   }
 
   const filteredRoleQuery =
-    Object.keys(createdAt).length > 0
-      ? { ...roleQuery, createdAt }
-      : roleQuery;
+    Object.keys(createdAt).length > 0 ? { ...roleQuery, createdAt } : roleQuery;
 
   const total = await User.countDocuments(filteredRoleQuery);
   const active = await User.countDocuments({
@@ -328,7 +345,7 @@ export const addAddressService = async (userId, addressData) => {
   return {
     success: true,
     message: "Address added successfully",
-    data: user.addresses
+    data: user.addresses,
   };
 };
 
@@ -344,7 +361,7 @@ export const updateAddressService = async (userId, addressId, addressData) => {
   }
 
   if (addressData.isDefault) {
-    user.addresses.forEach(addr => addr.isDefault = false);
+    user.addresses.forEach((addr) => (addr.isDefault = false));
   }
 
   address.set(addressData);
@@ -354,7 +371,7 @@ export const updateAddressService = async (userId, addressId, addressData) => {
   return {
     success: true,
     message: "Address updated successfully",
-    data: user.addresses
+    data: user.addresses,
   };
 };
 
@@ -371,7 +388,7 @@ export const deleteAddressService = async (userId, addressId) => {
   return {
     success: true,
     message: "Address deleted successfully",
-    data: user.addresses
+    data: user.addresses,
   };
 };
 
@@ -386,7 +403,7 @@ export const setDefaultAddressService = async (userId, addressId) => {
     return { success: false, statusCode: 404, message: "Address not found" };
   }
 
-  user.addresses.forEach(addr => addr.isDefault = false);
+  user.addresses.forEach((addr) => (addr.isDefault = false));
   address.isDefault = true;
 
   await user.save();
@@ -394,7 +411,7 @@ export const setDefaultAddressService = async (userId, addressId) => {
   return {
     success: true,
     message: "Default address updated successfully",
-    data: user.addresses
+    data: user.addresses,
   };
 };
 

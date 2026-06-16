@@ -16,8 +16,6 @@ import TiptapEditor from "@/components/TiptapEditor"; // adjust path as needed
 
 const ACCEPTED_TYPES = ["image/jpeg", "image/jpg", "image/png"];
 const ACCEPTED_EXTENSIONS = ".jpg,.jpeg,.png";
-const REQUIRED_WIDTH = 650;
-const REQUIRED_HEIGHT = 500;
 
 const DEFAULT_CENTER = {
   label: "Exclusive Deal · Few Days Left",
@@ -70,23 +68,7 @@ export default function LookbookForm() {
         );
         return;
       }
-      const img = new Image();
-      const objectUrl = URL.createObjectURL(file);
-      img.onload = () => {
-        URL.revokeObjectURL(objectUrl);
-        if (img.width !== REQUIRED_WIDTH || img.height !== REQUIRED_HEIGHT) {
-          reject(
-            `"${file.name}" must be exactly ${REQUIRED_WIDTH}×${REQUIRED_HEIGHT}px. Uploaded: ${img.width}×${img.height}px.`,
-          );
-        } else {
-          resolve();
-        }
-      };
-      img.onerror = () => {
-        URL.revokeObjectURL(objectUrl);
-        reject(`Could not read "${file.name}".`);
-      };
-      img.src = objectUrl;
+      resolve();
     });
   };
 
@@ -195,8 +177,7 @@ export default function LookbookForm() {
           <p className="text-[11px] text-amber-700 mt-0.5">
             All images must be exactly{" "}
             <span className="font-bold">650 × 500 px</span> and in{" "}
-            <span className="font-bold">JPG or PNG</span> format. Images not
-            meeting these requirements will be rejected automatically.
+            <span className="font-bold">JPG or PNG</span> format.
           </p>
         </div>
       </div>

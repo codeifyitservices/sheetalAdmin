@@ -22,22 +22,20 @@ const escapeHtml = (value = "") =>
 
 const buildItemRows = (items = []) =>
   items
-    .map(
-      (item) => {
-        const safeName = escapeHtml(item.name || "Product");
-        const safeQty = escapeHtml(item.qty ?? "");
-        const safePrice = escapeHtml(item.price ?? "");
-        const safeTotal = escapeHtml(item.total ?? "");
+    .map((item) => {
+      const safeName = escapeHtml(item.name || "Product");
+      const safeQty = escapeHtml(item.qty ?? "");
+      const safePrice = escapeHtml(item.price ?? "");
+      const safeTotal = escapeHtml(item.total ?? "");
 
-        return `
+      return `
         <tr>
           <td style="border:1px solid #ddd;font-size:14px;">${safeName}</td>
           <td style="border:1px solid #ddd;font-size:14px;">${safeQty}</td>
           <td style="border:1px solid #ddd;font-size:14px;">${safePrice}</td>
           <td style="border:1px solid #ddd;font-size:14px;">${safeTotal}</td>
         </tr>`;
-      },
-    )
+    })
     .join("");
 
 export const orderConfirmationTemplate = (data) => {
@@ -171,20 +169,26 @@ export const sendOrderConfirmationEmail = async ({ order, user }) => {
   }));
 
   const shippingLines = buildAddressLines(order.shippingAddress);
-  const bannerUrl = process.env.STORE_BANNER_URL || process.env.STORE_LOGO_URL || "";
+  const bannerUrl =
+    process.env.STORE_BANNER_URL || process.env.STORE_LOGO_URL || "";
 
   await sendEmail({
     email: user.email,
     subject: `Your order ${order._id} is confirmed`,
     html: orderConfirmationTemplate({
       userName: user.name || order.shippingAddress?.fullName || "Customer",
-      submittedOn: new Date(order.createdAt || Date.now()).toLocaleString("en-IN"),
+      submittedOn: new Date(order.createdAt || Date.now()).toLocaleString(
+        "en-IN",
+      ),
       orderId: order._id,
-      orderDate: new Date(order.createdAt || Date.now()).toLocaleString("en-IN"),
+      orderDate: new Date(order.createdAt || Date.now()).toLocaleString(
+        "en-IN",
+      ),
       orderStatus: order.orderStatus || "Processing",
       items,
       subtotal: formatCurrency(order.itemsPrice || 0),
-      shipping: order.shippingPrice > 0 ? formatCurrency(order.shippingPrice) : "FREE",
+      shipping:
+        order.shippingPrice > 0 ? formatCurrency(order.shippingPrice) : "FREE",
       total: formatCurrency(order.totalPrice || 0),
       shippingName: order.shippingAddress?.fullName || user.name || "Customer",
       shippingLine1: shippingLines[0] || "",

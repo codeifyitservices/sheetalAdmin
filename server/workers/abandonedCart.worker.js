@@ -12,7 +12,8 @@ let redisUnavailableLogged = false;
 
 const describeWorkerError = (error) => {
   if (!error) return "Unknown abandoned-cart worker error";
-  if (typeof error === "string") return error.trim() || "Unknown abandoned-cart worker error";
+  if (typeof error === "string")
+    return error.trim() || "Unknown abandoned-cart worker error";
 
   const parts = [error.name, error.code, error.message, error.stack]
     .filter((part) => typeof part === "string" && part.trim())

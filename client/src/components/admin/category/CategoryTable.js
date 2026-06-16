@@ -164,7 +164,7 @@ export default function CategoryTable({ refreshStats }) {
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("All");
 
-  const [rowsPerPage, setRowsPerPage] = useState(100); // Show more for reordering
+  const [rowsPerPage, setRowsPerPage] = useState(50); // Default set to 50 as requested
   const [currentPage, setCurrentPage] = useState(1);
 
   const [showModal, setShowModal] = useState(false);

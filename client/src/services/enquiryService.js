@@ -3,16 +3,18 @@ import { API_BASE_URL } from "@/services/api";
 
 /**
  * Fetches enquiries with optional status filter and search query.
- * @param {{ status: string, search: string }} params
- * @returns {Promise<Object[]>} enquiries array
+ * @param {{ status: string, search: string, page: number, limit: number }} params
+ * @returns {Promise<Object>} API response
  */
 export async function fetchEnquiries({
   status = "all",
   search = "",
   startDate = "",
   endDate = "",
+  page = 1,
+  limit = 50,
 } = {}, signal) {
-  const params = { status, search };
+  const params = { status, search, page, limit };
   if (startDate) params.startDate = startDate;
   if (endDate) params.endDate = endDate;
 
@@ -22,7 +24,7 @@ export async function fetchEnquiries({
     withCredentials: true,
   });
   if (!data.success) throw new Error("Failed to fetch enquiries");
-  return data.enquiries;
+  return data;
 }
 
 /**

@@ -16,14 +16,7 @@ const cleanupFiles = async (files) => {
 
 export const createBlogService = async (data, files, userId) => {
   try {
-    const {
-      title,
-      content,
-      tags,
-      relatedProducts,
-      status,
-      isPublished,
-    } = data;
+    const { title, content, tags, relatedProducts, status, isPublished } = data;
 
     const bannerImageFile = files?.bannerImage?.[0];
 
@@ -43,9 +36,9 @@ export const createBlogService = async (data, files, userId) => {
       ? Array.isArray(tags)
         ? tags
         : tags
-          .split(",")
-          .map((t) => t.trim())
-          .filter((t) => t !== "")
+            .split(",")
+            .map((t) => t.trim())
+            .filter((t) => t !== "")
       : [];
     const productsArray = relatedProducts
       ? Array.isArray(relatedProducts)
@@ -67,6 +60,7 @@ export const createBlogService = async (data, files, userId) => {
       status: status || "Active",
       isPublished: isPublished === "true" || isPublished === true,
       metaTitle: data.metaTitle || title,
+      order: await Blog.countDocuments(),
     };
 
     if (files?.contentImage?.[0]) {
@@ -112,9 +106,9 @@ export const updateBlogService = async (id, data, files) => {
       updateData.tags =
         typeof data.tags === "string"
           ? data.tags
-            .split(",")
-            .map((t) => t.trim())
-            .filter((t) => t !== "")
+              .split(",")
+              .map((t) => t.trim())
+              .filter((t) => t !== "")
           : data.tags;
     }
 
@@ -181,14 +175,7 @@ export const updateBlogService = async (id, data, files) => {
 };
 
 export const getAllBlogsService = async (query) => {
-  const {
-    page = 1,
-    limit = 10,
-    search,
-    isPublished,
-    status,
-    isAdmin,
-  } = query;
+  const { page = 1, limit = 50, search, isPublished, status, isAdmin } = query;
   const skip = (Number(page) - 1) * Number(limit);
 
   let filter = {};
@@ -206,7 +193,11 @@ export const getAllBlogsService = async (query) => {
     const blogs = await Blog.find(filter)
       .populate("author", "name")
       .populate("relatedProducts", "name price image")
-      .sort(search ? { score: { $meta: "textScore" } } : "-createdAt")
+      .sort(
+        search
+          ? { score: { $meta: "textScore" } }
+          : { order: 1, createdAt: -1 },
+      )
       .skip(skip)
       .limit(Number(limit))
       .lean();
@@ -232,6 +223,22 @@ export const getAllBlogsService = async (query) => {
       page: Number(page),
       pages: Math.ceil(total / limit),
     };
+  } catch (err) {
+    return { success: false, message: err.message };
+  }
+};
+
+export const reorderBlogsService = async (reorderedIds) => {
+  try {
+    const operations = reorderedIds.map((id, index) => ({
+      updateOne: {
+        filter: { _id: id },
+        update: { $set: { order: index } },
+      },
+    }));
+
+    await Blog.bulkWrite(operations);
+    return { success: true, message: "Blogs reordered successfully" };
   } catch (err) {
     return { success: false, message: err.message };
   }

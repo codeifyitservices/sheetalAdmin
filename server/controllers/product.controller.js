@@ -85,7 +85,10 @@ export const createProductReview = async (req, res, next) => {
 export const checkCanReview = async (req, res, next) => {
   try {
     const { productId } = req.query;
-    const result = await productService.canReviewService(productId, req.user._id);
+    const result = await productService.canReviewService(
+      productId,
+      req.user._id,
+    );
     return successResponse(res, 200, result, "Eligibility check completed");
   } catch (error) {
     next(error);
@@ -116,7 +119,8 @@ export const bulkImportProducts = async (req, res, next) => {
     if (result.data.length === 0) {
       return res.status(200).json({
         success: false,
-        message: "No products were imported. Please check your Excel file for errors.",
+        message:
+          "No products were imported. Please check your Excel file for errors.",
         data: { imported: 0, errors: result.errors },
       });
     }
@@ -125,7 +129,9 @@ export const bulkImportProducts = async (req, res, next) => {
       res,
       200,
       { imported: result.data.length, errors: result.errors },
-      result.errors?.length > 0 ? "Import completed with warnings" : "All products imported successfully",
+      result.errors?.length > 0
+        ? "Import completed with warnings"
+        : "All products imported successfully",
     );
   } catch (error) {
     clearFiles(req.files);
@@ -247,7 +253,11 @@ export const deleteReview = async (req, res, next) => {
 export const getAllReviews = async (req, res, next) => {
   try {
     const { page, limit, status } = req.query;
-    const result = await productService.getAllReviewsService(page, limit, status);
+    const result = await productService.getAllReviewsService(
+      page,
+      limit,
+      status,
+    );
     return successResponse(
       res,
       200,
@@ -265,7 +275,7 @@ export const getAllReviews = async (req, res, next) => {
           pendingCount: result.pendingCount,
           averageRating: result.averageRating,
         },
-      }
+      },
     );
   } catch (error) {
     next(error);
@@ -276,7 +286,13 @@ export const updateReviewStatus = async (req, res, next) => {
   try {
     const { isApproved, comment, rating, userName } = req.body;
     const reviewId = req.params.id || req.query.id;
-    const result = await productService.updateReviewStatusService(reviewId, isApproved, comment, rating, userName);
+    const result = await productService.updateReviewStatusService(
+      reviewId,
+      isApproved,
+      comment,
+      rating,
+      userName,
+    );
     if (!result.success) return res.status(result.statusCode).json(result);
     return successResponse(res, 200, result.review, "Review status updated");
   } catch (error) {
@@ -302,7 +318,12 @@ export const getLowStockProducts = async (req, res, next) => {
 export const getTrendingProducts = async (req, res, next) => {
   try {
     const result = await productService.getTrendingProductsService();
-    return successResponse(res, 200, result.products, "Trending products fetched");
+    return successResponse(
+      res,
+      200,
+      result.products,
+      "Trending products fetched",
+    );
   } catch (error) {
     next(error);
   }
@@ -311,7 +332,8 @@ export const getTrendingProducts = async (req, res, next) => {
 export const incrementViewCount = async (req, res, next) => {
   try {
     const productIdOrSlug = req.params.id || req.params.slug;
-    const result = await productService.incrementViewCountService(productIdOrSlug);
+    const result =
+      await productService.incrementViewCountService(productIdOrSlug);
     if (!result.success) return res.status(result.statusCode).json(result);
     return successResponse(res, 200, null, "View count incremented");
   } catch (error) {
@@ -325,7 +347,9 @@ export const getCollectionProducts = async (req, res) => {
     return res.status(200).json({ success: true, products });
   } catch (error) {
     console.error("getCollectionProducts error:", error);
-    return res.status(500).json({ success: false, message: "Failed to fetch collection products" });
+    return res
+      .status(500)
+      .json({ success: false, message: "Failed to fetch collection products" });
   }
 };
 
@@ -346,6 +370,18 @@ export const getMostViewedProducts = async (req, res, next) => {
 };
 
 // ── Updated: reads `starred` from req.body and passes it to the service ──
+export const reorderProducts = async (req, res, next) => {
+  try {
+    const { orderedIds } = req.body;
+    const result = await productService.reorderProductsService(orderedIds);
+    if (!result.success)
+      return res.status(result.statusCode || 500).json(result);
+    return successResponse(res, 200, null, result.message);
+  } catch (error) {
+    next(error);
+  }
+};
+
 export const toggleStarProduct = async (req, res, next) => {
   try {
     // Accept an explicit desired state from body (used by bulk ops).
@@ -356,7 +392,12 @@ export const toggleStarProduct = async (req, res, next) => {
       starred,
     );
     if (!result.success) return res.status(result.statusCode).json(result);
-    return successResponse(res, 200, { isStarred: result.isStarred }, "Star updated");
+    return successResponse(
+      res,
+      200,
+      { isStarred: result.isStarred },
+      "Star updated",
+    );
   } catch (error) {
     next(error);
   }

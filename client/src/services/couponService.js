@@ -2,7 +2,7 @@ import { API_BASE_URL } from "./api";
 
 // ── Admin ──────────────────────────────────────────────────────
 
-export const getCoupons = async (page = 1, limit = 10, search = "") => {
+export const getCoupons = async (page = 1, limit = 50, search = "") => {
   const res = await fetch(
     `${API_BASE_URL}/coupons/admin/all?page=${page}&limit=${limit}&search=${search}`,
     { credentials: "include" },
@@ -54,7 +54,7 @@ export const deleteCoupon = async (id) => {
     const err = await res.json();
     throw new Error(err.message || "Failed to delete coupon");
   }
-  return true;
+  return await res.json();
 };
 
 // ── Public ─────────────────────────────────────────────────────

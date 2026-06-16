@@ -33,6 +33,14 @@ export const loginService = async ({ email, password }) => {
 
   if (!user) return { success: false, message: "Invalid email or password" };
 
+  if (user.status === "Inactive") {
+    return {
+      success: false,
+      message:
+        "This ID has been blocked by the admin due to some reasons, please contact the team for further procedures",
+    };
+  }
+
   const isMatch = await bcrypt.compare(password, user.password);
   if (!isMatch) return { success: false, message: "Invalid email or password" };
 

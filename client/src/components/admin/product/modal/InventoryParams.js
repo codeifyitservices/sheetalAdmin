@@ -38,6 +38,16 @@ const isFreeSizeSelected = (sizeChart = "", selectedChartName = "") => {
 
 const FREE_SIZE_ROW = () => ({ name: "Free Size", stock: 0, price: 0, discountPrice: 0 });
 
+const toTitleCase = (str) => {
+  if (!str) return "";
+  return str
+    .toString()
+    .toLowerCase()
+    .split(" ")
+    .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
+    .join(" ");
+};
+
 export default function InventoryParams({
   formData,
   setFormData,
@@ -148,6 +158,9 @@ export default function InventoryParams({
   };
 
   const updateSize = (variantIndex, sizeIndex, field, value) => {
+    if (field === "name") {
+      value = value.toUpperCase();
+    }
     updateVariant(variantIndex, (v) => {
       const sizes = [...v.sizes];
       sizes[sizeIndex] = { ...sizes[sizeIndex], [field]: value };
@@ -181,6 +194,14 @@ export default function InventoryParams({
     }));
   };
 
+  const handleColorBlur = (variantIndex) => {
+    updateVariant(variantIndex, (v) => {
+      if (!v.color.name) return v;
+      const normalized = toTitleCase(v.color.name);
+      return { ...v, color: { ...v.color, name: normalized } };
+    });
+  };
+
   return (
     <div className="space-y-6 animate-in fade-in duration-300">
       <div className="border border-slate-200 rounded-xl overflow-hidden bg-white shadow-md">
@@ -206,85 +227,124 @@ export default function InventoryParams({
         </div>
 
         <div className="p-5 space-y-6">
-          {formData.variants.map((v, i) => (
-            <div
-              key={i}
-              className="group p-5 bg-slate-50 border border-slate-200 rounded-2xl relative hover:border-slate-400 transition-all"
-            >
-              {/* Remove variant */}
-              <button
-                type="button"
-                onClick={() =>
-                  setFormData((prev) => ({
-                    ...prev,
-                    variants: prev.variants.filter((_, idx) => idx !== i),
-                  }))
-                }
-                className="absolute -top-2 -right-2 bg-rose-500 text-white p-1.5 rounded-full shadow-lg opacity-0 group-hover:opacity-100 transition-opacity z-20"
+          {formData.variants.map((v, i) => {
+            const isDuplicateColor =
+              v.color?.name?.trim() !== "" &&
+              formData.variants.some(
+                (other, idx) =>
+                  idx !== i &&
+                  toTitleCase(other.color?.name) === toTitleCase(v.color?.name),
+              );
+
+            const isDuplicateHex =
+              v.color?.code?.trim() !== "" &&
+              v.color?.code !== "#000000" &&
+              formData.variants.some(
+                (other, idx) =>
+                  idx !== i &&
+                  other.color?.code?.toLowerCase() === v.color?.code?.toLowerCase(),
+              );
+
+            return (
+              <div
+                key={i}
+                className="group p-5 bg-slate-50 border border-slate-200 rounded-2xl relative hover:border-slate-400 transition-all"
               >
-                <Trash2 size={14} />
-              </button>
+                {/* Remove variant */}
+                <button
+                  type="button"
+                  onClick={() =>
+                    setFormData((prev) => ({
+                      ...prev,
+                      variants: prev.variants.filter((_, idx) => idx !== i),
+                    }))
+                  }
+                  className="absolute -top-2 -right-2 bg-rose-500 text-white p-1.5 rounded-full shadow-lg opacity-0 group-hover:opacity-100 transition-opacity z-20"
+                >
+                  <Trash2 size={14} />
+                </button>
 
-              {/* SKU / Color / Image row */}
-              <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-                <div className="space-y-1">
-                  <label className="text-[10px] font-bold text-slate-500 uppercase">
-                    Variant SKU
-                  </label>
-                  <input
-                    className="w-full bg-white border border-slate-300 px-3 py-2 rounded-lg text-xs font-bold uppercase focus:ring-2 focus:ring-slate-900 outline-none"
-                    placeholder="e.g. TSHIRT-RED"
-                    value={v.v_sku}
-                    onChange={(e) => {
-                      const up = [...formData.variants];
-                      up[i].v_sku = e.target.value.toUpperCase();
-                      setFormData({ ...formData, variants: up });
-                    }}
-                  />
-                </div>
-
-                <div className="space-y-1">
-                  <label className="text-[10px] font-bold text-slate-500 uppercase">
-                    Color Name
-                  </label>
-                  <input
-                    className="w-full bg-white border border-slate-300 px-3 py-2 rounded-lg text-xs font-medium"
-                    placeholder="Red, Navy..."
-                    value={v.color?.name}
-                    onChange={(e) => {
-                      const up = [...formData.variants];
-                      up[i].color.name = e.target.value;
-                      setFormData({ ...formData, variants: up });
-                    }}
-                  />
-                </div>
-
-                <div className="space-y-1">
-                  <label className="text-[10px] font-bold text-slate-500 uppercase">
-                    Color Hex
-                  </label>
-                  <div className="flex items-center gap-2">
+                {/* SKU / Color / Image row */}
+                <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+                  <div className="space-y-1">
+                    <label className="text-[10px] font-bold text-slate-500 uppercase">
+                      Variant SKU
+                    </label>
                     <input
-                      type="color"
-                      className="w-10 h-9 border-none bg-transparent cursor-pointer"
-                      value={v.color?.code}
+                      className="w-full bg-white border border-slate-300 px-3 py-2 rounded-lg text-xs font-bold uppercase focus:ring-2 focus:ring-slate-900 outline-none"
+                      placeholder="e.g. TSHIRT-RED"
+                      value={v.v_sku}
                       onChange={(e) => {
                         const up = [...formData.variants];
-                        up[i].color.code = e.target.value;
-                        setFormData({ ...formData, variants: up });
-                      }}
-                    />
-                    <input
-                      className="flex-1 bg-white border border-slate-300 px-2 py-2 rounded-lg text-[10px] font-mono uppercase"
-                      value={v.color?.code}
-                      onChange={(e) => {
-                        const up = [...formData.variants];
-                        up[i].color.code = e.target.value;
+                        up[i].v_sku = e.target.value.toUpperCase();
                         setFormData({ ...formData, variants: up });
                       }}
                     />
                   </div>
-                </div>
+
+                  <div className="space-y-1">
+                    <label className="text-[10px] font-bold text-slate-500 uppercase">
+                      Color Name
+                    </label>
+                    <input
+                      className={`w-full border px-3 py-2 rounded-lg text-xs font-medium ${
+                        isDuplicateColor
+                          ? "bg-red-50 border-red-500 text-red-900 focus:ring-red-200"
+                          : "bg-white border-slate-300 focus:ring-slate-900"
+                      } outline-none transition-all`}
+                      placeholder="Red, Navy..."
+                      value={v.color?.name}
+                      onBlur={() => handleColorBlur(i)}
+                      onChange={(e) => {
+                        const up = [...formData.variants];
+                        up[i].color.name = e.target.value;
+                        setFormData({ ...formData, variants: up });
+                      }}
+                    />
+                    {isDuplicateColor && (
+                      <p className="text-[9px] font-bold text-red-500 mt-1 animate-in fade-in slide-in-from-top-1 duration-200">
+                        Color name already exists
+                      </p>
+                    )}
+                  </div>
+
+                  <div className="space-y-1">
+                    <label className="text-[10px] font-bold text-slate-500 uppercase">
+                      Color Hex
+                    </label>
+                    <div className="flex flex-col gap-1">
+                      <div className="flex items-center gap-2">
+                        <input
+                          type="color"
+                          className="w-10 h-9 border-none bg-transparent cursor-pointer"
+                          value={v.color?.code}
+                          onChange={(e) => {
+                            const up = [...formData.variants];
+                            up[i].color.code = e.target.value;
+                            setFormData({ ...formData, variants: up });
+                          }}
+                        />
+                        <input
+                          className={`flex-1 border px-2 py-2 rounded-lg text-[10px] font-mono uppercase ${
+                            isDuplicateHex
+                              ? "bg-red-50 border-red-500 text-red-900 focus:ring-red-200"
+                              : "bg-white border-slate-300 focus:ring-slate-900"
+                          } outline-none transition-all`}
+                          value={v.color?.code}
+                          onChange={(e) => {
+                            const up = [...formData.variants];
+                            up[i].color.code = e.target.value;
+                            setFormData({ ...formData, variants: up });
+                          }}
+                        />
+                      </div>
+                      {isDuplicateHex && (
+                        <p className="text-[9px] font-bold text-red-500 animate-in fade-in slide-in-from-top-1 duration-200">
+                          Hex code already exists
+                        </p>
+                      )}
+                    </div>
+                  </div>
 
                 <div className="space-y-1">
                   <label className="text-[10px] font-bold text-slate-500 uppercase">
@@ -531,7 +591,7 @@ export default function InventoryParams({
                       </p>
                     )}
                   </div>
-                  {!isFreeSize && (
+                  {!isFreeSize && ( 
                     <button
                       type="button"
                       onClick={() => handleAddSize(i)}
@@ -543,110 +603,135 @@ export default function InventoryParams({
                 </div>
 
                 <div className="space-y-2">
-                  {v.sizes.map((s, s_idx) => (
-                    <div key={s_idx} className="flex items-end gap-2">
-                      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 flex-grow">
-                        {/* Size Name */}
-                        <div className="space-y-1">
-                          <label className="text-[9px] font-bold text-slate-500 uppercase">
-                            Size
-                          </label>
-                          <input
-                            className={`w-full border border-slate-300 px-3 py-2 rounded-lg text-xs ${
-                              isFreeSize
-                                ? "bg-slate-100 text-slate-500 cursor-not-allowed"
-                                : "bg-white"
-                            }`}
-                            placeholder="e.g. M, L, XL"
-                            value={isFreeSize ? "Free Size" : s.name}
-                            readOnly={isFreeSize}
-                            title={
-                              isFreeSize
-                                ? "Free size — name is fixed"
-                                : undefined
-                            }
-                            onChange={
-                              isFreeSize
-                                ? undefined
-                                : (e) => updateSize(i, s_idx, "name", e.target.value)
-                            }
-                          />
+                  {v.sizes.map((s, s_idx) => {
+                    const isDuplicateSize =
+                      !isFreeSize &&
+                      s.name.trim() !== "" &&
+                      v.sizes.some(
+                        (other, otherIdx) =>
+                          otherIdx !== s_idx &&
+                          other.name.trim().toUpperCase() ===
+                            s.name.trim().toUpperCase(),
+                      );
+
+                    return (
+                      <div key={s_idx} className="flex items-start gap-2">
+                        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 flex-grow">
+                          {/* Size Name */}
+                          <div className="space-y-1">
+                            <label className="text-[9px] font-bold text-slate-500 uppercase">
+                              Size
+                            </label>
+                            <input
+                              className={`w-full border px-3 py-2 rounded-lg text-xs ${
+                                isFreeSize
+                                  ? "bg-slate-100 border-slate-300 text-slate-500 cursor-not-allowed"
+                                  : isDuplicateSize
+                                    ? "bg-red-50 border-red-500 text-red-900 focus:ring-red-200"
+                                    : "bg-white border-slate-300 focus:ring-slate-900"
+                              } outline-none transition-all`}
+                              placeholder="e.g. M, L, XL"
+                              value={isFreeSize ? "Free Size" : s.name}
+                              readOnly={isFreeSize}
+                              title={
+                                isFreeSize
+                                  ? "Free size — name is fixed"
+                                  : undefined
+                              }
+                              onChange={
+                                isFreeSize
+                                  ? undefined
+                                  : (e) =>
+                                      updateSize(i, s_idx, "name", e.target.value)
+                              }
+                            />
+                            {isDuplicateSize && (
+                              <p className="text-[9px] font-bold text-red-500 mt-1 animate-in fade-in slide-in-from-top-1 duration-200">
+                                Size already exists
+                              </p>
+                            )}
+                          </div>
+
+                          {/* Stock */}
+                          <div className="space-y-1">
+                            <label className="text-[9px] font-bold text-slate-500 uppercase">
+                              Stock
+                            </label>
+                            <input
+                              className="w-full bg-white border border-slate-300 px-3 py-2 rounded-lg text-xs"
+                              placeholder="Stock"
+                              type="number"
+                              min={0}
+                              value={s.stock}
+                              onChange={(e) =>
+                                updateSize(i, s_idx, "stock", Number(e.target.value))
+                              }
+                            />
+                          </div>
+
+                          {/* MRP */}
+                          <div className="space-y-1">
+                            <label className="text-[9px] font-bold text-slate-500 uppercase">
+                              MRP (₹)
+                            </label>
+                            <input
+                              className="w-full bg-white border border-slate-300 px-3 py-2 rounded-lg text-xs"
+                              placeholder="MRP (₹)"
+                              type="number"
+                              min={0}
+                              value={s.price}
+                              onChange={(e) =>
+                                updateSize(i, s_idx, "price", Number(e.target.value))
+                              }
+                            />
+                          </div>
+
+                          {/* Discount Price */}
+                          <div className="space-y-1">
+                            <label className="text-[9px] font-bold text-slate-500 uppercase">
+                              Disc. (₹)
+                            </label>
+                            <input
+                              className="w-full bg-white border border-slate-300 px-3 py-2 rounded-lg text-xs"
+                              placeholder="Disc. Price (₹)"
+                              type="number"
+                              min={0}
+                              value={s.discountPrice}
+                              onChange={(e) =>
+                                updateSize(
+                                  i,
+                                  s_idx,
+                                  "discountPrice",
+                                  Number(e.target.value),
+                                )
+                              }
+                            />
+                          </div>
                         </div>
 
-                        {/* Stock */}
-                        <div className="space-y-1">
-                          <label className="text-[9px] font-bold text-slate-500 uppercase">
-                            Stock
-                          </label>
-                          <input
-                            className="w-full bg-white border border-slate-300 px-3 py-2 rounded-lg text-xs"
-                            placeholder="Stock"
-                            type="number"
-                            min={0}
-                            value={s.stock}
-                            onChange={(e) =>
-                              updateSize(i, s_idx, "stock", Number(e.target.value))
-                            }
-                          />
-                        </div>
-
-                        {/* MRP */}
-                        <div className="space-y-1">
-                          <label className="text-[9px] font-bold text-slate-500 uppercase">
-                            MRP (₹)
-                          </label>
-                          <input
-                            className="w-full bg-white border border-slate-300 px-3 py-2 rounded-lg text-xs"
-                            placeholder="MRP (₹)"
-                            type="number"
-                            min={0}
-                            value={s.price}
-                            onChange={(e) =>
-                              updateSize(i, s_idx, "price", Number(e.target.value))
-                            }
-                          />
-                        </div>
-
-                        {/* Discount Price */}
-                        <div className="space-y-1">
-                          <label className="text-[9px] font-bold text-slate-500 uppercase">
-                            Disc. (₹)
-                          </label>
-                          <input
-                            className="w-full bg-white border border-slate-300 px-3 py-2 rounded-lg text-xs"
-                            placeholder="Disc. Price (₹)"
-                            type="number"
-                            min={0}
-                            value={s.discountPrice}
-                            onChange={(e) =>
-                              updateSize(i, s_idx, "discountPrice", Number(e.target.value))
-                            }
-                          />
-                        </div>
+                        {/* Delete size row — hidden for free size (keep at least one row) */}
+                        {!isFreeSize && (
+                          <button
+                            type="button"
+                            onClick={() => handleRemoveSize(i, s_idx)}
+                            className="text-red-500 p-2 mt-4 flex-shrink-0 hover:text-red-700 transition"
+                          >
+                            <Trash2 size={14} />
+                          </button>
+                        )}
                       </div>
-
-                      {/* Delete size row — hidden for free size (keep at least one row) */}
-                      {!isFreeSize && (
-                        <button
-                          type="button"
-                          onClick={() => handleRemoveSize(i, s_idx)}
-                          className="text-red-500 p-2 flex-shrink-0 hover:text-red-700 transition"
-                        >
-                          <Trash2 size={14} />
-                        </button>
-                      )}
-                    </div>
-                  ))}
-
-                  {v.sizes.length === 0 && !isFreeSize && (
-                    <p className="text-[10px] text-slate-400 py-2">
-                      No sizes added. Click "Add Size" to add one.
-                    </p>
-                  )}
-                </div>
-              </div>
-            </div>
-          ))}
+                    );
+                  })}
+{v.sizes.length === 0 && !isFreeSize && (
+  <p className="text-[10px] text-slate-400 py-2">
+    No sizes added. Click &quot;Add Size&quot; to add one.
+  </p>
+)}
+</div>
+</div>
+</div>
+);
+})}
 
           {formData.variants.length === 0 && (
             <div className="text-center py-12 bg-slate-50 rounded-2xl border-2 border-dashed border-slate-200">

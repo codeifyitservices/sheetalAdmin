@@ -123,7 +123,10 @@ export const createSizeChartService = async (chartData = {}) => {
 
   const existing = await SizeChart.findOne({ name });
   if (existing) {
-    return { success: false, message: "A size chart with this name already exists" };
+    return {
+      success: false,
+      message: "A size chart with this name already exists",
+    };
   }
 
   const normalized = normalizeChartPayload(chartData);
@@ -153,7 +156,10 @@ export const updateSizeChartService = async (id, chartData = {}) => {
       name: nextName,
     });
     if (duplicate) {
-      return { success: false, message: "A size chart with this name already exists" };
+      return {
+        success: false,
+        message: "A size chart with this name already exists",
+      };
     }
     sizeChart.name = nextName;
   }
@@ -186,14 +192,8 @@ export const deleteSizeChartService = async (id) => {
   await cleanupPreviousImage(sizeChart.howToMeasureImage);
   await sizeChart.deleteOne();
 
-  await Category.updateMany(
-    { sizeChart: id },
-    { $unset: { sizeChart: "" } },
-  );
-  await Product.updateMany(
-    { sizeChart: id },
-    { $unset: { sizeChart: "" } },
-  );
+  await Category.updateMany({ sizeChart: id }, { $unset: { sizeChart: "" } });
+  await Product.updateMany({ sizeChart: id }, { $unset: { sizeChart: "" } });
 
   return { success: true };
 };

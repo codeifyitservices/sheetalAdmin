@@ -42,10 +42,7 @@ export const reorderBanners = async (req, res, next) => {
 
 export const createBanner = async (req, res, next) => {
   try {
-    const result = await createBannerService(
-      req.body,
-      req.files,
-    );
+    const result = await createBannerService(req.body, req.files);
     if (!result.success) {
       await cleanupFiles(req.files);
       return res.status(400).json(result);
@@ -61,7 +58,6 @@ export const createBanner = async (req, res, next) => {
     next(error);
   }
 };
-
 
 export const getAllBanners = async (req, res, next) => {
   try {
@@ -79,7 +75,7 @@ export const getAllBanners = async (req, res, next) => {
 
 export const getAdminBanners = async (req, res, next) => {
   try {
-    const { page = 1, limit = 10, search = "" } = req.query;
+    const { page = 1, limit = 50, search = "" } = req.query;
     const result = await getAdminBannersService({
       page: Number(page),
       limit: Number(limit),

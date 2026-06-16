@@ -84,4 +84,9 @@ const verifyFirebaseIdTokenController = async (req, res, next) => {
   }
 };
 
-export { sendOtp, verifyFirebaseIdTokenController, sendEmailOtp, verifyEmailOtp };
+export {
+  sendOtp,
+  verifyFirebaseIdTokenController,
+  sendEmailOtp,
+  verifyEmailOtp,
+};

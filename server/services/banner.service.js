@@ -11,14 +11,18 @@ export const createBannerService = async (data, files) => {
     if (!title) return { success: false, message: "Banner title is required" };
 
     // Validate files object exists
-    if (!files || typeof files !== 'object') {
+    if (!files || typeof files !== "object") {
       return { success: false, message: "No files uploaded" };
     }
 
     const image = {};
 
     // Safely check and process desktop image
-    if (files.desktopImage && Array.isArray(files.desktopImage) && files.desktopImage.length > 0) {
+    if (
+      files.desktopImage &&
+      Array.isArray(files.desktopImage) &&
+      files.desktopImage.length > 0
+    ) {
       image.desktop = {
         url: files.desktopImage[0].location || files.desktopImage[0].path,
         public_id: files.desktopImage[0].key || files.desktopImage[0].filename,
@@ -26,7 +30,11 @@ export const createBannerService = async (data, files) => {
     }
 
     // Safely check and process mobile image
-    if (files.mobileImage && Array.isArray(files.mobileImage) && files.mobileImage.length > 0) {
+    if (
+      files.mobileImage &&
+      Array.isArray(files.mobileImage) &&
+      files.mobileImage.length > 0
+    ) {
       image.mobile = {
         url: files.mobileImage[0].location || files.mobileImage[0].path,
         public_id: files.mobileImage[0].key || files.mobileImage[0].filename,
@@ -54,7 +62,7 @@ export const createBannerService = async (data, files) => {
     return {
       success: false,
       message: error.message || "Failed to create banner",
-      error: error.toString()
+      error: error.toString(),
     };
   }
 };
@@ -121,9 +129,13 @@ export const updateBannerService = async (id, data, files) => {
     };
 
     // Only process files if files object exists and is valid
-    if (files && typeof files === 'object') {
+    if (files && typeof files === "object") {
       // Process desktop image if provided
-      if (files.desktopImage && Array.isArray(files.desktopImage) && files.desktopImage.length > 0) {
+      if (
+        files.desktopImage &&
+        Array.isArray(files.desktopImage) &&
+        files.desktopImage.length > 0
+      ) {
         // Delete old desktop image if exists
         if (banner.image?.desktop?.public_id) {
           if (banner.image.desktop.url?.startsWith("http")) {
@@ -134,12 +146,17 @@ export const updateBannerService = async (id, data, files) => {
         }
         updateData.image.desktop = {
           url: files.desktopImage[0].location || files.desktopImage[0].path,
-          public_id: files.desktopImage[0].key || files.desktopImage[0].filename,
+          public_id:
+            files.desktopImage[0].key || files.desktopImage[0].filename,
         };
       }
 
       // Process mobile image if provided
-      if (files.mobileImage && Array.isArray(files.mobileImage) && files.mobileImage.length > 0) {
+      if (
+        files.mobileImage &&
+        Array.isArray(files.mobileImage) &&
+        files.mobileImage.length > 0
+      ) {
         // Delete old mobile image if exists
         if (banner.image?.mobile?.public_id) {
           if (banner.image.mobile.url?.startsWith("http")) {
@@ -167,7 +184,7 @@ export const updateBannerService = async (id, data, files) => {
     return {
       success: false,
       message: error.message || "Failed to update banner",
-      error: error.toString()
+      error: error.toString(),
     };
   }
 };

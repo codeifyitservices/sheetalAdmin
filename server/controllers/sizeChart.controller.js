@@ -16,7 +16,12 @@ export const uploadHowToMeasureImage = async (req, res, next) => {
     if (!result.success) {
       return res.status(result.statusCode || 400).json(result);
     }
-    return successResponse(res, 200, result.data, "How to measure image uploaded successfully");
+    return successResponse(
+      res,
+      200,
+      result.data,
+      "How to measure image uploaded successfully",
+    );
   } catch (error) {
     // If an error occurs during processing, clean up the uploaded file
     if (req.file) {

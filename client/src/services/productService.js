@@ -8,7 +8,7 @@ const handleResponse = async (res) => {
 
 export const getProducts = async (
   page = 1,
-  limit = 10,
+  limit = 50,
   search = "",
   category = "",
   sort = "",
@@ -93,7 +93,7 @@ export const getLowStockProducts = async () => {
   return handleResponse(res);
 };
 
-export const getAdminReviews = async (page = 1, limit = 10, status = "all") => {
+export const getAdminReviews = async (page = 1, limit = 50, status = "all") => {
   const res = await fetch(
     `${API_BASE_URL}/products/admin/reviews?page=${page}&limit=${limit}&status=${status}`,
     { credentials: "include" }
@@ -166,4 +166,14 @@ export const starProduct = async (id, starred) => {
     body: JSON.stringify(starred !== undefined ? { starred } : {}),
   });
   return res.json();
+};
+
+export const reorderProducts = async (orderedIds) => {
+  const res = await fetch(`${API_BASE_URL}/products/admin/reorder`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    credentials: "include",
+    body: JSON.stringify({ orderedIds }),
+  });
+  return handleResponse(res);
 };

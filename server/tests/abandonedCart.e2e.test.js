@@ -233,15 +233,19 @@ test("abandoned-cart CTA, checkout completion, and recovered revenue update end 
 
   try {
     mockedMethods.push(
-      mock.method(razorpayModule.default.paymentLink, "create", async (options) => {
-        assert.equal(options.reference_id, orderId);
-        assert.equal(options.amount, totalPrice * 100);
-        return {
-          id: paymentLinkId,
-          status: "created",
-          reference_id: orderId,
-        };
-      }),
+      mock.method(
+        razorpayModule.default.paymentLink,
+        "create",
+        async (options) => {
+          assert.equal(options.reference_id, orderId);
+          assert.equal(options.amount, totalPrice * 100);
+          return {
+            id: paymentLinkId,
+            status: "created",
+            reference_id: orderId,
+          };
+        },
+      ),
     );
     mockedMethods.push(
       mock.method(razorpayModule.default.paymentLink, "fetch", async (id) => {
@@ -269,7 +273,11 @@ test("abandoned-cart CTA, checkout completion, and recovered revenue update end 
       }),
     );
     mockedMethods.push(
-      mock.method(orderProto, "findById", async (id) => orderById.get(id) || null),
+      mock.method(
+        orderProto,
+        "findById",
+        async (id) => orderById.get(id) || null,
+      ),
     );
     mockedMethods.push(
       mock.method(orderProto, "findByIdAndUpdate", async (id, update = {}) => {
@@ -314,15 +322,21 @@ test("abandoned-cart CTA, checkout completion, and recovered revenue update end 
     );
 
     mockedMethods.push(
-      mock.method(cartProto, "findOne", () => createThenableQuery(abandonedCartDoc)),
+      mock.method(cartProto, "findOne", () =>
+        createThenableQuery(abandonedCartDoc),
+      ),
     );
     mockedMethods.push(
-      mock.method(cartProto, "findOneAndUpdate", async (_filter, update = {}) => {
-        if (update?.$set?.items) {
-          abandonedCartDoc.items = update.$set.items;
-        }
-        return abandonedCartDoc;
-      }),
+      mock.method(
+        cartProto,
+        "findOneAndUpdate",
+        async (_filter, update = {}) => {
+          if (update?.$set?.items) {
+            abandonedCartDoc.items = update.$set.items;
+          }
+          return abandonedCartDoc;
+        },
+      ),
     );
     mockedMethods.push(
       mock.method(cartProto, "find", () => createThenableQuery([])),
@@ -334,10 +348,10 @@ test("abandoned-cart CTA, checkout completion, and recovered revenue update end 
         return userDoc;
       }),
     );
-    mockedMethods.push(mock.method(userProto, "findByIdAndUpdate", async () => userDoc));
     mockedMethods.push(
-      mock.method(productProto, "findById", () => productDoc),
+      mock.method(userProto, "findByIdAndUpdate", async () => userDoc),
     );
+    mockedMethods.push(mock.method(productProto, "findById", () => productDoc));
     mockedMethods.push(
       mock.method(settingsProto, "findOne", async () => ({
         platformFee: 0,
@@ -431,7 +445,10 @@ test("abandoned-cart CTA, checkout completion, and recovered revenue update end 
     assert.equal(res.jsonPayload.recoveryStats.length, 1);
     assert.equal(res.jsonPayload.recoveryStats[0]._id.source, "email");
     assert.equal(res.jsonPayload.recoveryStats[0]._id.stage, 1);
-    assert.equal(res.jsonPayload.recoveryStats[0].totalRecoveredAmount, totalPrice);
+    assert.equal(
+      res.jsonPayload.recoveryStats[0].totalRecoveredAmount,
+      totalPrice,
+    );
     assert.equal(res.jsonPayload.recoveryStats[0].recoveredOrders, 1);
   } finally {
     for (const mocked of mockedMethods.reverse()) {

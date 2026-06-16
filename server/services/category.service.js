@@ -8,7 +8,9 @@ import { syncToIndex, deleteFromIndex } from "./ngram.search.service.js";
 import { getGlobalTax } from "./settings.service.js";
 
 const resolveCategorySizing = async ({ sizeMode, sizeChart }) => {
-  const normalizedMode = String(sizeMode || "").trim().toLowerCase();
+  const normalizedMode = String(sizeMode || "")
+    .trim()
+    .toLowerCase();
   const normalizedChart = String(sizeChart || "").trim();
 
   if (normalizedMode === "free" || normalizedChart === "free") {
@@ -24,9 +26,8 @@ const resolveCategorySizing = async ({ sizeMode, sizeChart }) => {
     return { success: true, sizeMode: "none", sizeChart: null };
   }
 
-  const sizeChartExists = await SizeChart.findById(normalizedChart).select(
-    "_id",
-  );
+  const sizeChartExists =
+    await SizeChart.findById(normalizedChart).select("_id");
   if (!sizeChartExists) {
     return { success: false, message: "Selected size chart not found" };
   }
@@ -129,9 +130,7 @@ export const createCategoryService = async (data, files) => {
     occasion: parsedOccasion,
     byPrice: parsedByPrice,
     gstPercent:
-      Number(gstPercent) > 0
-        ? Number(gstPercent)
-        : await getGlobalTax(),
+      Number(gstPercent) > 0 ? Number(gstPercent) : await getGlobalTax(),
     hsnCode: hsnCode || "",
     sizeMode: parsedSizing.sizeMode,
     sizeChart: parsedSizing.sizeChart,
@@ -223,10 +222,9 @@ export const reorderCategoriesService = async (orderedIds) => {
 };
 
 export const getCategoryBySlugService = async (slug) => {
-  const category = await Category.findOne({ slug, isActive: true }).populate(
-    "parentCategory",
-    "name",
-  ).populate("sizeChart", "name table howToMeasureImage");
+  const category = await Category.findOne({ slug, isActive: true })
+    .populate("parentCategory", "name")
+    .populate("sizeChart", "name table howToMeasureImage");
 
   if (!category) return { success: false, message: "Category not found" };
 

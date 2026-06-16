@@ -161,4 +161,3 @@ export const closeAbandonedCartScheduler = async () => {
   clearInterval(timerHandle);
   timerHandle = undefined;
 };
-

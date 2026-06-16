@@ -1,6 +1,11 @@
-import {Router} from "express";
+import { Router } from "express";
 import { isAdmin, isAuthenticated } from "../middlewares/auth.middleware.js";
-import { createSubscriber, deleteSubscriber, getAllSubscribers, updateSubscriberStatus } from "../controllers/newsletter.controller.js";
+import {
+  createSubscriber,
+  deleteSubscriber,
+  getAllSubscribers,
+  updateSubscriberStatus,
+} from "../controllers/newsletter.controller.js";
 
 const router = Router();
 

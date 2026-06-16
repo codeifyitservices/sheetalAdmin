@@ -16,7 +16,7 @@ export const getBannerStats = async () => {
 };
 
 // 2. Get All Banners (Admin Table)
-export const getBanners = async (page = 1, limit = 10, search = "") => {
+export const getBanners = async (page = 1, limit = 50, search = "") => {
   const res = await fetch(
     `${API_BASE_URL}/banner/admin/all?page=${page}&limit=${limit}&search=${search}`,
     { credentials: "include" },

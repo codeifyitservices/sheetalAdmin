@@ -40,4 +40,3 @@ export const buildAbandonedCartOrderUrl = (cartId, recoveryMeta = {}) => {
 
   return checkoutUrl.toString();
 };
-

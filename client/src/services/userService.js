@@ -12,7 +12,7 @@ export const getUserById = async (id) => {
 
 export const getUsers = async (
   page = 1,
-  limit = 10,
+  limit = 50,
   search = "",
   startDate = "",
   endDate = "",
@@ -69,7 +69,7 @@ export const deleteUser = async (id) => {
     const err = await res.json();
     throw new Error(err.message || "Failed to delete user");
   }
-  return true;
+  return await res.json();
 };
 
 export const getUserStats = async (startDate = "", endDate = "") => {

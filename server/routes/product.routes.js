@@ -21,6 +21,7 @@ import {
   getMostViewedProducts,
   getCollectionProducts,
   toggleStarProduct,
+  reorderProducts,
 } from "../controllers/product.controller.js";
 
 import { isAuthenticated, isAdmin } from "../middlewares/auth.middleware.js";
@@ -42,8 +43,14 @@ router.get("/admin/stats", isAuthenticated, isAdmin, getProductStats);
 router.get("/admin/sample-excel", isAuthenticated, isAdmin, getSampleExcel);
 router.get("/admin/reviews", isAuthenticated, isAdmin, getAllReviews);
 router.get("/admin/low-stock", isAuthenticated, isAdmin, getLowStockProducts);
-router.get("/admin/most-viewed", isAuthenticated, isAdmin, getMostViewedProducts);
+router.get(
+  "/admin/most-viewed",
+  isAuthenticated,
+  isAdmin,
+  getMostViewedProducts,
+);
 router.patch("/admin/:id/star", isAuthenticated, isAdmin, toggleStarProduct);
+router.post("/admin/reorder", isAuthenticated, isAdmin, reorderProducts);
 
 router.post(
   "/admin/import",

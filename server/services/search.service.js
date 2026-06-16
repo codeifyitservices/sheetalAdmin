@@ -28,7 +28,7 @@ import Category from "../models/category.model.js";
 // Constants
 // ---------------------------------------------------------------------------
 
-const MIN_QUERY_LENGTH = 1;        // minimum query length to attempt a search
+const MIN_QUERY_LENGTH = 1; // minimum query length to attempt a search
 const ATTRIBUTE_FIELDS = [
   "tags",
   "occasion",
@@ -59,14 +59,17 @@ export const searchService = async ({ query, limit, page }) => {
       ? Number(limit)
       : Infinity;
 
-  const parsedPage = Number.isFinite(Number(page)) && Number(page) > 0
-    ? Number(page)
-    : 1;
+  const parsedPage =
+    Number.isFinite(Number(page)) && Number(page) > 0 ? Number(page) : 1;
 
   // ── Step 1: Get ranked hits from the n-gram index ────────────────────────
   const isSingleWord = !normQ.includes(" ");
   const ngramResult = await searchNgram(query, {
-    limit: isSingleWord ? 200 : (Number.isFinite(Number(limit)) ? Number(limit) : 20),
+    limit: isSingleWord
+      ? 200
+      : Number.isFinite(Number(limit))
+        ? Number(limit)
+        : 20,
     page: isSingleWord ? 1 : parsedPage,
   });
 
@@ -113,7 +116,10 @@ export const searchService = async ({ query, limit, page }) => {
   const hasResolvedCategory = matchedCategoryBlocks.length > 0;
   const vettedResults = hydrated.filter((hit) => {
     if (hit.type === "category") return true;
-    if (hit.data?._id && resolvedCategoryProductIds.has(hit.data._id.toString())) {
+    if (
+      hit.data?._id &&
+      resolvedCategoryProductIds.has(hit.data._id.toString())
+    ) {
       return true;
     }
     if (hasResolvedCategory) {
@@ -123,7 +129,11 @@ export const searchService = async ({ query, limit, page }) => {
   });
 
   return limitResults(
-    mergeCategoryBlocksAfterNameMatches(vettedResults, matchedCategoryBlocks, normQ),
+    mergeCategoryBlocksAfterNameMatches(
+      vettedResults,
+      matchedCategoryBlocks,
+      normQ,
+    ),
     maxProducts,
   );
 };
@@ -171,7 +181,9 @@ const findMatchingCategories = async (normQ) => {
       // Also allow matching against words inside multi-word categories such as
       // "kurta sets", so short or broken forms like "ku" / "krta" can still
       // resolve the category through the main garment word.
-      if (categoryWords.some((word) => isCategoryTermMatch(term, word, variants))) {
+      if (
+        categoryWords.some((word) => isCategoryTermMatch(term, word, variants))
+      ) {
         if (!seenCategoryIds.has(cat._id.toString())) {
           seenCategoryIds.add(cat._id.toString());
           matches.push(cat);
@@ -198,17 +210,23 @@ const isCategoryTermMatch = (term, categoryWord, variants) => {
   if (!term || !categoryWord) return false;
 
   const termVariants = new Set([...variants]);
-  const candidateWords = new Set([categoryWord, ...buildWordVariants(categoryWord)]);
+  const candidateWords = new Set([
+    categoryWord,
+    ...buildWordVariants(categoryWord),
+  ]);
 
   const maxSubsequenceSkips =
-    term.length >= 5 && term[0] === categoryWord[0] && term.at(-1) === categoryWord.at(-1)
+    term.length >= 5 &&
+    term[0] === categoryWord[0] &&
+    term.at(-1) === categoryWord.at(-1)
       ? 2
       : 1;
 
   for (const candidate of candidateWords) {
     if (termVariants.has(candidate)) return true;
     if (term.length >= 2 && candidate.startsWith(term)) return true;
-    if (isOrderedSubsequenceMatch(term, candidate, maxSubsequenceSkips)) return true;
+    if (isOrderedSubsequenceMatch(term, candidate, maxSubsequenceSkips))
+      return true;
     if (term.length >= 4 && isCategoryTypoMatch(term, candidate)) return true;
     if (isStrongCategoryNearMiss(term, candidate)) return true;
   }
@@ -256,7 +274,10 @@ const getCategoryProducts = async (categoryId) => {
       .lean(),
     catName
       ? Product.find({
-          subCategory: new RegExp(`^${escapeRegex(normaliseSearchText(catName))}$`, "i"),
+          subCategory: new RegExp(
+            `^${escapeRegex(normaliseSearchText(catName))}$`,
+            "i",
+          ),
           status: "Active",
         })
           .populate("category", "name slug")
@@ -269,7 +290,10 @@ const getCategoryProducts = async (categoryId) => {
   const merged = [];
   for (const p of [...byRef, ...bySubCat]) {
     const id = p._id.toString();
-    if (!seen.has(id)) { seen.add(id); merged.push(p); }
+    if (!seen.has(id)) {
+      seen.add(id);
+      merged.push(p);
+    }
   }
   return merged;
 };
@@ -293,7 +317,7 @@ const dbAttributeScan = async (normQ) => {
 
   // Build $or conditions: exact match against each attribute array field
   const arrayConditions = ATTRIBUTE_FIELDS.flatMap((field) =>
-    regexes.map((rx) => ({ [field]: rx }))
+    regexes.map((rx) => ({ [field]: rx })),
   );
 
   // Also match name / subCategory exactly
@@ -323,13 +347,14 @@ const levenshteinDistance = (a, b) => {
   matrix[0] = Array.from({ length: a.length + 1 }, (_, i) => i);
   for (let i = 1; i <= b.length; i++) {
     for (let j = 1; j <= a.length; j++) {
-      matrix[i][j] = b[i - 1] === a[j - 1]
-        ? matrix[i - 1][j - 1]
-        : Math.min(
-            matrix[i - 1][j - 1] + 1,
-            matrix[i][j - 1] + 1,
-            matrix[i - 1][j] + 1,
-          );
+      matrix[i][j] =
+        b[i - 1] === a[j - 1]
+          ? matrix[i - 1][j - 1]
+          : Math.min(
+              matrix[i - 1][j - 1] + 1,
+              matrix[i][j - 1] + 1,
+              matrix[i - 1][j] + 1,
+            );
     }
   }
   return matrix[b.length][a.length];
@@ -357,12 +382,7 @@ const damerauLevenshteinDistance = (a, b) => {
         matrix[i - 1][j - 1] + cost,
       );
 
-      if (
-        i > 1 &&
-        j > 1 &&
-        a[i - 1] === b[j - 2] &&
-        a[i - 2] === b[j - 1]
-      ) {
+      if (i > 1 && j > 1 && a[i - 1] === b[j - 2] && a[i - 2] === b[j - 1]) {
         matrix[i][j] = Math.min(matrix[i][j], matrix[i - 2][j - 2] + 1);
       }
     }
@@ -395,7 +415,8 @@ const isOrderedSubsequenceMatch = (left, right, maxSkips = 2) => {
   const lengthDiff = longer.length - shorter.length;
 
   if (lengthDiff < 1 || lengthDiff > maxSkips) return false;
-  if (shorter[0] !== longer[0] || shorter.at(-1) !== longer.at(-1)) return false;
+  if (shorter[0] !== longer[0] || shorter.at(-1) !== longer.at(-1))
+    return false;
 
   let shortIndex = 0;
   let longIndex = 0;
@@ -413,23 +434,34 @@ const isOrderedSubsequenceMatch = (left, right, maxSkips = 2) => {
 const isStrictProductSearchMatch = (product, normQ) => {
   if (!product || !normQ) return false;
 
-  if (nameMatchesQuery(normaliseSearchText(product.name || ""), normQ)) return true;
-  if (fieldMatchesQuery(normaliseSearchText(product.category?.name || ""), normQ)) {
+  if (nameMatchesQuery(normaliseSearchText(product.name || ""), normQ))
+    return true;
+  if (
+    fieldMatchesQuery(normaliseSearchText(product.category?.name || ""), normQ)
+  ) {
     return true;
   }
-  if (fieldMatchesQuery(normaliseSearchText(product.subCategory || ""), normQ)) {
+  if (
+    fieldMatchesQuery(normaliseSearchText(product.subCategory || ""), normQ)
+  ) {
     return true;
   }
 
   for (const field of ATTRIBUTE_FIELDS) {
     const values = Array.isArray(product[field]) ? product[field] : [];
-    if (values.some((value) => fieldMatchesQuery(normaliseSearchText(value), normQ))) {
+    if (
+      values.some((value) =>
+        fieldMatchesQuery(normaliseSearchText(value), normQ),
+      )
+    ) {
       return true;
     }
   }
 
   const colors = Array.isArray(product.variants)
-    ? product.variants.map((variant) => normaliseSearchText(variant?.color?.name || ""))
+    ? product.variants.map((variant) =>
+        normaliseSearchText(variant?.color?.name || ""),
+      )
     : [];
   return colors.some((value) => fieldMatchesQuery(value, normQ));
 };
@@ -437,7 +469,10 @@ const isStrictProductSearchMatch = (product, normQ) => {
 const fieldMatchesQuery = (value, query) => {
   if (!value || !query) return false;
   if (value === query) return true;
-  return value.split(" ").filter(Boolean).some((word) => word === query);
+  return value
+    .split(" ")
+    .filter(Boolean)
+    .some((word) => word === query);
 };
 
 const isCategoryTypoMatch = (query, category) => {
@@ -451,10 +486,8 @@ const isCategoryTypoMatch = (query, category) => {
   const lastCharMatches = query.at(-1) === category.at(-1);
   if (
     !lastCharMatches &&
-    (
-      query.length < 6 ||
-      damerauLevenshteinDistance(query.slice(0, -1), category.slice(0, -1)) > 1
-    )
+    (query.length < 6 ||
+      damerauLevenshteinDistance(query.slice(0, -1), category.slice(0, -1)) > 1)
   ) {
     return false;
   }
@@ -462,10 +495,8 @@ const isCategoryTypoMatch = (query, category) => {
   const firstCharMatches = query[0] === category[0];
   if (
     !firstCharMatches &&
-    (
-      query.length < 5 ||
-      damerauLevenshteinDistance(query.slice(1), category.slice(1)) > 1
-    )
+    (query.length < 5 ||
+      damerauLevenshteinDistance(query.slice(1), category.slice(1)) > 1)
   ) {
     return false;
   }
@@ -522,9 +553,24 @@ const nameMatchesQuery = (name, query) => {
 const soundex = (word) => {
   if (!word) return "";
   const map = {
-    b: 1, f: 1, p: 1, v: 1,
-    c: 2, g: 2, j: 2, k: 2, q: 2, s: 2, x: 2, z: 2,
-    d: 3, t: 3, l: 4, m: 5, n: 5, r: 6,
+    b: 1,
+    f: 1,
+    p: 1,
+    v: 1,
+    c: 2,
+    g: 2,
+    j: 2,
+    k: 2,
+    q: 2,
+    s: 2,
+    x: 2,
+    z: 2,
+    d: 3,
+    t: 3,
+    l: 4,
+    m: 5,
+    n: 5,
+    r: 6,
   };
   const lower = word.toLowerCase();
   let code = lower[0].toUpperCase();
@@ -584,19 +630,25 @@ const fuzzyWordsMatch = (queryWord, productWord) => {
 const hydrateSearchHits = async (rawHits) => {
   if (!rawHits?.length) return [];
 
-  const productIds  = rawHits.filter((h) => h.type === "product").map((h) => h.id);
-  const categoryIds = rawHits.filter((h) => h.type === "category").map((h) => h.id);
+  const productIds = rawHits
+    .filter((h) => h.type === "product")
+    .map((h) => h.id);
+  const categoryIds = rawHits
+    .filter((h) => h.type === "category")
+    .map((h) => h.id);
 
   const [products, categories] = await Promise.all([
     productIds.length
-      ? Product.find({ _id: { $in: productIds } }).populate("category", "name slug").lean()
+      ? Product.find({ _id: { $in: productIds } })
+          .populate("category", "name slug")
+          .lean()
       : [],
     categoryIds.length
       ? Category.find({ _id: { $in: categoryIds } }).lean()
       : [],
   ]);
 
-  const productMap  = new Map(products.map((p) => [p._id.toString(), p]));
+  const productMap = new Map(products.map((p) => [p._id.toString(), p]));
   const categoryMap = new Map(categories.map((c) => [c._id.toString(), c]));
 
   // Preserve the order returned by the ngram service (already tier-ranked)
@@ -622,7 +674,7 @@ const hydrateSearchHits = async (rawHits) => {
 const limitResults = (results, maxProducts = Infinity) => {
   const out = [];
   let productCount = 0;
-  const seenProductIds  = new Set();
+  const seenProductIds = new Set();
   const seenCategoryIds = new Set();
 
   for (const result of results) {
@@ -702,7 +754,7 @@ const escapeRegex = (str) => str.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 const buildWordVariants = (word) => {
   const variants = new Set([word]);
   if (word.endsWith("es") && word.length > 4) variants.add(word.slice(0, -2));
-  if (word.endsWith("s")  && word.length > 3) variants.add(word.slice(0, -1));
+  if (word.endsWith("s") && word.length > 3) variants.add(word.slice(0, -1));
   if (!word.endsWith("s")) variants.add(word + "s");
   return [...variants];
 };

@@ -55,7 +55,10 @@ const userSchema = new mongoose.Schema(
     alternativeMobileNumber: {
       type: String,
       trim: true,
-      match: [/^\d{10}$/, "Alternative mobile number must be a 10-digit number"],
+      match: [
+        /^\d{10}$/,
+        "Alternative mobile number must be a 10-digit number",
+      ],
     }, // New field
     gender: { type: String, enum: ["Male", "Female"], trim: true }, // New field
     dateOfBirth: { type: Date }, // New field

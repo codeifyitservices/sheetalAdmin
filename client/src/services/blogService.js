@@ -8,7 +8,7 @@ const handleResponse = async (res) => {
 
 export const getBlogs = async (
   page = 1,
-  limit = 10,
+  limit = 50,
   search = "",
   status = "",
 ) => {
@@ -48,6 +48,16 @@ export const deleteBlog = async (id) => {
 export const getBlogStats = async () => {
   const res = await fetch(`${API_BASE_URL}/blogs/admin/stats`, {
     credentials: "include",
+  });
+  return handleResponse(res);
+};
+
+export const reorderBlogs = async (reorderedIds) => {
+  const res = await fetch(`${API_BASE_URL}/blogs/admin/reorder`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    credentials: "include",
+    body: JSON.stringify({ reorderedIds }),
   });
   return handleResponse(res);
 };

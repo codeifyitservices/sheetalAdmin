@@ -7,28 +7,39 @@ import mongoose from "mongoose";
 // @access  Public
 export const createEnquiry = async (req, res, next) => {
   try {
-    const { product, productName, size, name, email, phone, message } = req.body;
+    const { product, productName, size, name, email, phone, message } =
+      req.body;
 
     if (!productName?.trim())
-      return res.status(400).json({ success: false, message: "Product name is required" });
+      return res
+        .status(400)
+        .json({ success: false, message: "Product name is required" });
     if (!size?.trim())
-      return res.status(400).json({ success: false, message: "Size is required" });
+      return res
+        .status(400)
+        .json({ success: false, message: "Size is required" });
     if (!name?.trim())
-      return res.status(400).json({ success: false, message: "Name is required" });
+      return res
+        .status(400)
+        .json({ success: false, message: "Name is required" });
     if (!email?.trim())
-      return res.status(400).json({ success: false, message: "Email is required" });
+      return res
+        .status(400)
+        .json({ success: false, message: "Email is required" });
     if (!phone?.trim())
-      return res.status(400).json({ success: false, message: "Phone is required" });
+      return res
+        .status(400)
+        .json({ success: false, message: "Phone is required" });
 
     const enquiry = await Enquiry.create({
       product:
         product && mongoose.Types.ObjectId.isValid(product) ? product : null,
       productName: productName.trim(),
-      size:        size.trim(),
-      name:        name.trim(),
-      email:       email.trim(),
-      phone:       phone.trim(),
-      message:     message?.trim() || "",
+      size: size.trim(),
+      name: name.trim(),
+      email: email.trim(),
+      phone: phone.trim(),
+      message: message?.trim() || "",
     });
 
     res.status(201).json({ success: true, enquiry });
@@ -42,7 +53,18 @@ export const createEnquiry = async (req, res, next) => {
 // @access  Private/Admin
 export const getEnquiries = async (req, res, next) => {
   try {
-    const { status, search, startDate, endDate } = req.query;
+    const {
+      status,
+      search,
+      startDate,
+      endDate,
+      page = 1,
+      limit = 50,
+    } = req.query;
+    const pageNum = parseInt(page);
+    const limitNum = parseInt(limit);
+    const skip = (pageNum - 1) * limitNum;
+
     const query = {};
 
     if (status && status !== "all") query.status = status;
@@ -71,14 +93,30 @@ export const getEnquiries = async (req, res, next) => {
 
     if (search?.trim()) {
       query.$or = [
-        { name:        { $regex: search.trim(), $options: "i" } },
-        { email:       { $regex: search.trim(), $options: "i" } },
+        { name: { $regex: search.trim(), $options: "i" } },
+        { email: { $regex: search.trim(), $options: "i" } },
         { productName: { $regex: search.trim(), $options: "i" } },
       ];
     }
 
-    const enquiries = await Enquiry.find(query).sort({ createdAt: -1 });
-    res.status(200).json({ success: true, enquiries });
+    const totalEnquiries = await Enquiry.countDocuments(query);
+    const totalPages = Math.ceil(totalEnquiries / limitNum);
+
+    const enquiries = await Enquiry.find(query)
+      .sort({ createdAt: -1 })
+      .skip(skip)
+      .limit(limitNum);
+
+    res.status(200).json({
+      success: true,
+      enquiries,
+      pagination: {
+        totalEnquiries,
+        totalPages,
+        currentPage: pageNum,
+        limit: limitNum,
+      },
+    });
   } catch (error) {
     next(error);
   }
@@ -91,7 +129,9 @@ export const updateStatus = async (req, res, next) => {
   try {
     const { status } = req.body;
     if (!["new", "read", "replied"].includes(status)) {
-      return res.status(400).json({ success: false, message: "Invalid status" });
+      return res
+        .status(400)
+        .json({ success: false, message: "Invalid status" });
     }
 
     const enquiry = await Enquiry.findByIdAndUpdate(
@@ -101,7 +141,9 @@ export const updateStatus = async (req, res, next) => {
     );
 
     if (!enquiry)
-      return res.status(404).json({ success: false, message: "Enquiry not found" });
+      return res
+        .status(404)
+        .json({ success: false, message: "Enquiry not found" });
 
     res.status(200).json({ success: true, enquiry });
   } catch (error) {
@@ -116,7 +158,9 @@ export const deleteEnquiry = async (req, res, next) => {
   try {
     const enquiry = await Enquiry.findByIdAndDelete(req.params.id);
     if (!enquiry)
-      return res.status(404).json({ success: false, message: "Enquiry not found" });
+      return res
+        .status(404)
+        .json({ success: false, message: "Enquiry not found" });
 
     res.status(200).json({ success: true, message: "Enquiry deleted" });
   } catch (error) {
@@ -132,20 +176,24 @@ export const sendAvailability = async (req, res, next) => {
     const enquiry = await Enquiry.findById(req.params.id);
 
     if (!enquiry) {
-      return res.status(404).json({ success: false, message: "Enquiry not found" });
+      return res
+        .status(404)
+        .json({ success: false, message: "Enquiry not found" });
     }
 
     await sendAvailabilityEmail({
-      name:        enquiry.name,
-      email:       enquiry.email,
+      name: enquiry.name,
+      email: enquiry.email,
       productName: enquiry.productName,
-      size:        enquiry.size,
+      size: enquiry.size,
     });
 
     enquiry.status = "replied";
     await enquiry.save();
 
-    res.status(200).json({ success: true, message: "Availability email sent", enquiry });
+    res
+      .status(200)
+      .json({ success: true, message: "Availability email sent", enquiry });
   } catch (error) {
     next(error);
   }

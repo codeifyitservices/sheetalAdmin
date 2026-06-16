@@ -514,7 +514,9 @@ export const markCartAsAbandoned = async (
   }
 
   const contact = await getCartContactUpdates(cart);
-  const trackingId = cart.items?.length ? getCartTrackingId(cart, triggeredAt) : null;
+  const trackingId = cart.items?.length
+    ? getCartTrackingId(cart, triggeredAt)
+    : null;
 
   await syncCartState(cart, {
     email: contact.email,
@@ -612,7 +614,8 @@ export const sendReminder = async ({
       );
     }
   }
-  const ctaUrl = ctaUrlFromJob || buildAbandonedCartOrderUrl(cartSnapshot.cartId);
+  const ctaUrl =
+    ctaUrlFromJob || buildAbandonedCartOrderUrl(cartSnapshot.cartId);
   const couponCode = couponFromJob || policy.couponCode;
   const discountPercent = discountFromJob || policy.discountPercent;
   const channels = getStageChannels(stage, cartSnapshot);
@@ -778,7 +781,9 @@ export const handleUserActivity = async ({
 
   const nextCycleId = crypto.randomUUID();
   const now = new Date();
-  const nextTrackingId = cart.items?.length ? getCartTrackingId(cart, now) : null;
+  const nextTrackingId = cart.items?.length
+    ? getCartTrackingId(cart, now)
+    : null;
   const nextState = {
     email: contact.email,
     phoneNumber: contact.phoneNumber,

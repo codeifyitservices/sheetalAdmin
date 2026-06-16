@@ -20,6 +20,7 @@ const productViewSchema = new mongoose.Schema(
 productViewSchema.index({ product: 1, viewedAt: -1 });
 
 const ProductView =
-  mongoose.models.ProductView || mongoose.model("ProductView", productViewSchema);
+  mongoose.models.ProductView ||
+  mongoose.model("ProductView", productViewSchema);
 
 export default ProductView;

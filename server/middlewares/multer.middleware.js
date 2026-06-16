@@ -56,35 +56,47 @@ export const uploadTo = (folderName) => {
     const extname = path.extname(file.originalname).toLowerCase();
 
     // For temp/excel, allow spreadsheet extensions only
-    if (folderName === 'temp/excel') {
-      if (['.xlsx', '.xls', '.csv'].includes(extname)) {
+    if (folderName === "temp/excel") {
+      if ([".xlsx", ".xls", ".csv"].includes(extname)) {
         return cb(null, true);
       }
-      return cb(ErrorResponse("Only Excel/CSV files are allowed for this route.", 400), false);
+      return cb(
+        ErrorResponse("Only Excel/CSV files are allowed for this route.", 400),
+        false,
+      );
     }
 
     // For temp/bulk, allow spreadsheet, images, and variant videos.
-    if (folderName === 'temp/bulk') {
-      const isSpreadsheet = ['.xlsx', '.xls', '.csv'].includes(extname);
-      const isImage = /\.(jpeg|jpg|png|webp|gif|svg|heic)$/i.test(extname) &&
+    if (folderName === "temp/bulk") {
+      const isSpreadsheet = [".xlsx", ".xls", ".csv"].includes(extname);
+      const isImage =
+        /\.(jpeg|jpg|png|webp|gif|svg|heic)$/i.test(extname) &&
         (/image/i.test(file.mimetype || "") ||
-          file.mimetype === 'application/octet-stream' ||
+          file.mimetype === "application/octet-stream" ||
           !file.mimetype ||
-          extname === '.heic');
-      const isVideo = /\.(mp4|webm|mov|mkv)$/i.test(extname) &&
+          extname === ".heic");
+      const isVideo =
+        /\.(mp4|webm|mov|mkv)$/i.test(extname) &&
         (/video/i.test(file.mimetype || "") ||
-          file.mimetype === 'application/octet-stream' ||
+          file.mimetype === "application/octet-stream" ||
           !file.mimetype);
 
       if (isSpreadsheet || isImage || isVideo) {
         return cb(null, true);
       }
-      return cb(ErrorResponse("Only Excel/CSV files, images, and videos are allowed for bulk import.", 400), false);
+      return cb(
+        ErrorResponse(
+          "Only Excel/CSV files, images, and videos are allowed for bulk import.",
+          400,
+        ),
+        false,
+      );
     }
 
     const isExtValid = /\.(jpeg|jpg|png|webp|mp4|webm|mov|mkv)$/i.test(extname);
-    const isMimeValid = /image|video/.test(file.mimetype || "") ||
-      file.mimetype === 'application/octet-stream' ||
+    const isMimeValid =
+      /image|video/.test(file.mimetype || "") ||
+      file.mimetype === "application/octet-stream" ||
       !file.mimetype;
 
     if (isExtValid && isMimeValid) {
@@ -98,10 +110,7 @@ export const uploadTo = (folderName) => {
     storage,
     fileFilter,
     limits: {
-      fileSize:
-        folderName === "temp/bulk"
-          ? 5 * 1024 * 1024
-          : 55 * 1024 * 1024,
+      fileSize: folderName === "temp/bulk" ? 5 * 1024 * 1024 : 55 * 1024 * 1024,
     },
   });
 };

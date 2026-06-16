@@ -60,7 +60,10 @@ export const buildAbandonedCartOrderUrl = (cartId, recoveryMeta = {}) => {
 
   if (recoveryMeta.stage != null) {
     checkoutUrl.searchParams.set("recoveryStage", String(recoveryMeta.stage));
-  } else if (recoveryMeta.reminderStage && RECOVERY_STAGE_MAP[recoveryMeta.reminderStage]) {
+  } else if (
+    recoveryMeta.reminderStage &&
+    RECOVERY_STAGE_MAP[recoveryMeta.reminderStage]
+  ) {
     checkoutUrl.searchParams.set(
       "recoveryStage",
       String(RECOVERY_STAGE_MAP[recoveryMeta.reminderStage]),

@@ -35,6 +35,14 @@ export const isAuthenticated = async (req, res, next) => {
         .json({ success: false, message: "User not found" });
     }
 
+    if (req.user.status === "Inactive") {
+      return res.status(403).json({
+        success: false,
+        message:
+          "This ID has been blocked by the admin due to some reasons, please contact the team for further procedures",
+      });
+    }
+
     next();
   } catch (error) {
     res

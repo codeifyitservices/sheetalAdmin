@@ -129,12 +129,21 @@ const verifyEmailOtp = async (email, otp, currentUserId = null) => {
         await finalUser.save();
       }
     } else {
-    finalUser = await User.create({ email: normalizedEmail, isVerified: true });
-  }
+      finalUser = await User.create({
+        email: normalizedEmail,
+        isVerified: true,
+      });
+    }
   }
 
   if (!finalUser) {
     throw new Error("Authentication failed to resolve a user.");
+  }
+
+  if (finalUser.status === "Inactive") {
+    throw new Error(
+      "This ID has been blocked by the admin due to some reasons, please contact the team for further procedures",
+    );
   }
 
   if (normalizedEmail && finalUser.email !== normalizedEmail) {
@@ -151,28 +160,31 @@ const verifyEmailOtp = async (email, otp, currentUserId = null) => {
   };
 };
 
-
 const mergeAccounts = async (primary, secondary) => {
   // 1. Move Orders
   await Order.updateMany(
     { user: secondary._id },
-    { $set: { user: primary._id } }
+    { $set: { user: primary._id } },
   );
 
   // 2. Merge Wishlist (Unique items)
-  const mergedWishlist = [...new Set([
-    ...primary.wishlist.map(id => id.toString()),
-    ...secondary.wishlist.map(id => id.toString())
-  ])];
+  const mergedWishlist = [
+    ...new Set([
+      ...primary.wishlist.map((id) => id.toString()),
+      ...secondary.wishlist.map((id) => id.toString()),
+    ]),
+  ];
   primary.wishlist = mergedWishlist;
 
   // 3. Merge Cart (Unique products)
   const cartMap = new Map();
   if (primary.cart && primary.cart.length > 0) {
-    primary.cart.forEach(item => cartMap.set(item.product.toString(), item.quantity));
+    primary.cart.forEach((item) =>
+      cartMap.set(item.product.toString(), item.quantity),
+    );
   }
   if (secondary.cart && secondary.cart.length > 0) {
-    secondary.cart.forEach(item => {
+    secondary.cart.forEach((item) => {
       const prodId = item.product.toString();
       if (cartMap.has(prodId)) {
         cartMap.set(prodId, cartMap.get(prodId) + item.quantity);
@@ -191,9 +203,10 @@ const mergeAccounts = async (primary, secondary) => {
   // If primary is skipping fields, fill from secondary
   if (!primary.name && secondary.name) primary.name = secondary.name;
   if (!primary.email && secondary.email) primary.email = secondary.email;
-  if (!primary.phoneNumber && secondary.phoneNumber) primary.phoneNumber = secondary.phoneNumber;
-  if (!primary.profilePicture && secondary.profilePicture) primary.profilePicture = secondary.profilePicture;
-
+  if (!primary.phoneNumber && secondary.phoneNumber)
+    primary.phoneNumber = secondary.phoneNumber;
+  if (!primary.profilePicture && secondary.profilePicture)
+    primary.profilePicture = secondary.profilePicture;
 
   await primary.save();
   await User.deleteOne({ _id: secondary._id });
@@ -202,15 +215,13 @@ const mergeAccounts = async (primary, secondary) => {
 
 const verifyFirebaseIdToken = async (idToken, currentUserId = null) => {
   const decodedToken = await admin.auth().verifyIdToken(idToken);
-  const {
-    phone_number: phoneNumber,
-    name,
-    picture,
-  } = decodedToken;
+  const { phone_number: phoneNumber, name, picture } = decodedToken;
   const email = getFirebaseEmail(decodedToken);
 
   if (!phoneNumber && !email) {
-    throw new Error("Neither phone number nor email found in Firebase ID token.");
+    throw new Error(
+      "Neither phone number nor email found in Firebase ID token.",
+    );
   }
 
   let userByPhone = null;
@@ -316,10 +327,16 @@ const verifyFirebaseIdToken = async (idToken, currentUserId = null) => {
 
   // Safety check
   if (!finalUser) {
-    if (currentUser) finalUser = currentUser; // Fallback
+    if (currentUser)
+      finalUser = currentUser; // Fallback
     else throw new Error("Authentication failed to resolve a user.");
   }
 
+  if (finalUser.status === "Inactive") {
+    throw new Error(
+      "This ID has been blocked by the admin due to some reasons, please contact the team for further procedures",
+    );
+  }
 
   const token = signToken({ id: finalUser._id, role: finalUser.role });
 
@@ -336,12 +353,13 @@ const sanitizeUser = (user) => {
     email: user.email,
     role: user.role,
     name: user.name,
+    status: user.status,
     alternativeMobileNumber: user.alternativeMobileNumber,
     gender: user.gender,
     dateOfBirth: user.dateOfBirth
       ? user.dateOfBirth.toISOString().split("T")[0]
       : undefined,
   };
-}
+};
 
 export { sendOtp, verifyFirebaseIdToken, sendEmailOtp, verifyEmailOtp };

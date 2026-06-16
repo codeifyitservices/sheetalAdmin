@@ -323,6 +323,44 @@ export default function ProductModal({
   const handleSubmit = async (e) => {
     e.preventDefault();
 
+    // ── Final Duplicate Validation ──
+    const colors = new Set();
+    for (const v of formData.variants) {
+      if (!v.color?.name?.trim()) {
+        toast.error("All variants must have a color name.");
+        return;
+      }
+      const normalizedColor = v.color.name
+        .trim()
+        .toLowerCase()
+        .split(" ")
+        .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
+        .join(" ");
+
+      if (colors.has(normalizedColor)) {
+        toast.error(`Duplicate variant color: "${normalizedColor}"`);
+        return;
+      }
+      colors.add(normalizedColor);
+
+      // Size check
+      const sizes = new Set();
+      for (const s of v.sizes) {
+        if (!s.name?.trim()) {
+          toast.error(`Missing size name for color "${normalizedColor}"`);
+          return;
+        }
+        const normalizedSize = s.name.trim().toUpperCase();
+        if (sizes.has(normalizedSize)) {
+          toast.error(
+            `Duplicate size "${normalizedSize}" in color "${normalizedColor}"`,
+          );
+          return;
+        }
+        sizes.add(normalizedSize);
+      }
+    }
+
     setLoading(true);
     try {
       const data = new FormData();

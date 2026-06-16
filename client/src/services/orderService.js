@@ -8,7 +8,7 @@ const handleResponse = async (res) => {
 
 export const getAllOrders = async (
   page = 1,
-  limit = 10,
+  limit = 50,
   status = "",
   startDate = "",
   endDate = "",

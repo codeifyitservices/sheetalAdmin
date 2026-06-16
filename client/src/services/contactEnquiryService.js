@@ -12,16 +12,16 @@ export async function submitContactEnquiry(payload) {
 }
 
 export async function fetchContactEnquiries(
-  { status = "all", search = "" } = {},
+  { status = "all", search = "", page = 1, limit = 50 } = {},
   signal,
 ) {
   const { data } = await axios.get(`${API_BASE_URL}/contact-enquiries`, {
-    params: { status, search },
+    params: { status, search, page, limit },
     signal,
     withCredentials: true,
   });
   if (!data.success) throw new Error("Failed to fetch contact enquiries");
-  return data.contactEnquiries;
+  return data;
 }
 
 export async function deleteContactEnquiry(id) {

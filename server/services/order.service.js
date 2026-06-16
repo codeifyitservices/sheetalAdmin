@@ -11,7 +11,11 @@ import { confirmCouponUsageForOrder } from "./coupon.service.js";
 import { redeemAbandonedCartCoupon } from "./abandonedcartcoupon.service.js";
 
 const normalizeOrderStats = (orderStats = {}) => {
-  if (!orderStats || typeof orderStats !== "object" || Array.isArray(orderStats)) {
+  if (
+    !orderStats ||
+    typeof orderStats !== "object" ||
+    Array.isArray(orderStats)
+  ) {
     return { totalOrders: 0, totalRevenue: 0 };
   }
 
@@ -57,17 +61,30 @@ const normalizeItemQuantity = (quantity) => {
 };
 
 const getProductVariantForOrderItem = (product, item) => {
-  if (!product || !Array.isArray(product.variants) || product.variants.length === 0) {
+  if (
+    !product ||
+    !Array.isArray(product.variants) ||
+    product.variants.length === 0
+  ) {
     return null;
   }
 
-  const requestedSku = String(item?.variant?.v_sku || "").trim().toUpperCase();
-  const requestedColor = String(item?.variant?.color || "").trim().toLowerCase();
-  const requestedSize = String(item?.variant?.size || "").trim().toLowerCase();
+  const requestedSku = String(item?.variant?.v_sku || "")
+    .trim()
+    .toUpperCase();
+  const requestedColor = String(item?.variant?.color || "")
+    .trim()
+    .toLowerCase();
+  const requestedSize = String(item?.variant?.size || "")
+    .trim()
+    .toLowerCase();
 
   if (requestedSku) {
     const bySku = product.variants.find(
-      (variant) => String(variant?.v_sku || "").trim().toUpperCase() === requestedSku,
+      (variant) =>
+        String(variant?.v_sku || "")
+          .trim()
+          .toUpperCase() === requestedSku,
     );
     if (bySku) return bySku;
   }
@@ -75,17 +92,23 @@ const getProductVariantForOrderItem = (product, item) => {
   if (requestedColor) {
     const byColor = product.variants.find(
       (variant) =>
-        String(variant?.color?.name || "").trim().toLowerCase() === requestedColor,
+        String(variant?.color?.name || "")
+          .trim()
+          .toLowerCase() === requestedColor,
     );
     if (byColor) return byColor;
   }
 
   if (requestedSize) {
-    const bySize = product.variants.find((variant) =>
-      Array.isArray(variant?.sizes) &&
-      variant.sizes.some(
-        (size) => String(size?.name || "").trim().toLowerCase() === requestedSize,
-      ),
+    const bySize = product.variants.find(
+      (variant) =>
+        Array.isArray(variant?.sizes) &&
+        variant.sizes.some(
+          (size) =>
+            String(size?.name || "")
+              .trim()
+              .toLowerCase() === requestedSize,
+        ),
     );
     if (bySize) return bySize;
   }
@@ -98,14 +121,19 @@ const getVariantSizeForOrderItem = (variant, item) => {
     return null;
   }
 
-  const requestedSize = String(item?.variant?.size || "").trim().toLowerCase();
+  const requestedSize = String(item?.variant?.size || "")
+    .trim()
+    .toLowerCase();
   if (!requestedSize) {
     return variant.sizes[0] || null;
   }
 
   return (
     variant.sizes.find(
-      (size) => String(size?.name || "").trim().toLowerCase() === requestedSize,
+      (size) =>
+        String(size?.name || "")
+          .trim()
+          .toLowerCase() === requestedSize,
     ) || null
   );
 };
@@ -122,10 +150,7 @@ const getAvailableStockForOrderItem = (product, item) => {
 };
 
 const buildInventoryError = (product, item, availableStock) => {
-  return new ErrorResponse(
-    `This item only has ${availableStock} left.`,
-    400,
-  );
+  return new ErrorResponse(`This item only has ${availableStock} left.`, 400);
 };
 
 export const validateInventoryForOrderItems = async (orderItems = []) => {
@@ -163,8 +188,15 @@ export const applyOrderInventoryAdjustments = async (orderItems = []) => {
       }
 
       const availableStock = getAvailableStockForOrderItem(product, item);
-      if (availableStock < quantity || (Number(product.stock) || 0) < quantity) {
-        throw buildInventoryError(product, item, Math.min(availableStock, Number(product.stock) || 0));
+      if (
+        availableStock < quantity ||
+        (Number(product.stock) || 0) < quantity
+      ) {
+        throw buildInventoryError(
+          product,
+          item,
+          Math.min(availableStock, Number(product.stock) || 0),
+        );
       }
 
       const variant = getProductVariantForOrderItem(product, item);
@@ -178,7 +210,8 @@ export const applyOrderInventoryAdjustments = async (orderItems = []) => {
       const orderStats = normalizeOrderStats(product.orderStats);
       product.orderStats = {
         totalOrders: orderStats.totalOrders + quantity,
-        totalRevenue: orderStats.totalRevenue + quantity * (Number(item.price) || 0),
+        totalRevenue:
+          orderStats.totalRevenue + quantity * (Number(item.price) || 0),
       };
 
       await product.save();
@@ -237,7 +270,9 @@ const resolveOrderUser = async (data, requester) => {
   }
 
   const normalizedEmail =
-    typeof data.userEmail === "string" ? data.userEmail.trim().toLowerCase() : "";
+    typeof data.userEmail === "string"
+      ? data.userEmail.trim().toLowerCase()
+      : "";
   const normalizedPhone =
     typeof data?.shippingAddress?.phoneNumber === "string"
       ? data.shippingAddress.phoneNumber.trim()
@@ -250,7 +285,10 @@ const resolveOrderUser = async (data, requester) => {
       : null;
 
   if (!lookup) {
-    throw new ErrorResponse("Existing customer email or phone number is required", 400);
+    throw new ErrorResponse(
+      "Existing customer email or phone number is required",
+      400,
+    );
   }
 
   const customer = await User.findOne(lookup).select("_id");
@@ -295,8 +333,10 @@ export const createOrderService = async (data, requester) => {
   const [user, abandonedCartCouponRecordId] = await Promise.all([
     User.findById(userId).lean(),
     !isBuyNow
-      ? Cart.findOne({ user: userId }).lean().then(cart => cart?.appliedAbandonedCoupon?.couponRecordId ?? null)
-      : Promise.resolve(null)
+      ? Cart.findOne({ user: userId })
+          .lean()
+          .then((cart) => cart?.appliedAbandonedCoupon?.couponRecordId ?? null)
+      : Promise.resolve(null),
   ]);
 
   if (!user) throw new ErrorResponse("User not found", 404);
@@ -316,7 +356,9 @@ export const createOrderService = async (data, requester) => {
       id: paymentInfo?.id || `manual_${Date.now()}`,
       status: paymentInfo?.status || "Pending",
       method: paymentInfo?.method || "COD",
-      displayMethod: paymentInfo?.displayMethod || (paymentInfo?.method === "COD" ? "Cash on Delivery" : "Online"),
+      displayMethod:
+        paymentInfo?.displayMethod ||
+        (paymentInfo?.method === "COD" ? "Cash on Delivery" : "Online"),
     },
     couponId: data.couponId || null,
     couponCode: data.couponCode || "",
@@ -349,37 +391,68 @@ export const createOrderService = async (data, requester) => {
   setImmediate(async () => {
     try {
       // 5a. Push order reference into user
-      await User.findByIdAndUpdate(userId, { $push: { orders: order._id } }).catch(err => console.error("[Background] User Update Error:", err.message));
+      await User.findByIdAndUpdate(userId, {
+        $push: { orders: order._id },
+      }).catch((err) =>
+        console.error("[Background] User Update Error:", err.message),
+      );
 
       // 5b. Handle Coupon & Cart
       if (order.paymentInfo?.method === "COD") {
         if (abandonedCartCouponRecordId) {
-          await redeemAbandonedCartCoupon({ couponRecordId: abandonedCartCouponRecordId, orderId: order._id }).catch(err => console.error("[Background] Coupon Redeem Error:", err.message));
+          await redeemAbandonedCartCoupon({
+            couponRecordId: abandonedCartCouponRecordId,
+            orderId: order._id,
+          }).catch((err) =>
+            console.error("[Background] Coupon Redeem Error:", err.message),
+          );
         } else if (order.couponCode) {
-          await confirmCouponUsageForOrder(order).catch(err => console.error("[Background] Coupon Confirm Error:", err.message));
+          await confirmCouponUsageForOrder(order).catch((err) =>
+            console.error("[Background] Coupon Confirm Error:", err.message),
+          );
         }
 
         if (!isBuyNow) {
-          await Cart.findOneAndUpdate({ user: userId }, { $set: { items: [] } }).catch(err => console.error("[Background] Cart Clear Error:", err.message));
+          await Cart.findOneAndUpdate(
+            { user: userId },
+            { $set: { items: [] } },
+          ).catch((err) =>
+            console.error("[Background] Cart Clear Error:", err.message),
+          );
         }
       }
 
       // 5c. Shiprocket Integration
-      if (order.paymentInfo?.method === "COD" || order.paymentInfo?.status === "Paid") {
+      if (
+        order.paymentInfo?.method === "COD" ||
+        order.paymentInfo?.status === "Paid"
+      ) {
         try {
-          const { shiprocketOrderId, shipmentId } = await createShiprocketOrder(order, user);
-          await Order.findByIdAndUpdate(order._id, { shiprocketOrderId, shipmentId });
+          const { shiprocketOrderId, shipmentId } = await createShiprocketOrder(
+            order,
+            user,
+          );
+          await Order.findByIdAndUpdate(order._id, {
+            shiprocketOrderId,
+            shipmentId,
+          });
         } catch (srError) {
-          console.error(`[Background] Shiprocket Error for order ${order._id}:`, srError.message);
+          console.error(
+            `[Background] Shiprocket Error for order ${order._id}:`,
+            srError.message,
+          );
         }
       }
 
       // 5d. Abandoned Cart Flow Completion
-      await completeAbandonedCartFlow({ userId }).catch(err => console.error("[Background] Abandoned Cart Flow Error:", err.message));
+      await completeAbandonedCartFlow({ userId }).catch((err) =>
+        console.error("[Background] Abandoned Cart Flow Error:", err.message),
+      );
 
       // 5e. Order Confirmation Email
-      await sendOrderConfirmationEmail({ order, user }).catch(err => console.error("[Background] Email Error:", err.message));
-
+      await sendOrderConfirmationEmail({ order, user }).catch((err) =>
+        console.error("[Background] Email Error:", err.message),
+      );
     } catch (bgError) {
       console.error("[Order Background Task Critical Failure]:", bgError);
     }
@@ -477,7 +550,7 @@ export const updateOrderItemStatusService = async (
   ) {
     throw new ErrorResponse(
       `Item is already in a terminal state: ${orderItem.itemStatus}`,
-      400
+      400,
     );
   }
 
@@ -521,24 +594,29 @@ export const getMyOrdersService = async (userId) => {
 
 // --- GET SINGLE ORDER ---
 export const getSingleOrderService = async (orderId, userId) => {
-  const order = await Order.findById(orderId).populate({
-    path: "orderItems.product",
-    select: "name mainImage slug gstPercent category variants",
-    populate: {
-      path: "category",
-      select: "name hsnCode gstPercent",
-    },
-  }).lean();
+  const order = await Order.findById(orderId)
+    .populate({
+      path: "orderItems.product",
+      select: "name mainImage slug gstPercent category variants",
+      populate: {
+        path: "category",
+        select: "name hsnCode gstPercent",
+      },
+    })
+    .populate("user", "name email")
+    .lean();
   if (!order) throw new ErrorResponse("Order not found", 404);
-  if (order.user.toString() !== userId.toString()) {
+  if (order.user._id.toString() !== userId.toString()) {
     throw new ErrorResponse("You are not authorised to view this order", 403);
   }
 
   // Add isReviewed flag and review details to each item
-  const userReviews = await Review.find({ user: userId }).select("product rating comment createdAt");
-  const reviewMap = new Map(userReviews.map(r => [r.product.toString(), r]));
+  const userReviews = await Review.find({ user: userId }).select(
+    "product rating comment createdAt",
+  );
+  const reviewMap = new Map(userReviews.map((r) => [r.product.toString(), r]));
 
-  order.orderItems.forEach(item => {
+  order.orderItems.forEach((item) => {
     const review = reviewMap.get(item.product.toString());
     item.isReviewed = !!review;
     if (review) {
@@ -605,10 +683,12 @@ export const getAllOrdersService = async (queryStr, userId = null) => {
 
   if (userId) {
     const userReviews = await Review.find({ user: userId }).select("product");
-    const reviewedProductIds = new Set(userReviews.map(r => r.product.toString()));
+    const reviewedProductIds = new Set(
+      userReviews.map((r) => r.product.toString()),
+    );
 
-    orders.forEach(order => {
-      order.orderItems.forEach(item => {
+    orders.forEach((order) => {
+      order.orderItems.forEach((item) => {
         item.isReviewed = reviewedProductIds.has(item.product.toString());
       });
     });

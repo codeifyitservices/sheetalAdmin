@@ -27,13 +27,9 @@ export const getAdminStatsService = async () => {
     // 3. Out of Stock
     Product.countDocuments({ stock: 0 }),
     // 4. Order Status Breakup
-    Order.aggregate([
-      { $group: { _id: "$orderStatus", count: { $sum: 1 } } },
-    ]),
+    Order.aggregate([{ $group: { _id: "$orderStatus", count: { $sum: 1 } } }]),
     // 5. Category wise Product Count
-    Product.aggregate([
-      { $group: { _id: "$category", count: { $sum: 1 } } },
-    ]),
+    Product.aggregate([{ $group: { _id: "$category", count: { $sum: 1 } } }]),
     // 6. Latest 5 users for dashboard
     User.find({ role: "user" })
       .sort({ createdAt: -1 })
@@ -69,4 +65,3 @@ export const getAdminStatsService = async () => {
     categoryStats,
   };
 };
-

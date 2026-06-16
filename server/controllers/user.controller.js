@@ -66,7 +66,13 @@ export const updateProfile = async (req, res, next) => {
 
 export const getAllUsers = async (req, res, next) => {
   try {
-    const { page = 1, limit = 10, search = "", startDate = "", endDate = "" } = req.query;
+    const {
+      page = 1,
+      limit = 50,
+      search = "",
+      startDate = "",
+      endDate = "",
+    } = req.query;
     const result = await userService.getAllUsersService({
       page: Number(page),
       limit: Number(limit),
@@ -177,7 +183,7 @@ export const updateAddress = async (req, res, next) => {
     const result = await userService.updateAddressService(
       req.user._id,
       req.params.addressId,
-      req.body
+      req.body,
     );
     if (!result.success) return res.status(result.statusCode).json(result);
     return successResponse(res, 200, result.data, result.message);
@@ -190,7 +196,7 @@ export const deleteAddress = async (req, res, next) => {
   try {
     const result = await userService.deleteAddressService(
       req.user._id,
-      req.params.addressId
+      req.params.addressId,
     );
     if (!result.success) return res.status(result.statusCode).json(result);
     return successResponse(res, 200, result.data, result.message);
@@ -203,7 +209,7 @@ export const setDefaultAddress = async (req, res, next) => {
   try {
     const result = await userService.setDefaultAddressService(
       req.user._id,
-      req.params.addressId
+      req.params.addressId,
     );
     if (!result.success) return res.status(result.statusCode).json(result);
     return successResponse(res, 200, result.data, result.message);

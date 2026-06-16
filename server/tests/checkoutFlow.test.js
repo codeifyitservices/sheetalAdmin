@@ -88,19 +88,23 @@ test("cart add and COD order creation tolerate malformed legacy cart and product
         name: "Legacy Product",
       };
     }),
-    mock.method(Product, "findOneAndUpdate", async (filter, update, options) => {
-      capturedInventoryUpdate = update;
-      capturedInventoryOptions = options;
+    mock.method(
+      Product,
+      "findOneAndUpdate",
+      async (filter, update, options) => {
+        capturedInventoryUpdate = update;
+        capturedInventoryOptions = options;
 
-      assert.equal(filter._id, productId);
-      assert.deepEqual(filter.stock, { $gte: 2 });
+        assert.equal(filter._id, productId);
+        assert.deepEqual(filter.stock, { $gte: 2 });
 
-      return {
-        _id: productId,
-        stock: 8,
-        orderStats: "[object Object]",
-      };
-    }),
+        return {
+          _id: productId,
+          stock: 8,
+          orderStats: "[object Object]",
+        };
+      },
+    ),
     mock.method(User, "findById", (id) => {
       assert.equal(id, userId);
       return createLeanQuery({

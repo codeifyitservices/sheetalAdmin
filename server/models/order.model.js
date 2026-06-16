@@ -128,10 +128,10 @@ const orderSchema = new mongoose.Schema(
     trackingId: { type: String },
     courierPartner: { type: String },
     // Shiprocket Integration Fields
-    shiprocketOrderId: { type: Number, default: null },  // Shiprocket's own order ID
-    shipmentId: { type: Number, default: null },          // Needed for AWB / label / pickup
-    awbCode: { type: String, default: null },             // AWB tracking number
-    shiprocketStatus: { type: String, default: null },    // Last synced status from Shiprocket
+    shiprocketOrderId: { type: Number, default: null }, // Shiprocket's own order ID
+    shipmentId: { type: Number, default: null }, // Needed for AWB / label / pickup
+    awbCode: { type: String, default: null }, // AWB tracking number
+    shiprocketStatus: { type: String, default: null }, // Last synced status from Shiprocket
     deliveredAt: Date,
     paidAt: Date,
   },

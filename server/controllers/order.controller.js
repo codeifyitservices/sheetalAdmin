@@ -2,7 +2,10 @@ import * as orderService from "../services/order.service.js";
 import successResponse from "../utils/successResponse.js";
 import Order from "../models/order.model.js";
 import User from "../models/user.model.js";
-import { createShiprocketOrder, assignAwbService } from "../services/shiprocket.service.js";
+import {
+  createShiprocketOrder,
+  assignAwbService,
+} from "../services/shiprocket.service.js";
 
 // --- 1. CREATE ORDER ---
 export const createOrder = async (req, res, next) => {
@@ -72,7 +75,10 @@ export const updateOrderStatus = async (req, res, next) => {
   try {
     const { status } = req.body;
     const trackingId = req.body.trackingId || req.body.shippingInfo?.trackingId;
-    const courierPartner = req.body.courierPartner || req.body.shippingInfo?.carrier || req.body.shippingInfo?.courierPartner;
+    const courierPartner =
+      req.body.courierPartner ||
+      req.body.shippingInfo?.carrier ||
+      req.body.shippingInfo?.courierPartner;
     const data = await orderService.updateOrderStatusService(
       req.params.id,
       status,
@@ -119,27 +125,37 @@ export const pushToShiprocket = async (req, res, next) => {
     const order = await Order.findById(req.params.orderId);
 
     if (!order) {
-      return res.status(404).json({ success: false, message: "Order not found" });
+      return res
+        .status(404)
+        .json({ success: false, message: "Order not found" });
     }
 
     // Warn if already on Shiprocket but still allow re-push (for testing)
     if (order.shiprocketOrderId) {
       console.warn(
-        `[Admin] Order ${order._id} already has SR ID: ${order.shiprocketOrderId}. Re-pushing...`
+        `[Admin] Order ${order._id} already has SR ID: ${order.shiprocketOrderId}. Re-pushing...`,
       );
     }
 
     const user = await User.findById(order.user).lean();
-    const { shiprocketOrderId, shipmentId } = await createShiprocketOrder(order, user);
+    const { shiprocketOrderId, shipmentId } = await createShiprocketOrder(
+      order,
+      user,
+    );
 
     // Save Shiprocket IDs back to the order
     await Order.findByIdAndUpdate(order._id, { shiprocketOrderId, shipmentId });
 
-    return successResponse(res, 200, {
-      orderId: order._id,
-      shiprocketOrderId,
-      shipmentId,
-    }, `Order successfully pushed to Shiprocket`);
+    return successResponse(
+      res,
+      200,
+      {
+        orderId: order._id,
+        shiprocketOrderId,
+        shipmentId,
+      },
+      `Order successfully pushed to Shiprocket`,
+    );
   } catch (error) {
     next(error);
   }
@@ -163,22 +179,30 @@ export const assignAwb = async (req, res, next) => {
     const order = await Order.findById(req.params.orderId);
 
     if (!order) {
-      return res.status(404).json({ success: false, message: "Order not found" });
+      return res
+        .status(404)
+        .json({ success: false, message: "Order not found" });
     }
 
     if (!order.shipmentId) {
       return res.status(400).json({
         success: false,
-        message: "Order has no Shiprocket shipment ID. Push to Shiprocket first.",
+        message:
+          "Order has no Shiprocket shipment ID. Push to Shiprocket first.",
       });
     }
 
     if (order.awbCode) {
-      console.warn(`[Admin] Order ${order._id} already has AWB: ${order.awbCode}. Re-assigning...`);
+      console.warn(
+        `[Admin] Order ${order._id} already has AWB: ${order.awbCode}. Re-assigning...`,
+      );
     }
 
     const { courierId } = req.body; // optional
-    const { awbCode, courierName } = await assignAwbService(order.shipmentId, courierId);
+    const { awbCode, courierName } = await assignAwbService(
+      order.shipmentId,
+      courierId,
+    );
 
     // Persist AWB details onto the Order document
     await Order.findByIdAndUpdate(order._id, {
@@ -186,11 +210,16 @@ export const assignAwb = async (req, res, next) => {
       courierPartner: courierName || order.courierPartner,
     });
 
-    return successResponse(res, 200, {
-      orderId: order._id,
-      awbCode,
-      courierName,
-    }, `AWB assigned successfully: ${awbCode}`);
+    return successResponse(
+      res,
+      200,
+      {
+        orderId: order._id,
+        awbCode,
+        courierName,
+      },
+      `AWB assigned successfully: ${awbCode}`,
+    );
   } catch (error) {
     next(error);
   }
@@ -235,13 +264,18 @@ export const adminGetOrderStats = async (req, res, next) => {
         ]),
       ]);
 
-    return successResponse(res, 200, {
-      totalOrders,
-      processing,
-      shipped,
-      delivered,
-      totalRevenue: revenueResult[0]?.total || 0,
-    }, "Order stats fetched");
+    return successResponse(
+      res,
+      200,
+      {
+        totalOrders,
+        processing,
+        shipped,
+        delivered,
+        totalRevenue: revenueResult[0]?.total || 0,
+      },
+      "Order stats fetched",
+    );
   } catch (error) {
     next(error);
   }

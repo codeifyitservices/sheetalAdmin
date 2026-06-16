@@ -172,18 +172,14 @@ test("cart tracking ids are derived from created and updated timestamps", async 
   const updatedAt = new Date("2026-04-04T05:20:00.000Z");
   const expected = `cart-${Date.parse("2026-04-04T05:00:00.000Z")}-${Date.parse("2026-04-04T05:20:00.000Z")}`;
 
-  assert.equal(
-    buildCartTrackingId(cart, updatedAt),
-    expected,
-  );
+  assert.equal(buildCartTrackingId(cart, updatedAt), expected);
 });
 
 test("abandoned-cart coupon discount follows the current cart total without a cap", async () => {
   setBaseEnv();
 
-  const { default: AbandonedCartCoupon } = await import(
-    "../models/abandonedcartcoupon.model.js?discount-no-cap-test=1"
-  );
+  const { default: AbandonedCartCoupon } =
+    await import("../models/abandonedcartcoupon.model.js?discount-no-cap-test=1");
 
   const coupon = new AbandonedCartCoupon({
     code: "SAVE10",
@@ -204,12 +200,10 @@ test("abandoned-cart coupon discount follows the current cart total without a ca
 test("eligible abandoned-cart coupon lookup returns only a still-valid user coupon", async () => {
   setBaseEnv();
 
-  const { getValidAbandonedCartCouponForUser } = await import(
-    "../services/abandonedcartcoupon.service.js?lookup-test=1"
-  );
-  const { default: AbandonedCartCoupon } = await import(
-    "../models/abandonedcartcoupon.model.js?lookup-test=1"
-  );
+  const { getValidAbandonedCartCouponForUser } =
+    await import("../services/abandonedcartcoupon.service.js?lookup-test=1");
+  const { default: AbandonedCartCoupon } =
+    await import("../models/abandonedcartcoupon.model.js?lookup-test=1");
 
   const originalCouponFindOne = AbandonedCartCoupon.findOne;
   const couponRecord = {
@@ -243,9 +237,12 @@ test("eligible abandoned-cart coupon lookup returns only a still-valid user coup
 test("abandoned-cart recovered revenue excludes cancelled and returned orders", async () => {
   setBaseEnv();
 
-  const { default: Cart } = await import("../models/cart.model.js?recovery-status-test=1");
-  const { default: Order } = await import("../models/order.model.js?recovery-status-test=1");
-  const { getAbandonedCarts } = await import("../controllers/sales.controller.js?recovery-status-test=1");
+  const { default: Cart } =
+    await import("../models/cart.model.js?recovery-status-test=1");
+  const { default: Order } =
+    await import("../models/order.model.js?recovery-status-test=1");
+  const { getAbandonedCarts } =
+    await import("../controllers/sales.controller.js?recovery-status-test=1");
 
   const cartProto = Object.getPrototypeOf(Cart);
   const orderProto = Object.getPrototypeOf(Order);
@@ -271,16 +268,20 @@ test("abandoned-cart recovered revenue excludes cancelled and returned orders", 
   };
 
   const mockedCartFind = mock.method(cartProto, "find", () => query);
-  const mockedAggregate = mock.method(orderProto, "aggregate", async (pipeline) => {
-    capturedPipeline = pipeline;
-    return [
-      {
-        _id: { source: "email", stage: 1 },
-        totalRecoveredAmount: 1200,
-        recoveredOrders: 1,
-      },
-    ];
-  });
+  const mockedAggregate = mock.method(
+    orderProto,
+    "aggregate",
+    async (pipeline) => {
+      capturedPipeline = pipeline;
+      return [
+        {
+          _id: { source: "email", stage: 1 },
+          totalRecoveredAmount: 1200,
+          recoveredOrders: 1,
+        },
+      ];
+    },
+  );
 
   try {
     const req = { query: { limit: "10" } };
@@ -305,13 +306,12 @@ test("abandoned-cart recovered revenue excludes cancelled and returned orders", 
 test("abandoned-cart coupon applies only for the matching authenticated user and cart", async () => {
   setBaseEnv();
 
-  const { validateAndApplyAbandonedCartCoupon } = await import(
-    "../services/abandonedcartcoupon.service.js?apply-match-test=1"
-  );
-  const { default: AbandonedCartCoupon } = await import(
-    "../models/abandonedcartcoupon.model.js?apply-match-test=1"
-  );
-  const { default: Cart } = await import("../models/cart.model.js?apply-match-test=1");
+  const { validateAndApplyAbandonedCartCoupon } =
+    await import("../services/abandonedcartcoupon.service.js?apply-match-test=1");
+  const { default: AbandonedCartCoupon } =
+    await import("../models/abandonedcartcoupon.model.js?apply-match-test=1");
+  const { default: Cart } =
+    await import("../models/cart.model.js?apply-match-test=1");
 
   const couponRecord = {
     _id: "coupon-1",
@@ -395,7 +395,10 @@ test("abandoned-cart coupon applies only for the matching authenticated user and
     });
 
     assert.equal(wrongUser.success, false);
-    assert.equal(wrongUser.message, "This coupon is not valid for your account");
+    assert.equal(
+      wrongUser.message,
+      "This coupon is not valid for your account",
+    );
 
     const wrongCart = await validateAndApplyAbandonedCartCoupon({
       code: "SAVE10",
@@ -404,7 +407,10 @@ test("abandoned-cart coupon applies only for the matching authenticated user and
     });
 
     assert.equal(wrongCart.success, false);
-    assert.equal(wrongCart.message, "This coupon is not valid for your current cart");
+    assert.equal(
+      wrongCart.message,
+      "This coupon is not valid for your current cart",
+    );
   } finally {
     AbandonedCartCoupon.findOne = originalCouponFindOne;
     Cart.findOne = originalCartFindOne;
@@ -414,14 +420,14 @@ test("abandoned-cart coupon applies only for the matching authenticated user and
 test("generic coupon lookup is skipped for abandoned-cart code without ownership", async () => {
   setBaseEnv();
 
-  const { applyCouponService } = await import(
-    "../services/coupon.service.js?skip-fallback-test=1"
-  );
-  const { default: AbandonedCartCoupon } = await import(
-    "../models/abandonedcartcoupon.model.js?skip-fallback-test=1"
-  );
-  const { default: Cart } = await import("../models/cart.model.js?skip-fallback-test=1");
-  const { default: Coupon } = await import("../models/coupon.model.js?skip-fallback-test=1");
+  const { applyCouponService } =
+    await import("../services/coupon.service.js?skip-fallback-test=1");
+  const { default: AbandonedCartCoupon } =
+    await import("../models/abandonedcartcoupon.model.js?skip-fallback-test=1");
+  const { default: Cart } =
+    await import("../models/cart.model.js?skip-fallback-test=1");
+  const { default: Coupon } =
+    await import("../models/coupon.model.js?skip-fallback-test=1");
 
   const originalCouponFindOne = AbandonedCartCoupon.findOne;
   const originalCartFindOne = Cart.findOne;
@@ -457,13 +463,12 @@ test("generic coupon lookup is skipped for abandoned-cart code without ownership
 test("completed abandoned carts reject coupon application", async () => {
   setBaseEnv();
 
-  const { validateAndApplyAbandonedCartCoupon } = await import(
-    "../services/abandonedcartcoupon.service.js?completed-cart-test=1"
-  );
-  const { default: AbandonedCartCoupon } = await import(
-    "../models/abandonedcartcoupon.model.js?completed-cart-test=1"
-  );
-  const { default: Cart } = await import("../models/cart.model.js?completed-cart-test=1");
+  const { validateAndApplyAbandonedCartCoupon } =
+    await import("../services/abandonedcartcoupon.service.js?completed-cart-test=1");
+  const { default: AbandonedCartCoupon } =
+    await import("../models/abandonedcartcoupon.model.js?completed-cart-test=1");
+  const { default: Cart } =
+    await import("../models/cart.model.js?completed-cart-test=1");
 
   const originalCouponFindOne = AbandonedCartCoupon.findOne;
   const originalCartFindOne = Cart.findOne;

@@ -15,6 +15,7 @@ export default function DeliveryReturnsPage() {
     deliveryPoint3: "",
     supportEmail: "",
     supportWhatsapp: "",
+    platformFeeKnowMore: "",
   });
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
@@ -35,6 +36,7 @@ export default function DeliveryReturnsPage() {
           deliveryPoint3: response.data.deliveryPoint3 || "",
           supportEmail: response.data.supportEmail || "",
           supportWhatsapp: response.data.supportWhatsapp || "",
+          platformFeeKnowMore: response.data.platformFeeKnowMore || "",
         });
       }
     } catch (error) {
@@ -175,6 +177,28 @@ export default function DeliveryReturnsPage() {
                 className={inputStyle}
               />
             </div>
+          </div>
+        </div>
+
+        {/* Support Contact */}
+        <div className="bg-white p-6 md:p-8 rounded-[28px] border border-slate-200 shadow-sm">
+          <h3 className="text-lg font-black text-slate-900 mb-6 flex items-center gap-2">
+            <Info size={18} className="text-amber-500" /> Platform Fee Information
+          </h3>
+          <div>
+            <label className={labelStyle}>Platform Fee (Know more) Text</label>
+            <textarea
+              rows="3"
+              value={settings.platformFeeKnowMore}
+              onChange={(e) =>
+                setSettings({ ...settings, platformFeeKnowMore: e.target.value })
+              }
+              className={inputStyle}
+              placeholder="Explain what the platform fee is for..."
+            ></textarea>
+            <p className="mt-2 text-[10px] text-slate-400 font-bold uppercase tracking-widest">
+              This text will be shown when users click &quot;Know more&quot; next to the platform fee in the cart.
+            </p>
           </div>
         </div>
 

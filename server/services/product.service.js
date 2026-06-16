@@ -23,8 +23,83 @@ import {
   generateUniqueProductSlug,
   sanitizeProductSlug,
 } from "../utils/productSlug.js";
-import Enquiry from "../models/enquiry.model.js";
+import enquiryModel from "../models/enquiry.model.js";
 import { sendAvailabilityEmail } from "./enquiry.service.js";
+
+const toTitleCase = (str) => {
+  if (!str) return "";
+  return str
+    .toString()
+    .toLowerCase()
+    .split(" ")
+    .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
+    .join(" ");
+};
+
+const normalizeSizeName = (name) => {
+  if (!name) return "";
+  const trimmed = name.toString().trim();
+  if (trimmed.toLowerCase() === "free size") return "Free Size";
+  return trimmed.toUpperCase();
+};
+
+const deduplicateVariants = (variants) => {
+  if (!Array.isArray(variants)) return [];
+
+  const variantMap = new Map();
+
+  variants.forEach((v) => {
+    if (!v.color || !v.color.name) return;
+
+    const normalizedColor = toTitleCase(v.color.name);
+    v.color.name = normalizedColor;
+
+    // Normalize sizes within this variant
+    if (Array.isArray(v.sizes)) {
+      const sizeMap = new Map();
+      v.sizes.forEach((s) => {
+        if (!s.name) return;
+        const normalizedSize = normalizeSizeName(s.name);
+        if (sizeMap.has(normalizedSize)) {
+          // Merge logic: Sum stock, keep highest price/discount if they differ (or last one)
+          const existing = sizeMap.get(normalizedSize);
+          existing.stock = (existing.stock || 0) + (s.stock || 0);
+          // If we have different prices, we'll just keep the first one encountered for now
+          // to avoid confusion, but summing stock is logical.
+        } else {
+          sizeMap.set(normalizedSize, {
+            ...s,
+            name: normalizedSize,
+            stock: Number(s.stock || 0),
+            price: Number(s.price || 0),
+            discountPrice: Number(s.discountPrice || 0),
+          });
+        }
+      });
+      v.sizes = Array.from(sizeMap.values());
+    }
+
+    if (variantMap.has(normalizedColor)) {
+      const existing = variantMap.get(normalizedColor);
+      // Merge sizes from this duplicate variant into the existing one
+      const sizeMap = new Map(existing.sizes.map((s) => [s.name, s]));
+      v.sizes.forEach((s) => {
+        if (sizeMap.has(s.name)) {
+          const sizeEntry = sizeMap.get(s.name);
+          sizeEntry.stock = (sizeEntry.stock || 0) + (s.stock || 0);
+        } else {
+          sizeMap.set(s.name, s);
+        }
+      });
+      existing.sizes = Array.from(sizeMap.values());
+      // Optionally merge gallery or keep first image/video
+    } else {
+      variantMap.set(normalizedColor, v);
+    }
+  });
+
+  return Array.from(variantMap.values());
+};
 
 const buildUploadedImage = (file, alt) => ({
   url: file.location || file.path,
@@ -122,7 +197,7 @@ const cleanupMediaItems = async (items) => {
 export const getAllProductsService = async (queryStr) => {
   const {
     page = 1,
-    limit = 10,
+    limit = 50,
     search,
     sort,
     category,
@@ -274,9 +349,11 @@ export const getAllProductsService = async (queryStr) => {
           })();
 
           // isStarred always first, then search rank, then user sort
-          return sort === "price_asc" || sort === "price_desc"
-          ? { ...searchSort, ...userSort }
-          : { isStarred: -1, ...searchSort, ...userSort };
+          return sort === "price_asc" ||
+            sort === "price_desc" ||
+            sort === "popularity"
+            ? { ...searchSort, ...userSort }
+            : { isStarred: -1, ...searchSort, ...userSort };
         })(),
       });
   }
@@ -364,7 +441,7 @@ export const getAllProductsService = async (queryStr) => {
           searchProductIds.length > 0 ? { _searchRank: 1 } : {};
 
         const userSort = (() => {
-          if (!sort) return { createdAt: -1 };
+          if (!sort) return { sortOrder: 1, createdAt: -1 };
           if (typeof sort === "object") return sort;
           if (sort === "newest") return { createdAt: -1 };
           if (sort === "price_asc") return { "variants.sizes.price": 1 };
@@ -376,7 +453,7 @@ export const getAllProductsService = async (queryStr) => {
 
         return sort === "price_asc" || sort === "price_desc"
           ? { ...searchSort, ...userSort }
-          : { isStarred: -1, ...searchSort, ...userSort };
+          : { isStarred: -1, sortOrder: 1, ...searchSort, ...userSort };
       })(),
     },
   ];
@@ -594,6 +671,7 @@ export const createProductService = async (data, files, userId) => {
 
   let totalStock = 0;
   if (parsedData.variants && Array.isArray(parsedData.variants)) {
+    parsedData.variants = deduplicateVariants(parsedData.variants);
     let variantFileIndex = 0;
     const uploadedVariantFiles = files?.["variantImages"] || [];
     const uploadedVariantGalleryFiles = [
@@ -753,9 +831,13 @@ export const updateProductService = async (id, data, files) => {
     );
 
     if (sanitizedSlug !== currentSlug) {
-      parsedData.slug = await generateUniqueProductSlug(Product, sanitizedSlug, {
-        excludeProductId: product._id,
-      });
+      parsedData.slug = await generateUniqueProductSlug(
+        Product,
+        sanitizedSlug,
+        {
+          excludeProductId: product._id,
+        },
+      );
       parsedData.previousSlugs = Array.from(
         new Set([...(product.previousSlugs || []), currentSlug]),
       );
@@ -1422,14 +1504,14 @@ const bulkImportRowBasedService = async (files, userId) => {
       : null;
 
     return {
-      colorName: colorName.toString(),
+      colorName: toTitleCase(colorName),
       colorCode: colorCode ? colorCode.toString() : "#000000",
       v_sku: variantSku ? variantSku.toString().trim().toUpperCase() : "",
       v_image,
       v_video,
       gallery,
       size: {
-        name: sizeName.toString(),
+        name: normalizeSizeName(sizeName),
         stock,
         price,
         discountPrice: Number.isNaN(discountPrice) ? 0 : discountPrice,
@@ -1569,7 +1651,7 @@ const bulkImportRowBasedService = async (files, userId) => {
         ...(hoverImage && { hoverImage }),
         images: productGallery,
         ...(productVideo && { video: productVideo }),
-        variants,
+        variants: deduplicateVariants(variants),
         createdBy: userId,
       });
 
@@ -1993,7 +2075,7 @@ export const canReviewService = async (productId, userId) => {
 
 export const getAllReviewsService = async (
   page = 1,
-  limit = 10,
+  limit = 50,
   status = "all",
 ) => {
   const query = {};
@@ -2204,7 +2286,7 @@ const getExplicitDateRange = (startDate, endDate) => {
 };
 
 export const getMostViewedProductsService = async ({
-  limit = 10,
+  limit = 50,
   period = "overall",
   refDate,
   startDate,
@@ -2353,4 +2435,29 @@ export const fetchCollectionProducts = async () => {
       soldOut,
     };
   });
+};
+
+export const reorderProductsService = async (orderedIds) => {
+  try {
+    const bulkOps = orderedIds.map((id, index) => ({
+      updateOne: {
+        filter: { _id: id },
+        update: { $set: { sortOrder: index + 1 } },
+      },
+    }));
+
+    if (bulkOps.length === 0) {
+      return { success: true, message: "No products to reorder." };
+    }
+
+    await Product.bulkWrite(bulkOps);
+    return { success: true, message: "Products reordered successfully." };
+  } catch (error) {
+    console.error("Error reordering products:", error);
+    return {
+      success: false,
+      statusCode: 500,
+      message: "An error occurred while reordering products.",
+    };
+  }
 };
