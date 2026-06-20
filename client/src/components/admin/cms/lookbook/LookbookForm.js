@@ -510,7 +510,7 @@ function CenterSection({ content, onChange, categories }) {
             Preview
           </label>
           <a
-            href={content.buttonLink || content.categoryLink ? `/${content.categoryLink}` : "#"}
+            
             className="bg-[#faf9f7] border border-slate-200 rounded-2xl px-6 py-8 flex flex-col items-center text-center gap-3 hover:shadow-md transition cursor-pointer"
           >
             {content.label && (
@@ -532,9 +532,9 @@ function CenterSection({ content, onChange, categories }) {
             {(content.buttonText || content.categoryLink) && (
               <span className="mt-2 inline-flex items-center gap-1.5 bg-slate-900 text-white text-[10px] font-bold px-4 py-2 rounded-full tracking-wider">
                 {content.buttonText || "VIEW MORE"}
-                {content.categoryLink && (
+                {/* {content.categoryLink && (
                   <Link size={10} className="opacity-70" />
-                )}
+                )} */}
               </span>
             )}
           </a>
