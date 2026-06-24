@@ -25,6 +25,26 @@ const basicInfoSchema = new mongoose.Schema(
       trim: true,
       default: "",
     },
+    companyName: {
+      type: String,
+      trim: true,
+      default: "",
+    },
+    invoiceDeclaration: {
+      type: String,
+      trim: true,
+      default: "",
+    },
+    invoiceContactText: {
+      type: String,
+      trim: true,
+      default: "",
+    },
+    invoiceFooterYear: {
+      type: String,
+      trim: true,
+      default: "",
+    },
     shippingAddress: {
       type: addressSchema,
       default: () => ({}),

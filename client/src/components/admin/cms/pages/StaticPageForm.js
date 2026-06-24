@@ -199,7 +199,7 @@ export default function StaticPageForm({
                 />
               </div>
 
-              <div className="bg-white border border-slate-200 rounded-2xl p-5 space-y-4">
+              {/* <div className="bg-white border border-slate-200 rounded-2xl p-5 space-y-4">
                 <h3 className="text-sm font-black uppercase tracking-wider text-slate-900">
                   Open Graph
                 </h3>
@@ -224,7 +224,7 @@ export default function StaticPageForm({
                   placeholder="OG image URL"
                   className="w-full rounded-xl border border-slate-200 px-4 py-3 text-sm text-slate-900 outline-none focus:border-slate-400"
                 />
-              </div>
+              </div> */}
 
               <div className="bg-white border border-slate-200 rounded-2xl p-5 space-y-4">
                 <label className="block">

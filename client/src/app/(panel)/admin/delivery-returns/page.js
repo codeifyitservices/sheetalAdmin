@@ -90,7 +90,7 @@ export default function DeliveryReturnsPage() {
         subtitle="Manage shipping charges, return policy, and contact info"
       />
 
-      <div className="max-w-4xl mt-8 space-y-6">
+      <div className=" mt-8 space-y-6">
         {/* Shipping Charges */}
         <div className="bg-white p-6 md:p-8 rounded-[28px] border border-slate-200 shadow-sm">
           <h3 className="text-lg font-black text-slate-900 mb-6 flex items-center gap-2">

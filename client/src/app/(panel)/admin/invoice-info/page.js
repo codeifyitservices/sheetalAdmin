@@ -8,6 +8,8 @@ import {
   BadgeIndianRupee,
   Truck,
   ReceiptText,
+  FileText,
+  Building2,
 } from "lucide-react";
 import toast from "react-hot-toast";
 import PageHeader from "@/components/admin/layout/PageHeader";
@@ -31,6 +33,10 @@ const emptyAddress = {
 export default function BasicInfoPage() {
   const [form, setForm] = useState({
     gstNumber: "",
+    companyName: "",
+    invoiceDeclaration: "",
+    invoiceContactText: "",
+    invoiceFooterYear: "",
     shippingAddress: emptyAddress,
     billingAddress: emptyAddress,
   });
@@ -45,6 +51,10 @@ export default function BasicInfoPage() {
       if (data?.success && data?.data) {
         setForm({
           gstNumber: data.data.gstNumber || "",
+          companyName: data.data.companyName || "",
+          invoiceDeclaration: data.data.invoiceDeclaration || "",
+          invoiceContactText: data.data.invoiceContactText || "",
+          invoiceFooterYear: data.data.invoiceFooterYear || "",
           shippingAddress: normalizeAddress(data.data.shippingAddress),
           billingAddress: normalizeAddress(data.data.billingAddress),
         });
@@ -112,6 +122,10 @@ export default function BasicInfoPage() {
       if (data?.success) {
         setForm({
           gstNumber: data.data.gstNumber || "",
+          companyName: data.data.companyName || "",
+          invoiceDeclaration: data.data.invoiceDeclaration || "",
+          invoiceContactText: data.data.invoiceContactText || "",
+          invoiceFooterYear: data.data.invoiceFooterYear || "",
           shippingAddress: normalizeAddress(data.data.shippingAddress),
           billingAddress: normalizeAddress(data.data.billingAddress),
         });
@@ -137,8 +151,8 @@ export default function BasicInfoPage() {
   return (
     <div className="animate-in fade-in slide-in-from-bottom-2 duration-500 pb-10">
       <PageHeader
-        title="Basic Info"
-        subtitle="Store GST number and structured address details in one place"
+        title="Invoice Info"
+        subtitle="Customise invoice information in one place"
       />
 
       <div className="mb-6 flex items-center justify-end gap-3">
@@ -163,6 +177,35 @@ export default function BasicInfoPage() {
       </div>
 
       <section className="space-y-6">
+        {/* Company Name */}
+        <div className="rounded-[28px] border border-slate-200 bg-white p-6 shadow-sm">
+          <div className="mb-6 flex items-center gap-3">
+            <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-sky-50 text-sky-600">
+              <Building2 size={20} />
+            </div>
+            <div>
+              <h3 className="text-lg font-black text-slate-900">Company Name</h3>
+              <p className="text-xs font-medium text-slate-500">
+                The legal or trade name shown on invoices and documents.
+              </p>
+            </div>
+          </div>
+
+          <div>
+            <label className={labelClass}>Company Name</label>
+            <input
+              value={form.companyName}
+              onChange={handleChange("companyName")}
+              placeholder="e.g. Studio By Sheetal Pvt. Ltd."
+              className={fieldClass}
+            />
+            <p className="mt-1.5 text-[11px] text-slate-400">
+              Appears as the company name on the invoice header and footer. Default: &quot;Sheetal By Studios&quot;
+            </p>
+          </div>
+        </div>
+
+        {/* GST Details */}
         <div className="rounded-[28px] border border-slate-200 bg-white p-6 shadow-sm">
           <div className="mb-6 flex items-center gap-3">
             <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-indigo-50 text-indigo-600">
@@ -187,6 +230,7 @@ export default function BasicInfoPage() {
           </div>
         </div>
 
+        {/* Addresses */}
         <div className="grid gap-6 lg:grid-cols-2">
           <AddressCard
             title="Shipping Address"
@@ -209,6 +253,71 @@ export default function BasicInfoPage() {
           />
         </div>
 
+        {/* Invoice Customization */}
+        <div className="rounded-[28px] border border-slate-200 bg-white p-6 shadow-sm">
+          <div className="mb-6 flex items-center gap-3">
+            <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-violet-50 text-violet-600">
+              <FileText size={20} />
+            </div>
+            <div>
+              <h3 className="text-lg font-black text-slate-900">Invoice Customization</h3>
+              <p className="text-xs font-medium text-slate-500">
+                Customize the text that appears on your customer invoices. Leave blank to use defaults.
+              </p>
+            </div>
+          </div>
+
+          <div className="space-y-5">
+            <div>
+              <label className={labelClass}>
+                Declaration Text
+              </label>
+              <textarea
+                rows={3}
+                value={form.invoiceDeclaration}
+                onChange={handleChange("invoiceDeclaration")}
+                placeholder="e.g. The goods sold as part of this shipment are intended for end-user consumption and are not for retail sale"
+                className={`${fieldClass} resize-y`}
+              />
+              <p className="mt-1.5 text-[11px] text-slate-400">
+                Printed under the &quot;DECLARATION&quot; section at the bottom of the invoice.
+              </p>
+            </div>
+
+            <div>
+              <label className={labelClass}>
+                Contact / Support Text
+              </label>
+              <textarea
+                rows={3}
+                value={form.invoiceContactText}
+                onChange={handleChange("invoiceContactText")}
+                placeholder="e.g. If you have any questions, feel free to call customer care at +91 80 6156 1999 or log on to www.studiobysheetal.com/contact."
+                className={`${fieldClass} resize-y`}
+              />
+              <p className="mt-1.5 text-[11px] text-slate-400">
+                The customer support message shown at the bottom of the invoice below the declaration.
+              </p>
+            </div>
+
+            <div>
+              <label className={labelClass}>
+                Footer Year
+              </label>
+              <input
+                value={form.invoiceFooterYear}
+                onChange={handleChange("invoiceFooterYear")}
+                placeholder={`e.g. ${new Date().getFullYear()}`}
+                maxLength={4}
+                className={fieldClass}
+              />
+              <p className="mt-1.5 text-[11px] text-slate-400">
+                The year shown in the invoice footer copyright line (e.g. © 2026 Studio By Sheetal). Defaults to the current year if left blank.
+              </p>
+            </div>
+          </div>
+        </div>
+
         <div className="flex justify-end">
           <button
             type="button"
@@ -224,7 +333,7 @@ export default function BasicInfoPage() {
             ) : (
               <>
                 <Save size={18} />
-                Save Basic Info
+                Save Invoice Info
               </>
             )}
           </button>

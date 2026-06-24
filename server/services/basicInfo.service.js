@@ -59,6 +59,10 @@ export const updateBasicInfo = async (data, userId = null) => {
   try {
     const payload = {
       gstNumber: data.gstNumber ?? "",
+      companyName: data.companyName ?? "",
+      invoiceDeclaration: data.invoiceDeclaration ?? "",
+      invoiceContactText: data.invoiceContactText ?? "",
+      invoiceFooterYear: data.invoiceFooterYear ?? "",
       shippingAddress: normalizeAddress(data.shippingAddress),
       billingAddress: normalizeAddress(data.billingAddress),
     };
