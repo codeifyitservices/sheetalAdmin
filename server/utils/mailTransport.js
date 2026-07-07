@@ -9,7 +9,9 @@ const SMTP_SECURE =
   typeof process.env.SMTP_SECURE === "string"
     ? process.env.SMTP_SECURE.trim().toLowerCase() === "true"
     : SMTP_PORT === 465;
-const SMTP_FAMILY = Number(process.env.SMTP_FAMILY || 4);
+// Default to 0 (auto) so cloud providers like Render (which use IPv6) work out of the box.
+// Set SMTP_FAMILY=4 in your env to force IPv4 (only needed in specific local setups).
+const SMTP_FAMILY = process.env.SMTP_FAMILY !== undefined ? Number(process.env.SMTP_FAMILY) : 0;
 
 export function ensureEmailConfig() {
   if (!SMTP_MAIL || !SMTP_PASSWORD) {
@@ -25,7 +27,9 @@ export function createMailTransport() {
       user: SMTP_MAIL,
       pass: SMTP_PASSWORD,
     },
-    family: SMTP_FAMILY,
+    // Only force a specific IP family if explicitly configured;
+    // omitting it lets Node/Nodemailer auto-detect (works on IPv6 hosts like Render).
+    ...(process.env.SMTP_FAMILY !== undefined ? { family: SMTP_FAMILY } : {}),
   };
 
   if (SMTP_HOST) {
