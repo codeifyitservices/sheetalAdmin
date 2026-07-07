@@ -105,6 +105,7 @@ app.use(
         "https://sheetal-omega.vercel.app",
         "https://www.sheetal-omega.vercel.app",
         "https://sheetal-admin-mu.vercel.app",
+        "https://sheetal-blue.vercel.app",
       ];
       if (!origin || allowedOrigins.includes(origin)) {
         callback(null, true);
