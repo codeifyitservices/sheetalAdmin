@@ -18,6 +18,7 @@ import { getSizeCharts } from "@/services/sizeChartService";
 import { toast } from "react-hot-toast";
 import axios from "axios";
 import { API_BASE_URL, IMAGE_BASE_URL } from "@/services/api";
+import { sanitizeProductSlug } from "@/utils/productSlug";
 import {
   getRatioLabel,
   validateImageAspectRatio,
@@ -59,9 +60,11 @@ export default function CategoryModal({
   const [isSchemaLoading, setIsSchemaLoading] = useState(false);
   const [autoSchema, setAutoSchema] = useState("");
   const autoRequestedRef = useRef(false);
+  const [isSlugManuallyEdited, setIsSlugManuallyEdited] = useState(false);
 
   const [formData, setFormData] = useState({
     name: "",
+    slug: "",
     description: "",
     parentCategory: "",
     gstPercent: 0,
@@ -94,6 +97,7 @@ export default function CategoryModal({
       setActiveTab("Details");
       setFormData({
         name: initialData?.name || "",
+        slug: initialData?.slug || "",
         description: initialData?.description || "",
         parentCategory: initialData?.parentCategory?._id || "",
         gstPercent: initialData?.gstPercent ?? 0,
@@ -125,6 +129,7 @@ export default function CategoryModal({
       setAutoSchema("");
       setSchemaError(null);
       autoRequestedRef.current = false;
+      setIsSlugManuallyEdited(Boolean(initialData?.slug));
 
       if (initialData?.mainImage?.url) {
         const url = initialData.mainImage.url;
@@ -201,7 +206,19 @@ export default function CategoryModal({
 
   const handleChange = (e) => {
     const { name, value } = e.target;
-    setFormData((prev) => ({ ...prev, [name]: value }));
+    if (name === "slug") {
+      setIsSlugManuallyEdited(Boolean(value));
+    }
+    setFormData((prev) => {
+      const nextState = {
+        ...prev,
+        [name]: value,
+      };
+      if (name === "name" && !isSlugManuallyEdited) {
+        nextState.slug = sanitizeProductSlug(value);
+      }
+      return nextState;
+    });
   };
 
   useEffect(() => {
@@ -302,6 +319,7 @@ export default function CategoryModal({
 
     const data = new FormData();
     data.append("name", formData.name);
+    data.append("slug", formData.slug || "");
     data.append("description", formData.description);
     data.append("parentCategory", formData.parentCategory || "");
     data.append("gstPercent", formData.gstPercent ?? 0);
@@ -518,9 +536,8 @@ export default function CategoryModal({
                     </label>
                     <input
                       value={formData.name}
-                      onChange={(e) =>
-                        setFormData({ ...formData, name: e.target.value })
-                      }
+                      name="name"
+                      onChange={handleChange}
                       placeholder="e.g. Mens Fashion"
                       className="w-full bg-white border border-slate-300 px-3 py-2.5 rounded-lg text-sm outline-none focus:border-slate-900 transition font-medium"
                       required
@@ -533,9 +550,8 @@ export default function CategoryModal({
                     </label>
                     <input
                       value={formData.slug || ""}
-                      onChange={(e) =>
-                        setFormData({ ...formData, slug: e.target.value })
-                      }
+                      name="slug"
+                      onChange={handleChange}
                       placeholder="e.g. mens-fashion"
                       className="w-full bg-white border border-slate-300 px-3 py-2.5 rounded-lg text-sm outline-none focus:border-slate-900 transition font-medium"
                     />

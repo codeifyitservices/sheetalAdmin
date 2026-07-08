@@ -41,9 +41,11 @@ export default function StaticPageForm({
   onSubmit,
 }) {
   const [formData, setFormData] = useState(defaultForm);
+  const [isSlugManuallyEdited, setIsSlugManuallyEdited] = useState(false);
 
   useEffect(() => {
     if (!isOpen) return;
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setFormData(
       initialData
         ? {
@@ -55,6 +57,7 @@ export default function StaticPageForm({
           }
         : defaultForm,
     );
+    setIsSlugManuallyEdited(Boolean(initialData?.slug));
   }, [initialData, isOpen]);
 
   const finalSlug = useMemo(
@@ -63,9 +66,12 @@ export default function StaticPageForm({
   );
 
   const updateField = (field, value) => {
+    if (field === "slug") {
+      setIsSlugManuallyEdited(Boolean(value));
+    }
     setFormData((prev) => {
       const next = { ...prev, [field]: value };
-      if (field === "title" && !prev.slug) {
+      if (field === "title" && !isSlugManuallyEdited) {
         next.slug = slugify(value);
       }
       if (field === "slug") {

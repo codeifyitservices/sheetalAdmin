@@ -101,7 +101,7 @@ export default function Sidebar({ storeName = "Admin", isOpen, setIsOpen }) {
       children: [
         { icon: Home, label: "Homepage", href: "/admin/cms/homepage" },
         { icon: Layout, label: "Banners", href: "/admin/cms/banners" },
-        { icon: BookOpen, label: "Lookbooks", href: "/admin/cms/lookbooks" },
+        { icon: BookOpen, label: "Deals", href: "/admin/cms/deals" },
         { icon: FileText, label: "Text Pages", href: "/admin/cms/pages" },
         { icon: HelpCircle, label: "FAQ", href: "/admin/cms/faq" },
         { icon: Search, label: "SEO Settings", href: "/admin/cms/seo-settings" },
