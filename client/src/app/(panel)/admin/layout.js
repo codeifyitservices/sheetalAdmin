@@ -28,19 +28,19 @@ export default function AdminLayout({ children }) {
     const checkToken = async () => {
       try {
         const data = await getAuthStatus();
-        if (!data.user || data.user.role !== "Admin") {
-          // Clear cookie
+        if (!data.user || data.user.role?.toLowerCase() !== "admin") {
+          // Clear cookie for both HTTP (localhost) and HTTPS (production)
+          document.cookie = "token=; path=/; max-age=0";
           document.cookie = "token=; path=/; max-age=0; SameSite=None; Secure";
-          document.cookie = "token=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT";
           dispatch(logout());
           router.push("/admin/login");
         } else {
           dispatch(setCredentials({ user: data.user }));
         }
       } catch (err) {
-        // Clear cookie
+        // Clear cookie for both HTTP (localhost) and HTTPS (production)
+        document.cookie = "token=; path=/; max-age=0";
         document.cookie = "token=; path=/; max-age=0; SameSite=None; Secure";
-        document.cookie = "token=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT";
         dispatch(logout());
         router.push("/admin/login");
       }
