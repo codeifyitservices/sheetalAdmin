@@ -47,7 +47,7 @@ export default function AdminLayout({ children }) {
     };
 
     checkToken();
-  }, [pathname, isLoginPage, dispatch, router]);
+  }, []);  // Run once on mount only — middleware handles per-route protection
 
   if (!mounted) {
     return <div className="h-screen bg-[#fcfcfd]" />;
