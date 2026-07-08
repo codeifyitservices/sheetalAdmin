@@ -1,18 +1,53 @@
 "use client";
 import { useState, useEffect } from "react";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
+import { useDispatch } from "react-redux";
+import { logout, setCredentials } from "@/store/slices/authSlice";
+import { getAuthStatus } from "@/services/authService";
 import Sidebar from "@/components/admin/layout/Sidebar";
 import TopNav from "@/components/admin/layout/TopNav";
 import useLogoutModal from "@/hooks/useLogoutModal";
 
 export default function AdminLayout({ children }) {
   const pathname = usePathname();
+  const router = useRouter();
+  const dispatch = useDispatch();
   const isLoginPage = pathname === "/admin/login";
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [mounted, setMounted] = useState(false);
   const { openModal, LogoutModal } = useLogoutModal();
 
-  useEffect(() => setMounted(true), []);
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setMounted(true);
+  }, []);
+
+  useEffect(() => {
+    if (isLoginPage) return;
+
+    const checkToken = async () => {
+      try {
+        const data = await getAuthStatus();
+        if (!data.user || data.user.role !== "Admin") {
+          // Clear cookie
+          document.cookie = "token=; path=/; max-age=0; SameSite=None; Secure";
+          document.cookie = "token=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT";
+          dispatch(logout());
+          router.push("/admin/login");
+        } else {
+          dispatch(setCredentials({ user: data.user }));
+        }
+      } catch (err) {
+        // Clear cookie
+        document.cookie = "token=; path=/; max-age=0; SameSite=None; Secure";
+        document.cookie = "token=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT";
+        dispatch(logout());
+        router.push("/admin/login");
+      }
+    };
+
+    checkToken();
+  }, [pathname, isLoginPage, dispatch, router]);
 
   if (!mounted) {
     return <div className="h-screen bg-[#fcfcfd]" />;

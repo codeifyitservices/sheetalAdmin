@@ -181,7 +181,7 @@ export default function ProductModal({
           price: undefined,
           discountPrice: undefined,
         });
-        setIsSlugManuallyEdited(true);
+        setIsSlugManuallyEdited(Boolean(initialData?.slug));
       } else {
         resetForm();
       }
@@ -279,7 +279,7 @@ export default function ProductModal({
         name === "slug" ? sanitizeProductSlug(value) : undefined;
 
       if (name === "slug") {
-        setIsSlugManuallyEdited(Boolean(nextSlugValue));
+        setIsSlugManuallyEdited(Boolean(value));
       }
 
       setFormData((prev) => {
@@ -288,7 +288,7 @@ export default function ProductModal({
           [name]: nextValue,
         };
 
-        if (name === "name" && !initialData && !isSlugManuallyEdited) {
+        if (name === "name" && !isSlugManuallyEdited) {
           nextState.slug = sanitizeProductSlug(value);
         }
 

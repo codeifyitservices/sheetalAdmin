@@ -107,7 +107,11 @@ app.use(
         "https://sheetal-admin-mu.vercel.app",
         "https://sheetal-blue.vercel.app",
       ];
-      if (!origin || allowedOrigins.includes(origin)) {
+      if (
+        !origin ||
+        allowedOrigins.includes(origin) ||
+        origin.endsWith(".vercel.app")
+      ) {
         callback(null, true);
       } else {
         callback(new Error("Not allowed by CORS"));

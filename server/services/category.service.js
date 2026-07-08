@@ -1,7 +1,7 @@
 import Category from "../models/category.model.js";
 import Product from "../models/product.model.js";
 import SizeChart from "../models/sizechart.model.js";
-import slugify from "slugify";
+import { generateUniqueGlobalSlug } from "../utils/productSlug.js";
 import { deleteFile, deleteS3File } from "../utils/fileHelper.js";
 import { config } from "../config/config.js";
 import { syncToIndex, deleteFromIndex } from "./ngram.search.service.js";
@@ -68,7 +68,7 @@ export const createCategoryService = async (data, files) => {
   const exists = await Category.findOne({ name });
   if (exists) return { success: false, message: "Category already exists" };
 
-  const slug = data.slug ? slugify(data.slug, { lower: true }) : slugify(name, { lower: true });
+  const slug = await generateUniqueGlobalSlug(data.slug || name);
 
   let parsedSubCategories = [];
   if (subCategories) {
@@ -364,10 +364,9 @@ export const updateCategoryService = async (id, data, files) => {
     updateData.subCategories = parsedSubCategories;
   }
 
-  if (data.slug) {
-    updateData.slug = slugify(data.slug, { lower: true });
-  } else if (data.name) {
-    updateData.slug = slugify(data.name, { lower: true });
+  if (data.slug || data.name) {
+    const rawSlug = data.slug || data.name;
+    updateData.slug = await generateUniqueGlobalSlug(rawSlug, id);
   }
 
   if (data.isFeatured !== undefined) {

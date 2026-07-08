@@ -40,7 +40,7 @@ export const login = async (req, res, next) => {
 
     res.cookie("token", result.token, cookieOptions);
 
-    return successResponse(res, 200, { user: result.user }, "Login successful");
+    return successResponse(res, 200, { user: result.user, token: result.token }, "Login successful");
   } catch (error) {
     next(error);
   }

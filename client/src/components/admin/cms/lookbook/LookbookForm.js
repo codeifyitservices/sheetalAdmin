@@ -17,8 +17,17 @@ import { API_BASE_URL } from "@/services/api";
 import TiptapEditor from "@/components/TiptapEditor";
 import { fetchAllCategories } from "@/services/categoryService";
 
-const ACCEPTED_TYPES = ["image/jpeg", "image/jpg", "image/png"];
-const ACCEPTED_EXTENSIONS = ".jpg,.jpeg,.png";
+const ACCEPTED_TYPES = [
+  "image/jpeg",
+  "image/jpg",
+  "image/png",
+  "image/webp",
+  "image/gif",
+  "image/svg+xml",
+  "image/avif",
+  "image/jfif",
+];
+const ACCEPTED_EXTENSIONS = ".jpg,.jpeg,.png,.webp,.gif,.svg,.avif,.jfif";
 const MAX_IMAGES_PER_SIDE = 5;
 
 const DEFAULT_CENTER = {
@@ -125,7 +134,7 @@ export default function LookbookForm() {
   const validateImage = (file) =>
     new Promise((resolve, reject) => {
       if (!ACCEPTED_TYPES.includes(file.type)) {
-        reject(`"${file.name}" is not valid. Only JPG and PNG are allowed.`);
+        reject(`"${file.name}" is not valid. Only JPG, PNG, WEBP, GIF, SVG, AVIF, and JFIF are allowed.`);
       } else {
         resolve();
       }
@@ -284,7 +293,7 @@ export default function LookbookForm() {
           <p className="text-[11px] text-amber-700 mt-0.5">
             Add separate images for the left and right lookbook sliders. Each
             image can link to its own category. The View More button uses the
-            center content link only.
+            center content link only. Supported formats: JPG, PNG, WEBP, GIF, SVG, AVIF, JFIF.
           </p>
         </div>
       </div>
@@ -475,7 +484,7 @@ function ImageSection({
               Max {maxImages} images
             </span>
             <span className="inline-flex items-center gap-1 bg-slate-100 border border-slate-200 text-slate-600 text-[10px] font-bold px-2 py-0.5 rounded-full">
-              JPG / PNG
+              JPG / PNG / WEBP / GIF / SVG / AVIF / JFIF
             </span>
           </div>
         </div>
@@ -553,7 +562,7 @@ function ImageSection({
               No images added
             </p>
             <p className="text-[9px] text-slate-300 mt-1">
-              400 x 310 ratio - JPG or PNG
+              400 x 310 ratio - JPG, PNG, WEBP, GIF, SVG, AVIF, JFIF
             </p>
           </div>
         )}

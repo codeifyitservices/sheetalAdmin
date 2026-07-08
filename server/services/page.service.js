@@ -1,4 +1,5 @@
 import Page from "../models/page.model.js";
+import { generateUniqueGlobalSlug } from "../utils/productSlug.js";
 
 export const LEGACY_PAGE_SLUGS = [
   "about-us",
@@ -88,9 +89,9 @@ export const getFooterPages = () =>
     .sort({ title: 1 });
 
 export const createPage = async (payload, userId) => {
-  const slug = buildSlugFromPayload(payload);
-  await ensureUniqueSlug(slug);
-
+  const rawSlug = buildSlugFromPayload(payload);
+  const slug = await generateUniqueGlobalSlug(rawSlug);
+ 
   return Page.create({
     ...payload,
     slug,
@@ -102,17 +103,17 @@ export const updatePage = async (id, payload, userId) => {
   const page = await Page.findById(id);
   if (!page) return null;
 
-  const nextSlug =
+  const nextSlugRaw =
     payload.slug !== undefined || payload.title !== undefined
       ? buildSlugFromPayload({
           slug: payload.slug ?? page.slug,
           title: payload.title ?? page.title,
         })
       : page.slug;
-
-  if (nextSlug !== page.slug) {
-    await ensureUniqueSlug(nextSlug, id);
-    page.slug = nextSlug;
+ 
+  if (nextSlugRaw !== page.slug) {
+    const slug = await generateUniqueGlobalSlug(nextSlugRaw, id);
+    page.slug = slug;
   }
 
   [
