@@ -384,7 +384,7 @@ export default function OrderTable({
             onChange={(e) => setRowsPerPage(Number(e.target.value))}
             className="text-xs font-black text-slate-900 bg-transparent outline-none cursor-pointer"
           >
-            {[10, 25, 50].map((v) => (
+            {[20, 50, 100, 200, 500].map((v) => (
               <option key={v} value={v}>
                 {v}
               </option>

@@ -527,7 +527,7 @@ export default function CouponTable({ refreshStats }) {
             onChange={(e) => setRowsPerPage(Number(e.target.value))}
             className="bg-white border border-slate-200 text-xs font-bold text-slate-700 py-1 px-2 rounded-md outline-none cursor-pointer"
           >
-            {[5, 10, 20, 50].map((val) => (
+            {[20, 50, 100, 200, 500].map((val) => (
               <option key={val} value={val}>
                 {val}
               </option>

@@ -1023,7 +1023,7 @@ export default function AppointmentsPage() {
                   }}
                   className="bg-white border border-slate-200 text-xs font-bold text-slate-700 py-1 px-2 rounded-md outline-none cursor-pointer"
                 >
-                  {[10, 20, 50, 100].map((v) => (
+                  {[20, 50, 100, 200, 500].map((v) => (
                     <option key={v} value={v}>
                       {v}
                     </option>

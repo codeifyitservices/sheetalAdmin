@@ -18,14 +18,14 @@ import { getPaginationRange } from "@/utils/pagination";
 import { downloadCsvReport, downloadPdfReport } from "@/utils/reportExport";
 import { useDateRange } from "@/hooks/useDateRange";
 
-const LIMIT_OPTIONS = [5, 10, 25];
+const LIMIT_OPTIONS = [20, 50, 100, 200, 500];
 const SORT_OPTIONS = [
   { value: "units", label: "By Units Sold", icon: PackageCheck },
   { value: "revenue", label: "By Revenue", icon: IndianRupee },
 ];
 
 export default function BestSellingPage() {
-  const [limit, setLimit] = useState(10);
+  const [limit, setLimit] = useState(20);
   const [currentPage, setCurrentPage] = useState(1);
   const [sortBy, setSortBy] = useState("units");
 
@@ -83,11 +83,11 @@ export default function BestSellingPage() {
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
-    const limitFromUrl = parseInt(params.get("limit")) || 5;
+    const limitFromUrl = parseInt(params.get("limit")) || 20;
     const pageFromUrl = parseInt(params.get("page")) || 1;
     const sortFromUrl = params.get("sort") || "units";
 
-    setLimit(LIMIT_OPTIONS.includes(limitFromUrl) ? limitFromUrl : 10);
+    setLimit(LIMIT_OPTIONS.includes(limitFromUrl) ? limitFromUrl : 20);
     setCurrentPage(pageFromUrl);
     setSortBy(
       SORT_OPTIONS.some((option) => option.value === sortFromUrl)

@@ -18,10 +18,10 @@ import { getPaginationRange } from "@/utils/pagination";
 import { downloadCsvReport, downloadPdfReport } from "@/utils/reportExport";
 import { useDateRange } from "@/hooks/useDateRange";
 
-const LIMIT_OPTIONS = [5, 10, 25];
+const LIMIT_OPTIONS = [20, 50, 100, 200, 500];
 
 export default function MostViewedPage() {
-  const [limit, setLimit] = useState(10);
+  const [limit, setLimit] = useState(20);
   const [currentPage, setCurrentPage] = useState(1);
 
   const [allItems, setAllItems] = useState([]);
@@ -72,10 +72,10 @@ export default function MostViewedPage() {
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
-    const limitFromUrl = parseInt(params.get("limit")) || 10;
+    const limitFromUrl = parseInt(params.get("limit")) || 20;
     const pageFromUrl = parseInt(params.get("page")) || 1;
 
-    setLimit(LIMIT_OPTIONS.includes(limitFromUrl) ? limitFromUrl : 10);
+    setLimit(LIMIT_OPTIONS.includes(limitFromUrl) ? limitFromUrl : 20);
     setCurrentPage(pageFromUrl);
   }, []);
 

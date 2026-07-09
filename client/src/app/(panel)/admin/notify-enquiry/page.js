@@ -263,7 +263,7 @@ export default function EnquiriesPage() {
                 }}
                 className="bg-white border border-slate-200 text-xs font-bold text-slate-700 py-1 px-2 rounded-md outline-none cursor-pointer"
               >
-                {[10, 20, 50, 100].map((val) => (
+                {[20, 50, 100, 200, 500].map((val) => (
                   <option key={val} value={val}>
                     {val}
                   </option>

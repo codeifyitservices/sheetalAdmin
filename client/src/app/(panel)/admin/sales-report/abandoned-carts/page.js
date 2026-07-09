@@ -24,17 +24,17 @@ import { getCoupons } from "@/services/couponService";
 import { getPaginationRange } from "@/utils/pagination";
 import { useDateRange } from "@/hooks/useDateRange";
 
-const LIMIT_OPTIONS = [5, 10, 25];
+const LIMIT_OPTIONS = [20, 50, 100, 200, 500];
 
 export default function AbandonedCartsPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
 
-  const limitFromUrl = parseInt(searchParams.get("limit")) || 10;
+  const limitFromUrl = parseInt(searchParams.get("limit")) || 20;
   const pageFromUrl = parseInt(searchParams.get("page")) || 1;
 
   const [limit, setLimit] = useState(
-    LIMIT_OPTIONS.includes(limitFromUrl) ? limitFromUrl : 10,
+    LIMIT_OPTIONS.includes(limitFromUrl) ? limitFromUrl : 20,
   );
   const [currentPage, setCurrentPage] = useState(pageFromUrl);
   const [allCarts, setAllCarts] = useState([]);
