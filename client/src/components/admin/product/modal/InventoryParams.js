@@ -1,5 +1,6 @@
 import React, { useEffect, useRef, useState } from "react";
-import { Plus, Trash2, Layers, Shirt, X, Video } from "lucide-react";
+import { Plus, Trash2, Layers, Shirt, X, Video, ChevronDown } from "lucide-react";
+import { getColors } from "@/services/productService";
 import toast from "react-hot-toast";
 import {
   getRatioLabel,
@@ -55,6 +56,22 @@ export default function InventoryParams({
 }) {
   const [filePreviews, setFilePreviews] = useState(() => new Map());
   const previewsRef = useRef(filePreviews);
+
+  const [activeColorDropdown, setActiveColorDropdown] = useState(null);
+  const [colorSearch, setColorSearch] = useState("");
+  const [catalogColors, setCatalogColors] = useState([]);
+
+  useEffect(() => {
+    const fetchCatalog = async () => {
+      try {
+        const res = await getColors();
+        if (res.success) setCatalogColors(res.data || []);
+      } catch (err) {
+        console.error("Failed to fetch catalog colors", err);
+      }
+    };
+    fetchCatalog();
+  }, []);
 
   // Derive free-size flag once at component level so all variant rows share it
   const isFreeSize = isFreeSizeSelected(
@@ -207,13 +224,7 @@ export default function InventoryParams({
     }));
   };
 
-  const handleColorBlur = (variantIndex) => {
-    updateVariant(variantIndex, (v) => {
-      if (!v.color.name) return v;
-      const normalized = toTitleCase(v.color.name);
-      return { ...v, color: { ...v.color, name: normalized } };
-    });
-  };
+  // handleColorBlur removed in favor of color catalog select
 
   return (
     <div className="space-y-6 animate-in fade-in duration-300">
@@ -242,20 +253,9 @@ export default function InventoryParams({
         <div className="p-5 space-y-6">
           {formData.variants.map((v, i) => {
             const isDuplicateColor =
-              v.color?.name?.trim() !== "" &&
+              v.colorId &&
               formData.variants.some(
-                (other, idx) =>
-                  idx !== i &&
-                  toTitleCase(other.color?.name) === toTitleCase(v.color?.name),
-              );
-
-            const isDuplicateHex =
-              v.color?.code?.trim() !== "" &&
-              v.color?.code !== "#000000" &&
-              formData.variants.some(
-                (other, idx) =>
-                  idx !== i &&
-                  other.color?.code?.toLowerCase() === v.color?.code?.toLowerCase(),
+                (other, idx) => idx !== i && other.colorId === v.colorId
               );
 
             return (
@@ -278,7 +278,7 @@ export default function InventoryParams({
                 </button>
 
                 {/* SKU / Color / Image row */}
-                <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                   <div className="space-y-1">
                     <label className="text-[10px] font-bold text-slate-500 uppercase">
                       Variant SKU
@@ -297,66 +297,95 @@ export default function InventoryParams({
 
                   <div className="space-y-1">
                     <label className="text-[10px] font-bold text-slate-500 uppercase">
-                      Color Name
+                      Select Color
                     </label>
-                    <input
-                      className={`w-full border px-3 py-2 rounded-lg text-xs font-medium ${
-                        isDuplicateColor
-                          ? "bg-red-50 border-red-500 text-red-900 focus:ring-red-200"
-                          : "bg-white border-slate-300 focus:ring-slate-900"
-                      } outline-none transition-all`}
-                      placeholder="Red, Navy..."
-                      value={v.color?.name}
-                      onBlur={() => handleColorBlur(i)}
-                      onChange={(e) => {
-                        const up = [...formData.variants];
-                        up[i].color.name = e.target.value;
-                        setFormData({ ...formData, variants: up });
-                      }}
-                    />
-                    {isDuplicateColor && (
-                      <p className="text-[9px] font-bold text-red-500 mt-1 animate-in fade-in slide-in-from-top-1 duration-200">
-                        Color name already exists
-                      </p>
-                    )}
-                  </div>
+                    
+                    <div className="relative">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setActiveColorDropdown(activeColorDropdown === i ? null : i);
+                          setColorSearch("");
+                        }}
+                        className={`w-full flex items-center justify-between border px-3 py-2 rounded-lg text-xs font-medium outline-none transition-all ${
+                          isDuplicateColor
+                            ? "border-rose-500 bg-rose-50/50 text-rose-900"
+                            : "border-slate-300 bg-white text-slate-700 hover:border-slate-400 focus:border-slate-900 focus:ring-1 focus:ring-slate-900"
+                        }`}
+                      >
+                        {(() => {
+                          const selectedColorDoc = catalogColors.find(c => c._id === v.colorId);
+                          if (selectedColorDoc) {
+                            return (
+                              <div className="flex items-center gap-2">
+                                <span
+                                  className="w-3.5 h-3.5 rounded-full border border-slate-200 shadow-inner flex-shrink-0"
+                                  style={{ backgroundColor: selectedColorDoc.hex }}
+                                />
+                                <span>{selectedColorDoc.name}</span>
+                              </div>
+                            );
+                          }
+                          return <span className="text-slate-400">Choose a Color</span>;
+                        })()}
+                        <ChevronDown size={14} className="text-slate-400 flex-shrink-0 ml-1" />
+                      </button>
 
-                  <div className="space-y-1">
-                    <label className="text-[10px] font-bold text-slate-500 uppercase">
-                      Color Hex
-                    </label>
-                    <div className="flex flex-col gap-1">
-                      <div className="flex items-center gap-2">
-                        <input
-                          type="color"
-                          className="w-10 h-9 border-none bg-transparent cursor-pointer"
-                          value={v.color?.code}
-                          onChange={(e) => {
-                            const up = [...formData.variants];
-                            up[i].color.code = e.target.value;
-                            setFormData({ ...formData, variants: up });
-                          }}
-                        />
-                        <input
-                          className={`flex-1 border px-2 py-2 rounded-lg text-[10px] font-mono uppercase ${
-                            isDuplicateHex
-                              ? "bg-red-50 border-red-500 text-red-900 focus:ring-red-200"
-                              : "bg-white border-slate-300 focus:ring-slate-900"
-                          } outline-none transition-all`}
-                          value={v.color?.code}
-                          onChange={(e) => {
-                            const up = [...formData.variants];
-                            up[i].color.code = e.target.value;
-                            setFormData({ ...formData, variants: up });
-                          }}
-                        />
-                      </div>
-                      {isDuplicateHex && (
-                        <p className="text-[9px] font-bold text-red-500 animate-in fade-in slide-in-from-top-1 duration-200">
-                          Hex code already exists
-                        </p>
+                      {activeColorDropdown === i && (
+                        <div className="absolute left-0 right-0 mt-1 bg-white border border-slate-200 rounded-lg shadow-lg z-30 p-2 animate-in fade-in slide-in-from-top-1 duration-150">
+                          <input
+                            type="text"
+                            placeholder="Search colors..."
+                            value={colorSearch}
+                            onChange={(e) => setColorSearch(e.target.value)}
+                            className="w-full px-2.5 py-1.5 border border-slate-200 rounded-md text-xs mb-2 outline-none focus:border-indigo-500"
+                            autoFocus
+                          />
+                          <div className="max-h-40 overflow-y-auto space-y-0.5 custom-scrollbar">
+                            {catalogColors
+                              .filter((c) =>
+                                c.name.toLowerCase().includes(colorSearch.toLowerCase())
+                              )
+                              .map((c) => (
+                                <button
+                                  key={c._id}
+                                  type="button"
+                                  onClick={() => {
+                                    const up = [...formData.variants];
+                                    up[i].colorId = c._id;
+                                    setFormData({ ...formData, variants: up });
+                                    setActiveColorDropdown(null);
+                                  }}
+                                  className={`w-full flex items-center gap-2 px-2.5 py-1.5 rounded text-left text-xs transition-colors ${
+                                    v.colorId === c._id
+                                      ? "bg-indigo-50 text-indigo-700 font-bold"
+                                      : "text-slate-600 hover:bg-slate-50"
+                                  }`}
+                                >
+                                  <span
+                                    className="w-3 h-3 rounded-full border border-slate-200"
+                                    style={{ backgroundColor: c.hex }}
+                                  />
+                                  <span>{c.name}</span>
+                                </button>
+                              ))}
+                            {catalogColors.filter((c) =>
+                              c.name.toLowerCase().includes(colorSearch.toLowerCase())
+                            ).length === 0 && (
+                              <div className="text-[10px] text-slate-400 text-center py-2">
+                                No matching colors
+                              </div>
+                            )}
+                          </div>
+                        </div>
                       )}
                     </div>
+
+                    {isDuplicateColor && (
+                      <p className="text-[9px] font-bold text-red-500 mt-1 animate-in fade-in slide-in-from-top-1 duration-200">
+                        Duplicate color variant selected
+                      </p>
+                    )}
                   </div>
 
                 <div className="space-y-1">

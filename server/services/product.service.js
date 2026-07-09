@@ -1,5 +1,6 @@
 import Review from "../models/review.model.js";
 import Product from "../models/product.model.js";
+import Color from "../models/color.model.js";
 import Order from "../models/order.model.js";
 import ProductView from "../models/productView.model.js";
 import Category from "../models/category.model.js";
@@ -50,10 +51,9 @@ const deduplicateVariants = (variants) => {
   const variantMap = new Map();
 
   variants.forEach((v) => {
-    if (!v.color || !v.color.name) return;
+    if (!v.colorId) return;
 
-    const normalizedColor = toTitleCase(v.color.name);
-    v.color.name = normalizedColor;
+    const normalizedColor = v.colorId.toString();
 
     // Normalize sizes within this variant
     if (Array.isArray(v.sizes)) {
@@ -205,6 +205,7 @@ export const getAllProductsService = async (queryStr) => {
     subCategory,
     status,
     color,
+    colorId,
     brand,
     wearType,
     occasion,
@@ -280,8 +281,18 @@ export const getAllProductsService = async (queryStr) => {
     filter.status = status;
   }
 
-  if (color) {
-    filter["variants.color.name"] = { $regex: color, $options: "i" };
+  const filterColorId = colorId || (mongoose.Types.ObjectId.isValid(color) ? color : null);
+  if (filterColorId) {
+    filter["variants.colorId"] = new mongoose.Types.ObjectId(filterColorId);
+  } else if (color) {
+    const matchingColorDoc = await Color.findOne({
+      name: { $regex: new RegExp(`^${color.trim()}$`, "i") },
+    });
+    if (matchingColorDoc) {
+      filter["variants.colorId"] = matchingColorDoc._id;
+    } else {
+      filter["variants.colorId"] = new mongoose.Types.ObjectId();
+    }
   }
 
   if (wearType) {
@@ -493,6 +504,10 @@ export const getAllProductsService = async (queryStr) => {
               Number.MAX_SAFE_INTEGER),
         )
       : result.products;
+
+  // Populate colorId on the aggregated plain objects in-memory
+  await Product.populate(products, { path: "variants.colorId" });
+
   const totalProducts = result.totalProducts[0]?.count || 0;
 
   return {
@@ -509,6 +524,7 @@ export const getNewArrivalsService = async () => {
   const flagged = await Product.find({ isNewArrival: true, status: "Active" })
     .sort({ createdAt: -1 })
     .populate("category", "name slug")
+    .populate("variants.colorId")
     .lean();
 
   let products = flagged;
@@ -522,6 +538,7 @@ export const getNewArrivalsService = async () => {
       .sort({ createdAt: -1 })
       .limit(10 - flagged.length)
       .populate("category", "name slug")
+      .populate("variants.colorId")
       .lean();
 
     products = [...flagged, ...backfill];
@@ -544,6 +561,7 @@ export const getProductDetailsService = async (id) => {
       },
     })
     .populate("sizeChart")
+    .populate("variants.colorId")
     .lean();
 
   if (!product && !isObjectId) {
@@ -556,6 +574,7 @@ export const getProductDetailsService = async (id) => {
         },
       })
       .populate("sizeChart")
+      .populate("variants.colorId")
       .lean();
 
     if (product) {
@@ -690,6 +709,10 @@ export const createProductService = async (data, files, userId) => {
       ...(files?.["variantGalleryImages"] || []),
     ];
     const uploadedVariantVideoFiles = files?.["variantVideos"] || [];
+    const colorIds = parsedData.variants.map((v) => v.colorId).filter(Boolean);
+    const colorDocs = await Color.find({ _id: { $in: colorIds } }).lean();
+    const colorMap = new Map(colorDocs.map((c) => [c._id.toString(), c.name]));
+
     parsedData.variants = parsedData.variants.map((v) => {
       const processedSizes = v.sizes.map((s) => ({
         ...s,
@@ -705,10 +728,11 @@ export const createProductService = async (data, files, userId) => {
       );
       totalStock += variantStock;
 
+      const colorName = colorMap.get(v.colorId?.toString()) || "variant";
       const gallery = normaliseVariantGallery(
         v,
         uploadedVariantGalleryFiles,
-        `${parsedData.name} ${v.color?.name || "variant"} gallery`,
+        `${parsedData.name} ${colorName} gallery`,
       );
 
       if (v.hasNewImage === true && uploadedVariantFiles[variantFileIndex]) {
@@ -759,6 +783,7 @@ export const createProductService = async (data, files, userId) => {
   });
 
   await syncToIndex(product, "product");
+  await product.populate("variants.colorId");
 
   return { success: true, product: sanitizeProductRecord(product) };
 };
@@ -927,6 +952,10 @@ export const updateProductService = async (id, data, files) => {
     ];
     const uploadedVariantVideoFiles = files?.["variantVideos"] || [];
 
+    const colorIds = parsedData.variants.map((v) => v.colorId).filter(Boolean);
+    const colorDocs = await Color.find({ _id: { $in: colorIds } }).lean();
+    const colorMap = new Map(colorDocs.map((c) => [c._id.toString(), c.name]));
+
     parsedData.variants = parsedData.variants.map((v) => {
       const processedSizes = v.sizes.map((s) => ({
         ...s,
@@ -942,10 +971,11 @@ export const updateProductService = async (id, data, files) => {
       );
       totalStock += variantStock;
 
+      const colorName = colorMap.get(v.colorId?.toString()) || "variant";
       const gallery = normaliseVariantGallery(
         v,
         uploadedVariantGalleryFiles,
-        `${parsedData.name || product.name} ${v.color?.name || "variant"} gallery`,
+        `${parsedData.name || product.name} ${colorName} gallery`,
       );
 
       if (v.hasNewImage === true && uploadedVariantFiles[variantFileIndex]) {
@@ -1096,6 +1126,8 @@ export const updateProductService = async (id, data, files) => {
     console.error("Error processing back in stock notifications:", error);
   }
 
+  await updatedProduct.populate("variants.colorId");
+
   return { success: true, product: sanitizeProductRecord(updatedProduct) };
 };
 
@@ -1161,6 +1193,19 @@ export const getLowStockProductsService = async () => {
       },
     },
     { $unwind: "$variants" },
+    {
+      $lookup: {
+        from: "colors",
+        localField: "variants.colorId",
+        foreignField: "_id",
+        as: "colorDetails"
+      }
+    },
+    {
+      $addFields: {
+        "variants.color": { $arrayElemAt: ["$colorDetails", 0] }
+      }
+    },
     { $unwind: "$variants.sizes" },
     {
       $match: {
@@ -1591,6 +1636,24 @@ const bulkImportRowBasedService = async (files, userId) => {
 
       const hoverImage = await processImage(item.HoverImage);
       const variants = [...draft.variantMap.values()];
+
+      // Resolve colorIds for variants from Color catalog
+      for (const variant of variants) {
+        if (variant.color && variant.color.name) {
+          let colorDoc = await Color.findOne({
+            name: { $regex: new RegExp(`^${variant.color.name.trim()}$`, "i") }
+          });
+          if (!colorDoc) {
+            colorDoc = await Color.create({
+              name: variant.color.name.trim(),
+              hex: variant.color.code || "#000000"
+            });
+          }
+          variant.colorId = colorDoc._id;
+          delete variant.color;
+        }
+      }
+
       if (variants.length === 0) {
         errors.push(
           `Row ${rowIndex} (${name}): At least one variant row is required — row skipped`,
@@ -2408,6 +2471,7 @@ export const getTrendingProductsService = async () => {
   })
     .sort({ createdAt: -1 })
     .populate("category", "name slug")
+    .populate("variants.colorId")
     .lean();
 
   return { success: true, products: products.map(sanitizeProductRecord) };
@@ -2427,6 +2491,7 @@ export const fetchCollectionProducts = async () => {
   )
     .sort({ createdAt: -1 })
     .limit(10)
+    .populate("variants.colorId")
     .lean();
 
   return products.map((p) => {

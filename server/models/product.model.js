@@ -91,10 +91,10 @@ const productSchema = new mongoose.Schema(
     variants: [
       {
         v_sku: { type: String, uppercase: true, sparse: true },
-        color: {
-          name: { type: String },
-          code: { type: String },
-          swatchImage: { type: String },
+        colorId: {
+          type: mongoose.Schema.Types.ObjectId,
+          ref: "Color",
+          required: [true, "Color reference is required"],
         },
         sizes: [
           {

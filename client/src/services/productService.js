@@ -194,3 +194,36 @@ export const reorderSingleProduct = async (productIdOrIds, payload) => {
   });
   return handleResponse(res);
 };
+
+export const getColors = async () => {
+  const res = await fetch(`${API_BASE_URL}/colors`, { credentials: "include" });
+  return handleResponse(res);
+};
+
+export const createColor = async (colorData) => {
+  const res = await fetch(`${API_BASE_URL}/colors`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    credentials: "include",
+    body: JSON.stringify(colorData),
+  });
+  return handleResponse(res);
+};
+
+export const updateColor = async (id, colorData) => {
+  const res = await fetch(`${API_BASE_URL}/colors/${id}`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    credentials: "include",
+    body: JSON.stringify(colorData),
+  });
+  return handleResponse(res);
+};
+
+export const deleteColor = async (id) => {
+  const res = await fetch(`${API_BASE_URL}/colors/${id}`, {
+    method: "DELETE",
+    credentials: "include",
+  });
+  return handleResponse(res);
+};
