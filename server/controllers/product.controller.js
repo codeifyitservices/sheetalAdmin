@@ -419,3 +419,20 @@ export const generateSchema = async (req, res, next) => {
     next(error);
   }
 };
+
+export const reorderSingleProduct = async (req, res, next) => {
+  try {
+    const { productId, productIds, targetProductId, newPosition } = req.body;
+    if (!productId && (!productIds || productIds.length === 0)) {
+      return res.status(400).json({ success: false, message: "productId or productIds is required" });
+    }
+    const idOrIds = productIds || productId;
+    const result = await productService.reorderSingleProductService(idOrIds, { targetProductId, newPosition });
+    if (!result.success) {
+      return res.status(result.statusCode || 500).json(result);
+    }
+    return successResponse(res, 200, null, result.message);
+  } catch (error) {
+    next(error);
+  }
+};

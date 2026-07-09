@@ -177,3 +177,20 @@ export const reorderProducts = async (orderedIds) => {
   });
   return handleResponse(res);
 };
+
+export const reorderSingleProduct = async (productIdOrIds, payload) => {
+  const body = { ...payload };
+  if (Array.isArray(productIdOrIds)) {
+    body.productIds = productIdOrIds;
+  } else {
+    body.productId = productIdOrIds;
+  }
+
+  const res = await fetch(`${API_BASE_URL}/products/admin/reorder`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    credentials: "include",
+    body: JSON.stringify(body),
+  });
+  return handleResponse(res);
+};

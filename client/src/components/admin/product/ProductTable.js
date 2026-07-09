@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import {
   Edit3,
   Trash2,
@@ -17,6 +17,8 @@ import {
   X,
   Star,
   GripVertical,
+  MoreHorizontal,
+  Move,
 } from "lucide-react";
 import toast from "react-hot-toast";
 import {
@@ -41,6 +43,7 @@ import ViewProductDrawer from "./ViewProductDrawer";
 import DeleteConfirmModal from "../common/DeleteConfirmModal";
 import SettingsModal from "./SettingsModal";
 import BulkImportModal from "./BulkImportModal";
+import MoveProductModal from "./MoveProductModal";
 
 import {
   getProducts,
@@ -50,6 +53,48 @@ import {
 } from "@/services/productService";
 import { getCategories } from "@/services/categoryService";
 import { useProductModal } from "@/hooks/useProductModal";
+
+function RowActionsDropdown({ product, onMoveTo }) {
+  const [open, setOpen] = useState(false);
+  const containerRef = useRef(null);
+
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (containerRef.current && !containerRef.current.contains(event.target)) {
+        setOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
+
+  return (
+    <div className="relative inline-block text-left" ref={containerRef}>
+      <button
+        onClick={() => setOpen((prev) => !prev)}
+        className="p-1.5 hover:bg-slate-100 rounded-lg text-slate-400 hover:text-slate-700 transition cursor-pointer"
+        title="More Actions"
+      >
+        <MoreHorizontal size={18} />
+      </button>
+
+      {open && (
+        <div className="absolute right-0 mt-1 w-32 rounded-xl border border-slate-200 bg-white p-1.5 shadow-lg z-30 text-left font-montserrat">
+          <button
+            type="button"
+            onClick={() => {
+              setOpen(false);
+              onMoveTo(product);
+            }}
+            className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-xs font-bold text-slate-700 hover:bg-slate-50 transition-colors cursor-pointer"
+          >
+            Move To...
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}
 
 function SortableProductRow({
   product,
@@ -68,6 +113,7 @@ function SortableProductRow({
   i,
   currentPage,
   rowsPerPage,
+  onMoveTo,
 }) {
   const { attributes, listeners, setNodeRef, transform, transition } =
     useSortable({ id: product._id });
@@ -244,6 +290,8 @@ function SortableProductRow({
           >
             <Trash2 size={18} />
           </button>
+
+          <RowActionsDropdown product={product} onMoveTo={onMoveTo} />
         </div>
       </td>
     </tr>
@@ -279,6 +327,9 @@ export default function ProductTable({ refreshStats }) {
   const [isReorderMode, setIsReorderMode] = useState(false);
   const [starringId, setStarringId] = useState(null);
   const [bulkStarring, setBulkStarring] = useState(false);
+  const [activeMoveProduct, setActiveMoveProduct] = useState(null);
+  const [activeMoveProducts, setActiveMoveProducts] = useState([]);
+  const [showMoveModal, setShowMoveModal] = useState(false);
 
   // ── Drag and Drop state ──
   const sensors = useSensors(
@@ -600,6 +651,19 @@ export default function ProductTable({ refreshStats }) {
             </button>
 
             <button
+              onClick={() => {
+                const selectedProducts = products.filter((p) => selectedIds.has(p._id));
+                setActiveMoveProducts(selectedProducts);
+                setActiveMoveProduct(null);
+                setShowMoveModal(true);
+              }}
+              className="px-3 cursor-pointer py-1.5 text-xs font-bold bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg flex items-center gap-1.5 transition-colors"
+            >
+              <Move size={13} />
+              Move {selectedIds.size}
+            </button>
+
+            <button
               onClick={() => setShowBulkDeleteModal(true)}
               className="px-3 cursor-pointer py-1.5 text-xs font-bold bg-rose-600 hover:bg-rose-500 text-white rounded-lg flex items-center gap-1.5 transition-colors"
             >
@@ -769,6 +833,11 @@ export default function ProductTable({ refreshStats }) {
                       i={i}
                       currentPage={currentPage}
                       rowsPerPage={rowsPerPage}
+                      onMoveTo={(p) => {
+                        setActiveMoveProduct(p);
+                        setActiveMoveProducts([]);
+                        setShowMoveModal(true);
+                      }}
                     />
                   ))
                 ) : (
@@ -900,6 +969,21 @@ export default function ProductTable({ refreshStats }) {
         isOpen={showBulkImportModal}
         onClose={() => setShowBulkImportModal(false)}
         onSuccess={fetchProducts}
+      />
+      <MoveProductModal
+        isOpen={showMoveModal}
+        onClose={() => {
+          setShowMoveModal(false);
+          setActiveMoveProduct(null);
+          setActiveMoveProducts([]);
+        }}
+        product={activeMoveProduct}
+        products={activeMoveProducts}
+        totalProducts={totalProducts}
+        onSuccess={() => {
+          fetchProducts();
+          setSelectedIds(new Set());
+        }}
       />
     </div>
   );

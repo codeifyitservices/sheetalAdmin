@@ -2482,3 +2482,61 @@ export const reorderProductsService = async (orderedIds) => {
     };
   }
 };
+
+export const reorderSingleProductService = async (productIdOrIds, { targetProductId, newPosition }) => {
+  try {
+    const productIds = Array.isArray(productIdOrIds) ? productIdOrIds : [productIdOrIds];
+    const productIdStrings = productIds.map(id => id.toString());
+
+    const products = await Product.find({}, { _id: 1 })
+      .sort({ isStarred: -1, sortOrder: 1, createdAt: -1 })
+      .lean();
+
+    const movedProducts = [];
+    const remainingProducts = [];
+    for (const p of products) {
+      if (productIdStrings.includes(p._id.toString())) {
+        movedProducts.push(p);
+      } else {
+        remainingProducts.push(p);
+      }
+    }
+
+    if (movedProducts.length === 0) {
+      return { success: false, statusCode: 404, message: "No matching products found to reorder" };
+    }
+
+    if (targetProductId) {
+      const targetIndex = remainingProducts.findIndex((p) => p._id.toString() === targetProductId.toString());
+      if (targetIndex === -1) {
+        return { success: false, statusCode: 404, message: "Target product not found" };
+      }
+      remainingProducts.splice(targetIndex, 0, ...movedProducts);
+    } else if (typeof newPosition === "number") {
+      const targetIndex = Math.max(0, Math.min(newPosition - 1, remainingProducts.length));
+      remainingProducts.splice(targetIndex, 0, ...movedProducts);
+    } else {
+      return { success: false, statusCode: 400, message: "Either targetProductId or newPosition is required" };
+    }
+
+    const bulkOps = remainingProducts.map((p, index) => ({
+      updateOne: {
+        filter: { _id: p._id },
+        update: { $set: { sortOrder: index + 1 } },
+      },
+    }));
+
+    if (bulkOps.length > 0) {
+      await Product.bulkWrite(bulkOps);
+    }
+
+    return { success: true, message: "Products reordered successfully." };
+  } catch (error) {
+    console.error("Error in reorderSingleProductService:", error);
+    return {
+      success: false,
+      statusCode: 500,
+      message: "An error occurred while reordering the products.",
+    };
+  }
+};
