@@ -120,7 +120,7 @@ export default function ProductModal({
 
   const createEmptyVariant = () => ({
     v_sku: "",
-    color: { name: "", code: "#000000", swatchImage: "" },
+    colorId: "",
     sizes: getDefaultVariantSizes(),
     v_image: "",
     videoFile: null,
@@ -136,6 +136,7 @@ export default function ProductModal({
         const variants = Array.isArray(initialData.variants)
           ? initialData.variants.map((v) => ({
               ...v,
+              colorId: v.colorId?._id || v.colorId || "",
               sizes: Array.isArray(v.sizes) ? v.sizes : [],
               gallery: Array.isArray(v.gallery) ? v.gallery : [],
               v_video: v.v_video || "",
@@ -334,22 +335,16 @@ export default function ProductModal({
     // ── Final Duplicate Validation ──
     const colors = new Set();
     for (const v of formData.variants) {
-      if (!v.color?.name?.trim()) {
-        toast.error("All variants must have a color name.");
+      if (!v.colorId) {
+        toast.error("All variants must have a selected color.");
         return;
       }
-      const normalizedColor = v.color.name
-        .trim()
-        .toLowerCase()
-        .split(" ")
-        .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
-        .join(" ");
 
-      if (colors.has(normalizedColor)) {
-        toast.error(`Duplicate variant color: "${normalizedColor}"`);
+      if (colors.has(v.colorId)) {
+        toast.error("Duplicate color selected across variants.");
         return;
       }
-      colors.add(normalizedColor);
+      colors.add(v.colorId);
 
       // Size check
       const sizes = new Set();
@@ -477,16 +472,18 @@ export default function ProductModal({
 
         if (v.v_image instanceof File) {
           data.append("variantImages", v.v_image);
+          const { color, ...rest } = v;
           return {
-            ...v,
+            ...rest,
             hasNewImage: true,
             hasNewVideo,
             v_video: cleanedVideo,
             gallery: cleanedGallery,
           };
         }
+        const { color, ...rest } = v;
         return {
-          ...v,
+          ...rest,
           hasNewImage: false,
           hasNewVideo,
           v_video: cleanedVideo,

@@ -7,6 +7,7 @@ import {
   X,
   ShoppingCart,
   ListTree,
+  Palette,
   Star,
   TicketPercent,
   Monitor,
@@ -45,6 +46,7 @@ export default function Sidebar({ storeName = "Admin", isOpen, setIsOpen }) {
   const menuItems = [
     { icon: LayoutDashboard, label: "Overview", href: "/admin" },
     { icon: ListTree, label: "Categories", href: "/admin/categories" },
+    { icon: Palette, label: "Colors", href: "/admin/colors" },
     { icon: ShoppingBag, label: "Products", href: "/admin/products" },
     { icon: Users, label: "Customers", href: "/admin/customers" },
     { icon: TicketPercent, label: "Coupons", href: "/admin/coupons" },

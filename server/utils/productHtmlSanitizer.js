@@ -98,9 +98,25 @@ export const sanitizeProductHtml = (value = "") => {
 export const sanitizeProductRecord = (product) => {
   if (!product || typeof product !== "object") return product;
 
+  // Handle mongoose document vs plain object
+  const raw = product.toObject ? product.toObject() : JSON.parse(JSON.stringify(product));
+
+  if (raw.variants) {
+    raw.variants = raw.variants.map((v) => {
+      if (v.colorId && typeof v.colorId === "object") {
+        v.color = {
+          name: v.colorId.name || "",
+          code: v.colorId.code || v.colorId.hex || "#000000",
+          hex: v.colorId.hex || v.colorId.code || "#000000",
+        };
+      }
+      return v;
+    });
+  }
+
   return {
-    ...product,
-    description: sanitizeProductHtml(product.description || ""),
-    materialCare: sanitizeProductHtml(product.materialCare || ""),
+    ...raw,
+    description: sanitizeProductHtml(raw.description || ""),
+    materialCare: sanitizeProductHtml(raw.materialCare || ""),
   };
 };
