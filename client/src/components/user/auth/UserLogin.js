@@ -25,8 +25,11 @@ const UserLogin = () => {
     try {
       const data = await userLogin({ email, password });
 
-      // Set token in cookie for middleware access
-      document.cookie = `token=${data.data.token}; path=/; max-age=86400; SameSite=Lax; Secure`;
+      const isSecure = typeof window !== "undefined" && window.location.protocol === "https:";
+      document.cookie = `token=${data.data.token}; path=/; max-age=86400; SameSite=Lax${isSecure ? "; Secure" : ""}`;
+      if (typeof window !== "undefined") {
+        localStorage.setItem("token", data.data.token);
+      }
 
       dispatch(
         setCredentials({

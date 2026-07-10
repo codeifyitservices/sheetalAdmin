@@ -34,7 +34,11 @@ export const getAuthStatus = async () => {
   });
 
   const data = await res.json();
-  if (!res.ok) throw new Error(data.message || "Auth status check failed");
+  if (!res.ok) {
+    const err = new Error(data.message || "Auth status check failed");
+    err.status = res.status; // carry HTTP status so callers can distinguish 401/403 from network errors
+    throw err;
+  }
   return data;
 };
 

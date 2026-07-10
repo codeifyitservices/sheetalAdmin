@@ -4,7 +4,7 @@ import morgan from "morgan";
 import cookieParser from "cookie-parser";
 import helmet from "helmet";
 
-import rateLimit from "express-rate-limit";
+
 import path from "path";
 import fs from "fs";
 import logger from "./utils/logger.js";
@@ -66,9 +66,14 @@ const localOrigins = [
   "http://192.168.0.141:3000",
   "http://192.168.0.227:4000",
   "https://sheetal-admin.vercel.app",
+  "https://www.sheetal-admin.vercel.app",
+  "https://sheetal-omega.vercel.app",
+  "https://www.sheetal-omega.vercel.app",
+  "https://sheetal-admin-mu.vercel.app",
+  "https://sheetal-blue.vercel.app",
 ].map(normalizeOrigin);
 
-const allowedOrigins = new Set([...localOrigins, ...configuredOrigins]);
+const allowedOriginsSet = new Set([...localOrigins, ...configuredOrigins]);
 
 const logDir = "logs";
 if (!fs.existsSync(logDir)) {
@@ -78,39 +83,12 @@ if (!fs.existsSync(logDir)) {
 app.use(helmet({ crossOriginResourcePolicy: false }));
 app.use(sanitizeBody);
 
-const authLimiter = rateLimit({
-  windowMs: 60 * 60 * 1000,
-  max: 15,
-  message: {
-    success: false,
-    message: "Auth limit reached. Try after an hour.",
-  },
-});
-
-app.use("/api/v1/auth", authLimiter);
-
 app.use(
   cors({
     origin: (origin, callback) => {
-      const allowedOrigins = [
-        "http://localhost:3000",
-        "http://localhost:4000",
-        "http://localhost:3001",
-        "http://localhost:3002",
-        "http://192.168.0.227:3000",
-        "http://192.168.1.10:3000",
-        "http://192.168.0.141:3000",
-        "http://192.168.0.227:4000",
-        "https://sheetal-admin.vercel.app",
-        "https://www.sheetal-admin.vercel.app",
-        "https://sheetal-omega.vercel.app",
-        "https://www.sheetal-omega.vercel.app",
-        "https://sheetal-admin-mu.vercel.app",
-        "https://sheetal-blue.vercel.app",
-      ];
       if (
         !origin ||
-        allowedOrigins.includes(origin) ||
+        allowedOriginsSet.has(origin) ||
         origin.endsWith(".vercel.app")
       ) {
         callback(null, true);
@@ -128,6 +106,8 @@ app.use(
     ],
   }),
 );
+
+
 
 const logStream = fs.createWriteStream(
   path.join(process.cwd(), "logs/access.log"),

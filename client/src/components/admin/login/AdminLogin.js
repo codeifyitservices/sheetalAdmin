@@ -28,15 +28,19 @@ export default function AdminLogin() {
           router.push("/admin");
         }
       } catch (err) {
-        // Safe cookie cleanup for expired/invalid cookies
-        document.cookie = "token=; path=/; max-age=0";
-        document.cookie = "token=; path=/; max-age=0; SameSite=None; Secure";
-        document.cookie = "token=; path=/; max-age=0; SameSite=Lax; Secure";
+        // Only clear token if the server explicitly rejected it (401/403)
+        // Don't wipe localStorage on a generic network error — user may still be valid
+        const status = err?.status || err?.response?.status;
+        if (status === 401 || status === 403) {
+          document.cookie = "token=; path=/; max-age=0";
+          if (typeof window !== "undefined") localStorage.removeItem("token");
+        }
       }
     };
 
     checkExistingAuth();
   }, [dispatch, router]);
+
   const handleLogin = async (e) => {
     e.preventDefault();
     setLoading(true);
@@ -44,8 +48,16 @@ export default function AdminLogin() {
     try {
       const data = await adminLogin({ email, password });
 
-      // Set token in cookie for middleware access
-      document.cookie = `token=${data.data.token}; path=/; max-age=86400; SameSite=None; Secure`;
+      if (!data?.data?.token || !data?.data?.user) {
+        throw new Error("Unexpected response from server. Please try again.");
+      }
+
+      // Set token in cookie — 7 days, no Secure flag on HTTP (localhost)
+      const isSecure = typeof window !== "undefined" && window.location.protocol === "https:";
+      document.cookie = `token=${data.data.token}; path=/; max-age=604800; SameSite=Lax${isSecure ? "; Secure" : ""}`;
+      if (typeof window !== "undefined") {
+        localStorage.setItem("token", data.data.token);
+      }
 
       dispatch(
         setCredentials({

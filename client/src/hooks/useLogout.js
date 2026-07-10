@@ -12,15 +12,15 @@ export default function useLogout() {
   const handleLogout = async () => {
     try {
       await adminLogout();
-      // Clear client-side cookie
-      document.cookie = "token=; path=/; max-age=0";
-      document.cookie = "token=; path=/; max-age=0; SameSite=None; Secure";
-      document.cookie = "token=; path=/; max-age=0; SameSite=Lax; Secure";
-      dispatch(logout());
       toast.success("Logged out successfully");
-      router.push("/admin/login");
     } catch (err) {
-      toast.error(err.message || "Failed to logout");
+      // Server logout failed — still proceed with local cleanup
+      console.error("Logout API error:", err);
+    } finally {
+      document.cookie = "token=; path=/; max-age=0";
+      if (typeof window !== "undefined") localStorage.removeItem("token");
+      dispatch(logout());
+      router.push("/admin/login");
     }
   };
 

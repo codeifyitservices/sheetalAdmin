@@ -2,8 +2,7 @@
 import { useState, useEffect } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { useDispatch } from "react-redux";
-import { logout, setCredentials } from "@/store/slices/authSlice";
-import { getAuthStatus } from "@/services/authService";
+import { logout } from "@/store/slices/authSlice";
 import Sidebar from "@/components/admin/layout/Sidebar";
 import TopNav from "@/components/admin/layout/TopNav";
 import useLogoutModal from "@/hooks/useLogoutModal";
@@ -50,34 +49,7 @@ export default function AdminLayout({ children }) {
     };
   }, [dispatch, router]);
 
-  useEffect(() => {
-    if (isLoginPage) return;
 
-    const checkToken = async () => {
-      try {
-        const data = await getAuthStatus();
-        if (!data.user || data.user.role?.toLowerCase() !== "admin") {
-          // Clear cookie for both HTTP (localhost) and HTTPS (production)
-          document.cookie = "token=; path=/; max-age=0";
-          document.cookie = "token=; path=/; max-age=0; SameSite=None; Secure";
-          document.cookie = "token=; path=/; max-age=0; SameSite=Lax; Secure";
-          dispatch(logout());
-          router.push("/admin/login");
-        } else {
-          dispatch(setCredentials({ user: data.user }));
-        }
-      } catch (err) {
-        // Clear cookie for both HTTP (localhost) and HTTPS (production)
-        document.cookie = "token=; path=/; max-age=0";
-        document.cookie = "token=; path=/; max-age=0; SameSite=None; Secure";
-        document.cookie = "token=; path=/; max-age=0; SameSite=Lax; Secure";
-        dispatch(logout());
-        router.push("/admin/login");
-      }
-    };
-
-    checkToken();
-  }, []);  // Run once on mount only — middleware handles per-route protection
 
   if (!mounted) {
     return <div className="h-screen bg-[#fcfcfd]" />;

@@ -3,7 +3,7 @@ import successResponse from "../utils/successResponse.js";
 import { config } from "../config/config.js";
 
 const cookieOptions = {
-  expires: new Date(Date.now() + 24 * 60 * 60 * 1000),
+  expires: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000), // 7 days — matches JWT_EXPIRE
   httpOnly: true,
   secure: config.nodeEnv === "production",
   sameSite: config.nodeEnv === "production" ? "none" : "lax",
