@@ -23,6 +23,34 @@ export default function AdminLayout({ children }) {
   }, []);
 
   useEffect(() => {
+    // Intercept global fetch calls to catch 401 (Unauthorized) errors from expired tokens
+    const originalFetch = window.fetch;
+    window.fetch = async (...args) => {
+      const response = await originalFetch(...args);
+      if (response.status === 401) {
+        const url = typeof args[0] === "string" ? args[0] : args[0]?.url || "";
+        if (
+          !url.includes("/auth/status") &&
+          !url.includes("/auth/login") &&
+          !window.location.pathname.includes("/admin/login")
+        ) {
+          // Clear all cookie variants
+          document.cookie = "token=; path=/; max-age=0";
+          document.cookie = "token=; path=/; max-age=0; SameSite=None; Secure";
+          document.cookie = "token=; path=/; max-age=0; SameSite=Lax; Secure";
+          dispatch(logout());
+          router.push("/admin/login");
+        }
+      }
+      return response;
+    };
+
+    return () => {
+      window.fetch = originalFetch;
+    };
+  }, [dispatch, router]);
+
+  useEffect(() => {
     if (isLoginPage) return;
 
     const checkToken = async () => {
@@ -32,6 +60,7 @@ export default function AdminLayout({ children }) {
           // Clear cookie for both HTTP (localhost) and HTTPS (production)
           document.cookie = "token=; path=/; max-age=0";
           document.cookie = "token=; path=/; max-age=0; SameSite=None; Secure";
+          document.cookie = "token=; path=/; max-age=0; SameSite=Lax; Secure";
           dispatch(logout());
           router.push("/admin/login");
         } else {
@@ -41,6 +70,7 @@ export default function AdminLayout({ children }) {
         // Clear cookie for both HTTP (localhost) and HTTPS (production)
         document.cookie = "token=; path=/; max-age=0";
         document.cookie = "token=; path=/; max-age=0; SameSite=None; Secure";
+        document.cookie = "token=; path=/; max-age=0; SameSite=Lax; Secure";
         dispatch(logout());
         router.push("/admin/login");
       }

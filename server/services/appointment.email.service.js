@@ -1,5 +1,6 @@
 import sendEmail from "../utils/sendEmail.js";
 import Settings from "../models/settings.model.js";
+import logger from "../utils/logger.js";
 
 export const sendAppointmentConfirmationEmail = async (appointment) => {
   try {
@@ -48,7 +49,7 @@ export const sendAppointmentConfirmationEmail = async (appointment) => {
 
     return { success: true };
   } catch (error) {
-    console.error("Error sending appointment confirmation email:", error);
+    logger.error("Error sending appointment confirmation email:", { error: error.message, stack: error.stack });
     return { success: false, error: error.message };
   }
 };

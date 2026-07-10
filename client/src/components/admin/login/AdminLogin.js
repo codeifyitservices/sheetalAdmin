@@ -1,8 +1,8 @@
 "use client";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useDispatch } from "react-redux";
 import { setCredentials, setError } from "@/store/slices/authSlice";
-import { adminLogin } from "@/services/authService";
+import { adminLogin, getAuthStatus } from "@/services/authService";
 import { Lock, Mail, Eye, EyeOff, Loader2 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import toast from "react-hot-toast";
@@ -18,6 +18,25 @@ export default function AdminLogin() {
 
   const dispatch = useDispatch();
   const router = useRouter();
+
+  useEffect(() => {
+    const checkExistingAuth = async () => {
+      try {
+        const data = await getAuthStatus();
+        if (data?.user && data.user.role?.toLowerCase() === "admin") {
+          dispatch(setCredentials({ user: data.user }));
+          router.push("/admin");
+        }
+      } catch (err) {
+        // Safe cookie cleanup for expired/invalid cookies
+        document.cookie = "token=; path=/; max-age=0";
+        document.cookie = "token=; path=/; max-age=0; SameSite=None; Secure";
+        document.cookie = "token=; path=/; max-age=0; SameSite=Lax; Secure";
+      }
+    };
+
+    checkExistingAuth();
+  }, [dispatch, router]);
   const handleLogin = async (e) => {
     e.preventDefault();
     setLoading(true);

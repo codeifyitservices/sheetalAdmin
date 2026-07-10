@@ -27,6 +27,8 @@ export default function useLogoutModal() {
       // Continue with local logout anyway
     } finally {
       document.cookie = "token=; path=/; max-age=0";
+      document.cookie = "token=; path=/; max-age=0; SameSite=None; Secure";
+      document.cookie = "token=; path=/; max-age=0; SameSite=Lax; Secure";
       dispatch(logout());
       router.push("/admin/login");
       closeModal();

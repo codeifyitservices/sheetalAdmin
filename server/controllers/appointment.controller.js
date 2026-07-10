@@ -159,22 +159,39 @@ export const updateStatus = async (req, res, next) => {
       updateData.appointmentTime = appointmentTime;
     }
 
-    const appointment = await Appointment.findByIdAndUpdate(
-      req.params.id,
-      updateData,
-      { new: true },
-    );
-
-    if (!appointment)
+    const appointmentDoc = await Appointment.findById(req.params.id);
+    if (!appointmentDoc) {
       return res
         .status(404)
         .json({ success: false, message: "Appointment not found" });
-
-    if (status === "confirmed") {
-      await sendAppointmentConfirmationEmail(appointment);
     }
 
-    res.status(200).json({ success: true, appointment });
+    if (status === "confirmed") {
+      // Simulate the updated appointment data for the email template
+      const emailAppointment = {
+        ...appointmentDoc.toObject(),
+        appointmentDate: updateData.appointmentDate,
+        appointmentTime: updateData.appointmentTime,
+      };
+
+      const emailResult = await sendAppointmentConfirmationEmail(emailAppointment);
+      if (!emailResult.success) {
+        return res.status(500).json({
+          success: false,
+          message: `Email delivery failed: ${emailResult.error}. Appointment confirmation aborted.`,
+        });
+      }
+    }
+
+    // Update and save status in the database now that the email has been sent successfully
+    appointmentDoc.status = status;
+    if (status === "confirmed") {
+      appointmentDoc.appointmentDate = updateData.appointmentDate;
+      appointmentDoc.appointmentTime = updateData.appointmentTime;
+    }
+    await appointmentDoc.save();
+
+    res.status(200).json({ success: true, appointment: appointmentDoc });
   } catch (error) {
     next(error);
   }

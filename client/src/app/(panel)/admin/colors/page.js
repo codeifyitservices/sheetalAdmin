@@ -136,21 +136,8 @@ export default function ColorsPage() {
           count={colors.length}
           icon={<Palette size={20} className="text-indigo-600" />}
         />
-        <AdminStatCard
-          title="Custom Hues"
-          count={colors.filter(c => c.hex !== "#000000").length}
-          icon={<Palette size={20} className="text-emerald-600" />}
-        />
-        <AdminStatCard
-          title="Standard Black"
-          count={colors.filter(c => c.name.toLowerCase() === "black").length}
-          icon={<Palette size={20} className="text-slate-800" />}
-        />
-      </div>
-
-      {/* Toolbar */}
-      <div className="flex flex-col sm:flex-row gap-4 justify-between items-center mb-6 bg-white p-4 rounded-xl border border-slate-200/80 shadow-sm">
-        <div className="relative w-full sm:w-80">
+        <div className="flex flex-col sm:flex-row gap-4 justify-between items-center mb-6 h-full bg-white p-4 rounded-xl border border-slate-200/80 shadow-sm col-span-2 ">
+        <div className="relative w-full sm:w-100">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={17} />
           <input
             type="text"
@@ -169,6 +156,9 @@ export default function ColorsPage() {
           Add Color
         </button>
       </div>
+      </div>
+
+
 
       {/* Main Catalog View */}
       {loading ? (

@@ -1,11 +1,12 @@
 import * as authService from "../services/auth.service.js";
 import successResponse from "../utils/successResponse.js";
+import { config } from "../config/config.js";
 
 const cookieOptions = {
   expires: new Date(Date.now() + 24 * 60 * 60 * 1000),
   httpOnly: true,
-  secure: true,
-  sameSite: "none",
+  secure: config.nodeEnv === "production",
+  sameSite: config.nodeEnv === "production" ? "none" : "lax",
   path: "/",
 };
 
@@ -53,7 +54,12 @@ export const getAuthStatus = (req, res) => {
 
 // logout
 export const logout = (req, res) => {
-  res.cookie("token", "", { ...cookieOptions, expires: new Date(0) });
+  res.clearCookie("token", {
+    httpOnly: true,
+    secure: config.nodeEnv === "production",
+    sameSite: config.nodeEnv === "production" ? "none" : "lax",
+    path: "/",
+  });
   return successResponse(res, 200, undefined, "Logged out successfully");
 };
 

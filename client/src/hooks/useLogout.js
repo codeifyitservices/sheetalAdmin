@@ -14,6 +14,8 @@ export default function useLogout() {
       await adminLogout();
       // Clear client-side cookie
       document.cookie = "token=; path=/; max-age=0";
+      document.cookie = "token=; path=/; max-age=0; SameSite=None; Secure";
+      document.cookie = "token=; path=/; max-age=0; SameSite=Lax; Secure";
       dispatch(logout());
       toast.success("Logged out successfully");
       router.push("/admin/login");
