@@ -39,13 +39,24 @@ export default function AuthInitializer({ children }) {
     dispatch(initializeAuth()).then((result) => {
       if (initializeAuth.rejected.match(result)) {
         const reason = result.payload;
-        // "No token" means the user was never logged in — nothing to clear
-        // Any other rejection means the token exists but is invalid/expired
-        if (reason !== "No token") {
+
+        // "No token" = user was never logged in. Nothing to clear.
+        if (reason === "No token") return;
+
+        // Only wipe the token if the SERVER explicitly rejected it (401/403).
+        // Do NOT clear on network errors, timeouts, or server cold-starts
+        // (e.g. Render free tier sleeping) — those are transient and the token is still valid.
+        const isServerRejection =
+          typeof reason === "string" &&
+          (reason.toLowerCase().includes("invalid") ||
+            reason.toLowerCase().includes("expired") ||
+            reason.toLowerCase().includes("unauthorized") ||
+            reason.toLowerCase().includes("login required"));
+
+        if (isServerRejection) {
           if (typeof window !== "undefined") {
             localStorage.removeItem("token");
           }
-          // Clear the cookie so middleware stops seeing the stale token
           document.cookie = "token=; path=/; max-age=0";
         }
       }

@@ -63,9 +63,42 @@ const authSlice = createSlice({
         state.isAuthenticated = true;
         state.loading = false;
       })
-      .addCase(initializeAuth.rejected, (state) => {
-        state.user = null;
-        state.isAuthenticated = false;
+      .addCase(initializeAuth.rejected, (state, action) => {
+        const reason = action.payload;
+
+        // "No token" = genuinely not logged in
+        if (reason === "No token") {
+          state.user = null;
+          state.isAuthenticated = false;
+          state.loading = false;
+          return;
+        }
+
+        // Server explicitly rejected the token (invalid/expired message)
+        const isServerRejection =
+          typeof reason === "string" &&
+          (reason.toLowerCase().includes("invalid") ||
+            reason.toLowerCase().includes("expired") ||
+            reason.toLowerCase().includes("unauthorized") ||
+            reason.toLowerCase().includes("login required"));
+
+        if (isServerRejection) {
+          // Token is bad — log the user out
+          state.user = null;
+          state.isAuthenticated = false;
+        } else {
+          // Network error / server timeout / cold start — token may still be valid.
+          // Keep user authenticated using stored token so they don't get kicked out.
+          const token = typeof window !== "undefined" ? localStorage.getItem("token") : null;
+          if (token) {
+            state.isAuthenticated = true;
+            // user details unknown until next successful check, but keep them in
+          } else {
+            state.user = null;
+            state.isAuthenticated = false;
+          }
+        }
+
         state.loading = false;
       });
   },
