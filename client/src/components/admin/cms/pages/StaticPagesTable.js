@@ -34,7 +34,7 @@ export default function StaticPagesTable({ pages, loading, onEdit, onDelete }) {
                 </td>
                 <td className="px-4 py-4">
                   <a
-                    href={`/${page.slug}`}
+                    href={`https://sheetal-blue.vercel.app/${page.slug}`}
                     target="_blank"
                     rel="noreferrer"
                     className="inline-flex items-center gap-1 text-slate-600 hover:text-indigo-600 font-medium"
