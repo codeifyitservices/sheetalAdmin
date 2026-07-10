@@ -27,7 +27,7 @@ export const normalizePageSlug = (value = "") =>
     .toLowerCase()
     .replace(/^\/+/, "")
     .replace(/\/+$/, "")
-    .replace(/[^a-z0-9/ -]/g, "")
+    .replace(/[^a-z0-9\/\s\-]/g, "")
     .replace(/\s+/g, "-")
     .replace(/-+/g, "-")
     .replace(/\/+/g, "/")

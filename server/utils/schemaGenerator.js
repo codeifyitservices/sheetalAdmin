@@ -90,7 +90,8 @@ const resolveProductOffers = (product, productUrl) => {
 export const buildProductSchema = (product, settings = {}) => {
   if (!product) return null;
 
-  const websiteUrl = normalizeUrl(settings.websiteUrl);
+  const safeSettings = settings || {};
+  const websiteUrl = normalizeUrl(safeSettings.websiteUrl);
   const productUrl = resolveProductUrl(product, websiteUrl);
   const image = [
     product?.ogImage,
@@ -114,7 +115,7 @@ export const buildProductSchema = (product, settings = {}) => {
       "@type": "Brand",
       name: firstDefined(
         product?.brandInfo,
-        settings?.organizationName,
+        safeSettings.organizationName,
         DEFAULT_WEBSITE_NAME,
       ),
     },
@@ -135,7 +136,8 @@ export const buildProductSchema = (product, settings = {}) => {
 export const buildCategorySchema = (category, products = [], settings = {}) => {
   if (!category) return null;
 
-  const websiteUrl = normalizeUrl(settings.websiteUrl);
+  const safeSettings = settings || {};
+  const websiteUrl = normalizeUrl(safeSettings.websiteUrl);
   const categoryUrl = resolveCategoryUrl(category, websiteUrl);
 
   return {
@@ -164,7 +166,8 @@ export const buildCategorySchema = (category, products = [], settings = {}) => {
 export const buildPageSchema = (page, settings = {}) => {
   if (!page) return null;
 
-  const websiteUrl = normalizeUrl(settings.websiteUrl);
+  const safeSettings = settings || {};
+  const websiteUrl = normalizeUrl(safeSettings.websiteUrl);
 
   return {
     "@context": "https://schema.org",
@@ -179,31 +182,32 @@ export const buildPageSchema = (page, settings = {}) => {
 };
 
 export const buildOrganizationSchema = (settings = {}) => {
-  const websiteUrl = normalizeUrl(settings.websiteUrl);
-  const sameAs = (settings?.socialMediaLinks || [])
+  const safeSettings = settings || {};
+  const websiteUrl = normalizeUrl(safeSettings.websiteUrl);
+  const sameAs = (safeSettings.socialMediaLinks || [])
     .map((item) => item?.url?.trim())
     .filter(Boolean);
 
   const schema = {
     "@context": "https://schema.org",
     "@type": "Organization",
-    name: firstDefined(settings?.organizationName, DEFAULT_WEBSITE_NAME),
-    description: stripHtml(settings?.organizationDescription || ""),
+    name: firstDefined(safeSettings.organizationName, DEFAULT_WEBSITE_NAME),
+    description: stripHtml(safeSettings.organizationDescription || ""),
     url: websiteUrl,
   };
 
-  if (settings?.logo) schema.logo = settings.logo;
+  if (safeSettings.logo) schema.logo = safeSettings.logo;
 
-  if (settings?.contactPhone || settings?.contactEmail) {
+  if (safeSettings.contactPhone || safeSettings.contactEmail) {
     schema.contactPoint = {
       "@type": "ContactPoint",
       contactType: "customer service",
     };
-    if (settings?.contactPhone) {
-      schema.contactPoint.telephone = settings.contactPhone;
+    if (safeSettings.contactPhone) {
+      schema.contactPoint.telephone = safeSettings.contactPhone;
     }
-    if (settings?.contactEmail) {
-      schema.contactPoint.email = settings.contactEmail;
+    if (safeSettings.contactEmail) {
+      schema.contactPoint.email = safeSettings.contactEmail;
     }
   }
 
@@ -213,13 +217,14 @@ export const buildOrganizationSchema = (settings = {}) => {
 };
 
 export const buildWebsiteSchema = (settings = {}) => {
-  const websiteUrl = normalizeUrl(settings.websiteUrl);
-  const searchTarget = `${websiteUrl}${settings?.searchPath || DEFAULT_SEARCH_PATH}`;
+  const safeSettings = settings || {};
+  const websiteUrl = normalizeUrl(safeSettings.websiteUrl);
+  const searchTarget = `${websiteUrl}${safeSettings.searchPath || DEFAULT_SEARCH_PATH}`;
 
   return {
     "@context": "https://schema.org",
     "@type": "WebSite",
-    name: firstDefined(settings?.websiteName, DEFAULT_WEBSITE_NAME),
+    name: firstDefined(safeSettings.websiteName, DEFAULT_WEBSITE_NAME),
     url: websiteUrl,
     potentialAction: {
       "@type": "SearchAction",
@@ -238,23 +243,24 @@ export const buildGlobalSchema = (settings = {}) => [
 ].filter(Boolean);
 
 export const buildHomepageSchema = (homepage = {}, settings = {}) => {
-  const websiteUrl = normalizeUrl(settings.websiteUrl);
+  const safeSettings = settings || {};
+  const websiteUrl = normalizeUrl(safeSettings.websiteUrl);
   const webPageSchema = {
     "@context": "https://schema.org",
     "@type": "WebPage",
     name: firstDefined(
       homepage?.metaTitle,
-      settings?.websiteName,
+      safeSettings.websiteName,
       DEFAULT_WEBSITE_NAME,
     ),
     description: firstDefined(
       stripHtml(homepage?.metaDescription),
-      stripHtml(settings?.organizationDescription),
+      stripHtml(safeSettings.organizationDescription),
     ),
     url: homepage?.canonicalUrl || websiteUrl,
   };
 
-  return [webPageSchema, ...buildGlobalSchema(settings)];
+  return [webPageSchema, ...buildGlobalSchema(safeSettings)];
 };
 
 export const generateProductSchema = (product, settings) =>
@@ -279,7 +285,7 @@ export const buildFaqSchema = (faqPage, settings = {}) => {
     "@context": "https://schema.org",
     "@type": "FAQPage",
     mainEntity: (faqPage.faqs || [])
-      .filter((faq) => faq.isActive)
+      .filter((faq) => faq && faq.isActive)
       .map((faq) => ({
         "@type": "Question",
         name: faq.question,

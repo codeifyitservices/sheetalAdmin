@@ -100,7 +100,7 @@ export default function PageModal({ isOpen, onClose, onSuccess, initialData }) {
                             type="button"
                             onClick={async () => {
                                 try {
-                                    const res = await axios.post(`${API_BASE_URL}/pages/admin/generate-schema`, formData);
+                                    const res = await axios.post(`${API_BASE_URL}/pages/generate-schema`, formData);
                                     if (res.data.success) {
                                         setFormData({ ...formData, seoSchema: res.data.schema });
                                         toast.success("Schema generated");

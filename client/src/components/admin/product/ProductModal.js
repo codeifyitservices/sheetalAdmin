@@ -411,7 +411,8 @@ export default function ProductModal({
           data.append(key, formData[key] === true ? "true" : "false");
         } else if (!excludedKeys.includes(key)) {
           if (formData[key] !== null && formData[key] !== undefined) {
-            data.append(key, formData[key]);
+            const value = key === "slug" ? String(formData[key]).replace(/^-+|-+$/g, "") : formData[key];
+            data.append(key, value);
           }
         }
       });

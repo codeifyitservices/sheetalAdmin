@@ -23,15 +23,12 @@ const defaultForm = {
 
 const slugify = (value = "") =>
   value
-    .trim()
     .toLowerCase()
-    .replace(/^\/+/, "")
-    .replace(/\/+$/, "")
-    .replace(/[^a-z0-9/ -]/g, "")
+    .replace(/[^a-z0-9\/\s\-]/g, "")
     .replace(/\s+/g, "-")
     .replace(/-+/g, "-")
     .replace(/\/+/g, "/")
-    .replace(/^-+|-+$/g, "");
+    .replace(/^-+/g, ""); // Allow trailing dash while typing
 
 export default function StaticPageForm({
   isOpen,
@@ -83,9 +80,14 @@ export default function StaticPageForm({
 
   const handleSubmit = (event) => {
     event.preventDefault();
+    const cleanSlug = finalSlug
+      .trim()
+      .replace(/^\/+/, "")
+      .replace(/\/+$/, "")
+      .replace(/^-+|-+$/g, "");
     onSubmit({
       ...formData,
-      slug: finalSlug,
+      slug: cleanSlug,
       metaTitle: formData.metaTitle || formData.title,
     });
   };

@@ -119,10 +119,11 @@ export default function BlogModal({
   }, [bannerPreview, contentImagePreview, ogImagePreview]);
 
   const handleChange = (e) => {
-    const { name, value, type, checked } = e.target;
-    const nextValue = type === "checkbox" ? checked : value;
+    let { name, value, type, checked } = e.target;
+    let nextValue = type === "checkbox" ? checked : value;
 
     if (name === "slug") {
+      nextValue = String(nextValue || "").replace(/\s+/g, "-");
       setIsSlugManuallyEdited(Boolean(nextValue));
     }
 
@@ -228,6 +229,8 @@ export default function BlogModal({
         if (formData[key]) data.append(key, formData[key]);
       } else if (key === "ogImage") {
         if (formData[key]) data.append(key, formData[key]);
+      } else if (key === "slug") {
+        data.append("slug", (formData.slug || "").replace(/^-+|-+$/g, ""));
       } else {
         data.append(key, formData[key]);
       }

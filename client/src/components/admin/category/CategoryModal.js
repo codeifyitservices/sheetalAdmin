@@ -205,8 +205,9 @@ export default function CategoryModal({
   };
 
   const handleChange = (e) => {
-    const { name, value } = e.target;
+    let { name, value } = e.target;
     if (name === "slug") {
+      value = value.replace(/\s+/g, "-");
       setIsSlugManuallyEdited(Boolean(value));
     }
     setFormData((prev) => {
@@ -319,7 +320,7 @@ export default function CategoryModal({
 
     const data = new FormData();
     data.append("name", formData.name);
-    data.append("slug", formData.slug || "");
+    data.append("slug", (formData.slug || "").replace(/^-+|-+$/g, ""));
     data.append("description", formData.description);
     data.append("parentCategory", formData.parentCategory || "");
     data.append("gstPercent", formData.gstPercent ?? 0);

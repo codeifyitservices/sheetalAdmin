@@ -176,7 +176,7 @@ export default function InventoryParams({
 
   const updateSize = (variantIndex, sizeIndex, field, value) => {
     if (field === "name") {
-      value = value.toUpperCase();
+      value = String(value || "").toUpperCase().slice(0, 4);
     }
     updateVariant(variantIndex, (v) => {
       const sizes = [...v.sizes];
@@ -675,6 +675,7 @@ export default function InventoryParams({
                               placeholder="e.g. M, L, XL"
                               value={isFreeSize ? "Free Size" : s.name}
                               readOnly={isFreeSize}
+                              maxLength={isFreeSize ? undefined : 4}
                               title={
                                 isFreeSize
                                   ? "Free size — name is fixed"
@@ -684,7 +685,7 @@ export default function InventoryParams({
                                 isFreeSize
                                   ? undefined
                                   : (e) =>
-                                      updateSize(i, s_idx, "name", e.target.value)
+                                      updateSize(i, s_idx, "name", e.target.value.slice(0, 4))
                               }
                             />
                             {isDuplicateSize && (
