@@ -93,7 +93,7 @@ export const uploadTo = (folderName) => {
       );
     }
 
-    const isExtValid = /\.(jpeg|jpg|png|webp|svg|mp4|webm|mov|mkv)$/i.test(extname);
+    const isExtValid = /\.(jpeg|jpg|png|webp|gif|svg|avif|jfif|heic|heif|mp4|webm|mov|mkv)$/i.test(extname);
     const isMimeValid =
       /image|video/.test(file.mimetype || "") ||
       file.mimetype === "image\/svg\+xml" ||
