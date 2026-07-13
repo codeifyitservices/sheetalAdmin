@@ -2,6 +2,7 @@
 import { useState, useEffect } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { useDispatch } from "react-redux";
+import axios from "axios";
 import { logout } from "@/store/slices/authSlice";
 import Sidebar from "@/components/admin/layout/Sidebar";
 import TopNav from "@/components/admin/layout/TopNav";
@@ -22,34 +23,48 @@ export default function AdminLayout({ children }) {
   }, []);
 
   useEffect(() => {
-    // Intercept global fetch calls to catch 401 (Unauthorized) errors from expired tokens
+    const handleUnauthorized = () => {
+      if (!window.location.pathname.includes("/admin/login")) {
+        document.cookie = "token=; path=/; max-age=0";
+        document.cookie = "token=; path=/; max-age=0; SameSite=None; Secure";
+        document.cookie = "token=; path=/; max-age=0; SameSite=Lax; Secure";
+        dispatch(logout());
+        router.push("/admin/login");
+      }
+    };
+
+    // Intercept global fetch calls
     const originalFetch = window.fetch;
     window.fetch = async (...args) => {
       const response = await originalFetch(...args);
       if (response.status === 401) {
         const url = typeof args[0] === "string" ? args[0] : args[0]?.url || "";
-        if (
-          !url.includes("/auth/status") &&
-          !url.includes("/auth/login") &&
-          !window.location.pathname.includes("/admin/login")
-        ) {
-          // Clear all cookie variants
-          document.cookie = "token=; path=/; max-age=0";
-          document.cookie = "token=; path=/; max-age=0; SameSite=None; Secure";
-          document.cookie = "token=; path=/; max-age=0; SameSite=Lax; Secure";
-          dispatch(logout());
-          router.push("/admin/login");
+        if (!url.includes("/auth/status") && !url.includes("/auth/login")) {
+          handleUnauthorized();
         }
       }
       return response;
     };
 
+    // Intercept axios calls
+    const interceptorId = axios.interceptors.response.use(
+      (response) => response,
+      (error) => {
+        if (error.response?.status === 401) {
+          const url = error.config?.url || "";
+          if (!url.includes("/auth/status") && !url.includes("/auth/login")) {
+            handleUnauthorized();
+          }
+        }
+        return Promise.reject(error);
+      }
+    );
+
     return () => {
       window.fetch = originalFetch;
+      axios.interceptors.response.eject(interceptorId);
     };
   }, [dispatch, router]);
-
-
 
   if (!mounted) {
     return <div className="h-screen bg-[#fcfcfd]" />;

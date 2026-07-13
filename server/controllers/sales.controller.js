@@ -823,10 +823,19 @@ export const getAbandonedCarts = async (req, res) => {
     const recoveredCount = data.filter(
       (cart) => cart.status === "recovered",
     ).length;
-    const recoveredAmount = recoveryStats.reduce(
-      (sum, entry) => sum + Number(entry.totalRecoveredAmount || 0),
-      0,
-    );
+    // When includeRecovered=true, sum from recoveryByCartId so the stat card
+    // matches the per-row data in the table. Fall back to the global
+    // recoveryStats aggregate otherwise.
+    const recoveredAmount =
+      includeRecovered && recoveryByCartId.size > 0
+        ? Array.from(recoveryByCartId.values()).reduce(
+            (sum, entry) => sum + Number(entry.totalRecoveredAmount || 0),
+            0,
+          )
+        : recoveryStats.reduce(
+            (sum, entry) => sum + Number(entry.totalRecoveredAmount || 0),
+            0,
+          );
     const retentionRate =
       abandonedCount + recoveredCount > 0
         ? (recoveredCount / (abandonedCount + recoveredCount)) * 100
