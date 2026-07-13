@@ -1,7 +1,7 @@
 "use client";
-import { useState, useRef, useCallback } from "react";
-import { Search, X, GripVertical, Plus, AlertCircle } from "lucide-react";
-import { getProducts } from "@/services/productService";
+import { useState, useRef, useCallback, useEffect } from "react";
+import { Search, X, GripVertical, Plus, AlertCircle, Loader2 } from "lucide-react";
+import { getProducts, getProductDetails } from "@/services/productService";
 
 const MAX_SIMILAR = 10;
 
@@ -10,6 +10,7 @@ export default function SimilarParams({ formData, setFormData }) {
   const [searchResults, setSearchResults] = useState([]);
   const [searching, setSearching] = useState(false);
   const [hasSearched, setHasSearched] = useState(false);
+  const [hydrating, setHydrating] = useState(false);
   const searchTimeout = useRef(null);
 
   // Drag state refs (avoid re-renders)
@@ -17,6 +18,42 @@ export default function SimilarParams({ formData, setFormData }) {
   const [dragOverIndex, setDragOverIndex] = useState(null);
 
   const selectedProducts = formData.similarProducts || [];
+
+  // ── Hydrate raw IDs → full product objects ─────────────────────────────────
+  // When the modal reopens after a save, similarProducts may contain plain ID
+  // strings (not populated objects). Fetch full details to restore name/image.
+  useEffect(() => {
+    const rawIds = (formData.similarProducts || []).filter(
+      (p) => typeof p === "string",
+    );
+    if (rawIds.length === 0) return;
+
+    let cancelled = false;
+    setHydrating(true);
+
+    Promise.all(rawIds.map((id) => getProductDetails(id).catch(() => null)))
+      .then((results) => {
+        if (cancelled) return;
+        const hydrated = results.map((r) => r?.product ?? null).filter(Boolean);
+        // Rebuild the list preserving order: replace raw strings with their hydrated objects
+        setFormData((prev) => {
+          const list = (prev.similarProducts || []).map((p) => {
+            if (typeof p !== "string") return p;
+            return hydrated.find((h) => h._id === p) ?? p;
+          });
+          return { ...prev, similarProducts: list };
+        });
+      })
+      .finally(() => {
+        if (!cancelled) setHydrating(false);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+    // Only run when the component first mounts (tab opened)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // ── Search ─────────────────────────────────────────────────────────────────
   const handleSearchChange = (e) => {
@@ -245,7 +282,12 @@ export default function SimilarParams({ formData, setFormData }) {
       </div>
 
       {/* Selected Products List */}
-      {selectedProducts.length > 0 ? (
+      {hydrating ? (
+        <div className="flex items-center justify-center gap-2 py-8 text-slate-400">
+          <Loader2 size={16} className="animate-spin" />
+          <span className="text-xs">Loading saved products…</span>
+        </div>
+      ) : selectedProducts.length > 0 ? (
         <div className="space-y-1.5">
           <p className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">
             Selected — drag to reorder

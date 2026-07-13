@@ -507,6 +507,11 @@ export const getAllProductsService = async (queryStr) => {
 
   // Populate colorId on the aggregated plain objects in-memory
   await Product.populate(products, { path: "variants.colorId" });
+  await Product.populate(products, {
+    path: "similarProducts",
+    select: "name slug mainImage hoverImage variants stock averageRating category",
+    populate: { path: "category", select: "name slug" },
+  });
 
   const totalProducts = result.totalProducts[0]?.count || 0;
 
