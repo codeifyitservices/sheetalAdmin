@@ -134,7 +134,8 @@ export default function LookbookForm() {
   const validateImage = (file) =>
     new Promise((resolve, reject) => {
       if (!ACCEPTED_TYPES.includes(file.type)) {
-        reject(`"${file.name}" is not valid. Only JPG, PNG, WEBP, GIF, SVG, AVIF, and JFIF are allowed.`);
+        const ext = file.name.split(".").pop()?.toUpperCase() || "UNKNOWN";
+        reject(`Images of ${ext} are not allowed`);
       } else {
         resolve();
       }
