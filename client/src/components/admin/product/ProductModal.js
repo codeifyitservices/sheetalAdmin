@@ -9,6 +9,7 @@ import {
   Settings,
   Shirt,
   Search,
+  Link,
 } from "lucide-react";
 import { createProduct, updateProduct } from "@/services/productService";
 import { getCategories } from "@/services/categoryService";
@@ -21,6 +22,7 @@ import InventoryParams from "./modal/InventoryParams";
 import SpecParams from "./modal/SpecParams";
 import SeoParams from "./modal/SeoParams";
 import MediaParams from "./modal/MediaParams";
+import SimilarParams from "./modal/SimilarParams";
 import { sanitizeProductSlug } from "@/utils/productSlug";
 
 export default function ProductModal({
@@ -70,6 +72,7 @@ export default function ProductModal({
     isTrending: false,
     isNewArrival: false,
     isCollection: false,
+    similarProducts: [],
   });
 
   const getChartSizeLabel = (row) =>
@@ -178,6 +181,9 @@ export default function ProductModal({
             ? initialData.productType
             : [],
           byPrice: Array.isArray(initialData.byPrice) ? initialData.byPrice : [],
+          similarProducts: Array.isArray(initialData.similarProducts)
+            ? initialData.similarProducts
+            : [],
           returnPolicy: initialData.returnPolicy || "7 Days Easy Return",
           price: undefined,
           discountPrice: undefined,
@@ -400,9 +406,17 @@ export default function ProductModal({
             "fabric",
             "productType",
             "byPrice",
+            "similarProducts",
           ].includes(key)
         ) {
-          data.append(key, JSON.stringify(formData[key] || []));
+          if (key === "similarProducts") {
+            const ids = (formData[key] || []).map((p) =>
+              typeof p === "string" ? p : p?._id,
+            ).filter(Boolean);
+            data.append(key, JSON.stringify(ids));
+          } else {
+            data.append(key, JSON.stringify(formData[key] || []));
+          }
         } else if (
           key === "isTrending" ||
           key === "isNewArrival" ||
@@ -609,6 +623,12 @@ export default function ProductModal({
                 fullLabel: "Media Assets",
                 icon: <ImageIcon size={16} />,
               },
+              {
+                id: "similar",
+                label: "Similar",
+                fullLabel: "Similar Products",
+                icon: <Link size={16} />,
+              },
             ].map((tab) => (
               <button
                 key={tab.id}
@@ -668,6 +688,13 @@ export default function ProductModal({
 
             {activeTab === "media" && (
               <MediaParams
+                formData={formData}
+                setFormData={setFormData}
+              />
+            )}
+
+            {activeTab === "similar" && (
+              <SimilarParams
                 formData={formData}
                 setFormData={setFormData}
               />

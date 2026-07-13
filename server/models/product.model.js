@@ -193,6 +193,12 @@ const productSchema = new mongoose.Schema(
       ref: "SizeChart",
       default: null,
     },
+    similarProducts: [
+      {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: "Product",
+      },
+    ],
   },
   { timestamps: true },
 );

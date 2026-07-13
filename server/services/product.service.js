@@ -562,6 +562,11 @@ export const getProductDetailsService = async (id) => {
     })
     .populate("sizeChart")
     .populate("variants.colorId")
+    .populate({
+      path: "similarProducts",
+      select: "name slug mainImage hoverImage variants category averageRating stock",
+      populate: { path: "category", select: "name slug" },
+    })
     .lean();
 
   if (!product && !isObjectId) {
@@ -575,6 +580,11 @@ export const getProductDetailsService = async (id) => {
       })
       .populate("sizeChart")
       .populate("variants.colorId")
+      .populate({
+        path: "similarProducts",
+        select: "name slug mainImage hoverImage variants category averageRating stock",
+        populate: { path: "category", select: "name slug" },
+      })
       .lean();
 
     if (product) {
@@ -641,6 +651,10 @@ export const createProductService = async (data, files, userId) => {
       typeof data.byPrice === "string"
         ? JSON.parse(data.byPrice)
         : data.byPrice,
+    similarProducts:
+      typeof data.similarProducts === "string"
+        ? JSON.parse(data.similarProducts)
+        : (data.similarProducts ?? []),
     seoSchema: normalizeJsonLd(data.seoSchema),
   };
 
@@ -841,6 +855,10 @@ export const updateProductService = async (id, data, files) => {
       typeof data.byPrice === "string"
         ? JSON.parse(data.byPrice)
         : data.byPrice,
+    similarProducts:
+      typeof data.similarProducts === "string"
+        ? JSON.parse(data.similarProducts)
+        : (data.similarProducts ?? []),
     seoSchema: normalizeJsonLd(data.seoSchema),
   };
 
