@@ -55,6 +55,52 @@ export default function SimilarParams({ formData, setFormData }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  const [dropdownProducts, setDropdownProducts] = useState([]);
+  const [loadingDropdown, setLoadingDropdown] = useState(false);
+  const [isOpenDropdown, setIsOpenDropdown] = useState(false);
+  const dropdownRef = useRef(null);
+
+  // Click outside to close dropdown
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target)) {
+        setIsOpenDropdown(false);
+      }
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside);
+    };
+  }, []);
+
+  // ── Fetch category products for dropdown ───────────────────────────────────
+  useEffect(() => {
+    if (!formData.category) {
+      setDropdownProducts([]);
+      return;
+    }
+    let cancelled = false;
+    setLoadingDropdown(true);
+    getProducts(1, 150, "", formData.category)
+      .then((res) => {
+        if (cancelled) return;
+        const filtered = (res?.products || []).filter(
+          (p) => p._id !== formData._id
+        );
+        setDropdownProducts(filtered);
+      })
+      .catch((err) => {
+        console.error("Error fetching dropdown products:", err);
+      })
+      .finally(() => {
+        if (!cancelled) setLoadingDropdown(false);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [formData.category, formData._id]);
+
   // ── Search ─────────────────────────────────────────────────────────────────
   const handleSearchChange = (e) => {
     const q = e.target.value;
@@ -68,8 +114,14 @@ export default function SimilarParams({ formData, setFormData }) {
     searchTimeout.current = setTimeout(async () => {
       setSearching(true);
       try {
-        const res = await getProducts(1, 20, q.trim());
-        setSearchResults(res?.products || []);
+        const res = await getProducts(1, 20, q.trim(), formData.category);
+        const filtered = (res?.products || []).filter(
+          (p) => {
+            const pCat = p.category?._id || p.category;
+            return pCat === formData.category && p._id !== formData._id;
+          }
+        );
+        setSearchResults(filtered);
         setHasSearched(true);
       } catch {
         setSearchResults([]);
@@ -90,12 +142,17 @@ export default function SimilarParams({ formData, setFormData }) {
       if (alreadyAdded) return;
       // Don't allow adding the product to its own similar list (guard by ID)
       if (formData._id && (product._id || product) === formData._id) return;
+      
+      // Guard: must be of the same category
+      const productCategory = product.category?._id || product.category;
+      if (formData.category && productCategory !== formData.category) return;
+
       setFormData((prev) => ({
         ...prev,
         similarProducts: [...(prev.similarProducts || []), product],
       }));
     },
-    [selectedProducts, formData._id, setFormData],
+    [selectedProducts, formData._id, formData.category, setFormData],
   );
 
   const removeProduct = useCallback(
@@ -167,6 +224,20 @@ export default function SimilarParams({ formData, setFormData }) {
     selectedProducts.some((p) => getProductId(p) === getProductId(product));
 
   // ── Render ────────────────────────────────────────────────────────────────
+  if (!formData.category) {
+    return (
+      <div className="flex flex-col items-center justify-center gap-3 py-12 px-4 rounded-xl border border-dashed border-slate-300 bg-slate-50 text-center">
+        <AlertCircle size={28} className="text-amber-500 animate-pulse" />
+        <h4 className="text-sm font-semibold text-slate-800">
+          Category Required
+        </h4>
+        <p className="text-xs text-slate-500 max-w-sm">
+          Please select a category in the <strong>Basic</strong> tab first before configuring similar products. Similar products must belong to the same category.
+        </p>
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -191,89 +262,119 @@ export default function SimilarParams({ formData, setFormData }) {
         </span>
       </div>
 
-      {/* Search */}
-      <div className="space-y-2">
+      {/* Search & Dropdown Combobox */}
+      <div className="space-y-2 relative" ref={dropdownRef}>
+        <label className="text-xs font-bold text-slate-900 uppercase tracking-wider block">
+          Select Similar Products (Same Category)
+        </label>
         <div className="relative">
           <Search
-            size={14}
+            size={16}
             className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"
+            aria-hidden="true"
           />
           <input
             type="text"
+            placeholder="Type to search or click to browse products..."
             value={searchQuery}
             onChange={handleSearchChange}
-            placeholder="Search products by name or SKU…"
-            className="w-full bg-white border border-slate-300 pl-9 pr-4 py-2.5 rounded-lg text-sm outline-none focus:border-indigo-500 transition"
+            onFocus={() => setIsOpenDropdown(true)}
+            className="w-full pl-10 pr-10 py-2.5 bg-white border border-slate-300 rounded-lg text-sm text-slate-900 outline-none focus:border-indigo-500 transition"
           />
-          {searching && (
-            <div className="absolute right-3 top-1/2 -translate-y-1/2">
-              <div className="w-3.5 h-3.5 border-2 border-indigo-400 border-t-transparent rounded-full animate-spin" />
-            </div>
-          )}
+          {/* Dropdown Indicator / Arrow */}
+          <button
+            type="button"
+            onClick={() => setIsOpenDropdown((prev) => !prev)}
+            className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 transition"
+          >
+            <svg
+              className={`w-4 h-4 transform transition-transform ${isOpenDropdown ? "rotate-180" : ""}`}
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+            >
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7" />
+            </svg>
+          </button>
         </div>
 
-        {/* Search Results */}
-        {searchQuery.trim() && (
-          <div className="bg-white border border-slate-200 rounded-lg overflow-hidden shadow-sm max-h-56 overflow-y-auto">
-            {searchResults.length === 0 && hasSearched && !searching ? (
+        {/* Dropdown Menu */}
+        {isOpenDropdown && (
+          <div className="absolute left-0 right-0 mt-1 max-h-60 overflow-y-auto border border-slate-200 rounded-lg bg-white shadow-lg z-50 p-2 space-y-1">
+            {loadingDropdown || (searching && searchQuery.trim()) ? (
+              <div className="flex items-center justify-center gap-2 py-6 text-xs text-slate-400">
+                <div className="w-3.5 h-3.5 border-2 border-indigo-400 border-t-transparent rounded-full animate-spin" />
+                <span>Loading products...</span>
+              </div>
+            ) : (searchQuery.trim() ? searchResults : dropdownProducts).length === 0 ? (
               <div className="px-4 py-6 text-center text-xs text-slate-400">
                 No products found.
               </div>
             ) : (
-              searchResults.map((product) => {
+              (searchQuery.trim() ? searchResults : dropdownProducts).map((product) => {
                 const selected = isSelected(product);
                 const limitReached = selectedProducts.length >= MAX_SIMILAR;
+                const imgUrl = getProductImage(product);
+
                 return (
-                  <div
+                  <button
                     key={product._id}
-                    className="flex items-center gap-3 px-3 py-2 border-b border-slate-100 last:border-0 hover:bg-slate-50 transition"
+                    type="button"
+                    disabled={selected || limitReached}
+                    onClick={() => {
+                      addProduct(product);
+                      setSearchQuery(""); // Clear search query after selection
+                      setIsOpenDropdown(false); // Close dropdown
+                    }}
+                    className={`w-full flex items-center justify-between p-2 rounded-lg text-left transition ${
+                      selected
+                        ? "bg-green-50 text-green-600 cursor-default opacity-85"
+                        : limitReached
+                          ? "bg-slate-50 text-slate-400 cursor-not-allowed"
+                          : "hover:bg-slate-50 cursor-pointer"
+                    }`}
                   >
-                    {/* Thumbnail */}
-                    <div className="w-9 h-9 rounded-md overflow-hidden bg-slate-100 shrink-0 border border-slate-200">
-                      {getProductImage(product) ? (
-                        <img
-                          src={getProductImage(product)}
-                          alt={product.name}
-                          className="w-full h-full object-cover"
-                        />
-                      ) : (
-                        <div className="w-full h-full flex items-center justify-center text-slate-300 text-[10px]">
-                          No img
-                        </div>
-                      )}
+                    <div className="flex items-center gap-3">
+                      {/* Image */}
+                      <div className="w-8 h-8 rounded overflow-hidden bg-slate-100 shrink-0 border border-slate-200">
+                        {imgUrl ? (
+                          <img
+                            src={imgUrl}
+                            alt=""
+                            className="w-full h-full object-cover"
+                          />
+                        ) : (
+                          <div className="w-full h-full flex items-center justify-center text-[8px] text-slate-300">
+                            No img
+                          </div>
+                        )}
+                      </div>
+                      {/* Name and SKU */}
+                      <div className="min-w-0">
+                        <p className="text-xs font-semibold text-slate-800 truncate">
+                          {product.name}
+                        </p>
+                        <p className="text-[10px] text-slate-400 truncate">
+                          {product.sku || product.slug}
+                        </p>
+                      </div>
                     </div>
-                    {/* Name & SKU */}
-                    <div className="flex-1 min-w-0">
-                      <p className="text-xs font-semibold text-slate-800 truncate">
-                        {product.name}
-                      </p>
-                      <p className="text-[10px] text-slate-400 truncate">
-                        {product.sku || product.slug}
-                      </p>
-                    </div>
-                    {/* Add button */}
-                    <button
-                      type="button"
-                      disabled={selected || limitReached}
-                      onClick={() => addProduct(product)}
-                      className={`shrink-0 flex items-center gap-1 px-2.5 py-1 rounded-md text-[10px] font-bold uppercase tracking-wider transition ${
-                        selected
-                          ? "bg-green-50 text-green-600 cursor-default"
-                          : limitReached
-                            ? "bg-slate-100 text-slate-400 cursor-not-allowed"
-                            : "bg-indigo-600 text-white hover:bg-indigo-700 cursor-pointer"
-                      }`}
-                    >
-                      {selected ? (
-                        "Added"
-                      ) : (
-                        <>
-                          <Plus size={10} />
-                          Add
-                        </>
-                      )}
-                    </button>
-                  </div>
+                    
+                    {/* Status Indicator */}
+                    {selected ? (
+                      <span className="text-[10px] font-bold uppercase tracking-wider text-green-600 bg-green-100 px-2 py-0.5 rounded">
+                        Selected
+                      </span>
+                    ) : limitReached ? (
+                      <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 bg-slate-100 px-2 py-0.5 rounded">
+                        Limit Reached
+                      </span>
+                    ) : (
+                      <span className="text-[10px] font-bold uppercase tracking-wider text-indigo-600">
+                        Add
+                      </span>
+                    )}
+                  </button>
                 );
               })
             )}

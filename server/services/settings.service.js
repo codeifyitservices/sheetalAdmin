@@ -101,34 +101,40 @@ export const updateSettings = async (data) => {
       upsert: true,
     });
 
-    // If taxPercentage changed, update all categories and products that have 0 GST
+    // If taxPercentage changed, update all categories and products that follow the global tax
     if (
       data.taxPercentage !== undefined &&
       oldSettings?.taxPercentage !== data.taxPercentage
     ) {
       const newGst = Number(data.taxPercentage);
+      const oldGst = oldSettings?.taxPercentage !== undefined ? Number(oldSettings.taxPercentage) : 0;
 
-      // 1. Find categories with 0 GST (or not set)
+      // 1. Find categories with 0 GST, not set, or equal to the old global tax
       const categoriesToUpdate = await Category.find({
-        $or: [{ gstPercent: 0 }, { gstPercent: { $exists: false } }],
+        $or: [
+          { gstPercent: 0 },
+          { gstPercent: { $exists: false } },
+          { gstPercent: oldGst },
+        ],
         noGst: { $ne: true },
       });
       const categoryIds = categoriesToUpdate.map((c) => c._id);
 
-      // 2. Update products in these categories that have 0 GST
       if (categoryIds.length > 0) {
+        // Update these categories' gstPercent in the database
+        await Category.updateMany(
+          { _id: { $in: categoryIds } },
+          { $set: { gstPercent: newGst } },
+        );
+
+        // Update all products in these categories to the new GST rate
         await Product.updateMany(
           {
             category: { $in: categoryIds },
-            $or: [{ gstPercent: 0 }, { gstPercent: { $exists: false } }],
           },
           { $set: { gstPercent: newGst } },
         );
       }
-
-      // Note: We don't update category.gstPercent itself because the user might want
-      // to keep it 0 to continue following the global setting.
-      // However, the products store the calculated GST for performance.
     }
 
     return { success: true, data: settings };

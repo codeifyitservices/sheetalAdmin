@@ -195,7 +195,7 @@ export const updateLookbook = async (req, res, next) => {
 
     res.status(200).json({
       success: true,
-      message: "Lookbook updated successfully",
+      message: "Deals updated successfully",
       lookbook,
     });
   } catch (error) {

@@ -1,14 +1,7 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
-import {
-  X,
-  Upload,
-  Loader2,
-  LayoutGrid,
-  Edit3,
-  Search,
-} from "lucide-react";
+import { X, Upload, Loader2, LayoutGrid, Edit3, Search } from "lucide-react";
 import {
   addCategory,
   updateCategory,
@@ -597,51 +590,80 @@ export default function CategoryModal({
                   </div>
 
                   <div className="space-y-1.5">
-                    <div className="flex justify-between items-center">
-                      <label className="text-xs font-bold text-slate-900 uppercase tracking-wider">
-                        GST %
-                      </label>
-                      <label className="flex items-center gap-1.5 text-xs font-semibold text-slate-700 cursor-pointer">
+                    <label className="text-xs font-bold text-slate-900 uppercase tracking-wider block">
+                      GST %
+                    </label>
+                    <div className="flex items-center gap-3">
+                      <div className="relative flex-1">
                         <input
-                          type="checkbox"
-                          checked={formData.noGst || false}
-                          onChange={(e) => {
-                            const isChecked = e.target.checked;
+                          type="number"
+                          min="0"
+                          step="0.01"
+                          disabled={formData.noGst}
+                          value={
+                            formData.noGst ? 0 : (formData.gstPercent ?? 0)
+                          }
+                          onChange={(e) =>
                             setFormData({
                               ...formData,
-                              noGst: isChecked,
-                              gstPercent: isChecked ? 0 : formData.gstPercent,
-                            });
-                          }}
-                          className="w-3.5 h-3.5 text-indigo-600 border-slate-300 rounded focus:ring-indigo-500 cursor-pointer"
+                              gstPercent: e.target.value,
+                            })
+                          }
+                          placeholder={formData.noGst ? "0" : "e.g. 5"}
+                          className={`w-full border px-3 py-2.5 pr-8 rounded-lg text-sm outline-none transition font-medium ${
+                            formData.noGst
+                              ? "bg-slate-100 border-slate-200 text-slate-400 cursor-not-allowed"
+                              : "bg-white border-slate-300 focus:border-slate-900"
+                          }`}
                         />
-                        <span>No GST</span>
-                      </label>
+                        <span
+                          className={`absolute right-3 top-1/2 -translate-y-1/2 text-xs font-semibold pointer-events-none ${
+                            formData.noGst ? "text-slate-300" : "text-slate-400"
+                          }`}
+                        >
+                          %
+                        </span>
+                      </div>
+
+                      <button
+                        type="button"
+                        onClick={() =>
+                          setFormData({
+                            ...formData,
+                            noGst: !formData.noGst,
+                            gstPercent: !formData.noGst
+                              ? 0
+                              : formData.gstPercent,
+                          })
+                        }
+                        className={`flex items-center gap-2 px-3 py-2.5 border rounded-lg transition select-none shrink-0 h-[40px] ${
+                          formData.noGst
+                            ? "bg-slate-900 border-slate-900"
+                            : "bg-slate-50 border-slate-300 hover:bg-slate-100"
+                        }`}
+                      >
+                        <span
+                          className={`relative inline-flex h-4 w-7 items-center rounded-full transition-colors ${
+                            formData.noGst ? "bg-white/30" : "bg-slate-300"
+                          }`}
+                        >
+                          <span
+                            className={`inline-block h-3 w-3 transform rounded-full bg-white transition-transform ${
+                              formData.noGst
+                                ? "translate-x-3.5"
+                                : "translate-x-0.5"
+                            }`}
+                          />
+                        </span>
+                        <span
+                          className={`text-xs font-bold uppercase tracking-wider ${
+                            formData.noGst ? "text-white" : "text-slate-700"
+                          }`}
+                        >
+                          No GST
+                        </span>
+                      </button>
                     </div>
-                    <input
-                      type="number"
-                      min="0"
-                      step="0.01"
-                      disabled={formData.noGst}
-                      value={formData.noGst ? 0 : (formData.gstPercent ?? 0)}
-                      onChange={(e) =>
-                        setFormData({
-                          ...formData,
-                          gstPercent: e.target.value,
-                        })
-                      }
-                      placeholder={formData.noGst ? "0" : "e.g. 5"}
-                      className={`w-full border px-3 py-2.5 rounded-lg text-sm outline-none transition font-medium ${
-                        formData.noGst
-                          ? "bg-slate-100 border-slate-200 text-slate-400 cursor-not-allowed"
-                          : "bg-white border-slate-300 focus:border-slate-900"
-                      }`}
-                    />
-                    <p className="text-[11px] text-slate-500">
-                      {formData.noGst
-                        ? "GST is disabled (0%) for this category."
-                        : "Saving this updates GST for all products in this category. If left at 0, it falls back to the global setting."}
-                    </p>
                   </div>
 
                   <div className="space-y-1.5">

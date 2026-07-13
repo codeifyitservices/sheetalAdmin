@@ -217,6 +217,7 @@ export const getAllProductsService = async (queryStr) => {
     byPrice,
     minPrice,
     maxPrice,
+    ids,
   } = queryStr;
 
   const skip = (Number(page) - 1) * Number(limit);
@@ -224,6 +225,17 @@ export const getAllProductsService = async (queryStr) => {
   let filter = {};
   let searchProductIds = [];
   let searchOrderMap = new Map();
+
+  if (ids) {
+    const idList = String(ids)
+      .split(",")
+      .map((id) => id.trim())
+      .filter((id) => mongoose.Types.ObjectId.isValid(id))
+      .map((id) => new mongoose.Types.ObjectId(id));
+    if (idList.length > 0) {
+      filter._id = { $in: idList };
+    }
+  }
 
   if (search) {
     const searchResults = await searchService({

@@ -136,7 +136,7 @@ export const createCategoryService = async (data, files) => {
     gstPercent:
       noGst === "true" || noGst === true
         ? 0
-        : (Number(gstPercent) > 0 ? Number(gstPercent) : 0),
+        : (Number(gstPercent) > 0 ? Number(gstPercent) : await getGlobalTax()),
     noGst: noGst === "true" || noGst === true,
     hsnCode: hsnCode || "",
     sizeMode: parsedSizing.sizeMode,
@@ -301,7 +301,7 @@ export const updateCategoryService = async (id, data, files) => {
     gstPercent:
       data.noGst === "true" || data.noGst === true
         ? 0
-        : (Number(data.gstPercent) > 0 ? Number(data.gstPercent) : 0),
+        : (Number(data.gstPercent) > 0 ? Number(data.gstPercent) : await getGlobalTax()),
     noGst: data.noGst === "true" || data.noGst === true,
     hsnCode: data.hsnCode || "",
     metaTitle: data.metaTitle,

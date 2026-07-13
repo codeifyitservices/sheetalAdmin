@@ -249,7 +249,7 @@ export default function LookbookForm() {
       );
 
       if (data.success) {
-        toast.success("Lookbook updated successfully!");
+        toast.success("Deals updated successfully!");
         const lb = data.lookbook;
         setLeftImages(limitSideImages(lb.leftSliderImages || []));
         setRightImages(limitSideImages(lb.rightSliderImages || []));
