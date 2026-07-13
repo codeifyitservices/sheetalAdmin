@@ -654,9 +654,11 @@ export const createProductService = async (data, files, userId) => {
 
   if (parsedData.category) {
     const category = await Category.findById(parsedData.category).select(
-      "gstPercent",
+      "gstPercent noGst",
     );
-    parsedData.gstPercent = category?.gstPercent || (await getGlobalTax());
+    parsedData.gstPercent = category?.noGst
+      ? 0
+      : (category?.gstPercent || (await getGlobalTax()));
   }
 
   parsedData.description = sanitizeProductHtml(parsedData.description || "");
@@ -852,9 +854,11 @@ export const updateProductService = async (id, data, files) => {
 
   if (parsedData.category) {
     const category = await Category.findById(parsedData.category).select(
-      "gstPercent",
+      "gstPercent noGst",
     );
-    parsedData.gstPercent = category?.gstPercent || (await getGlobalTax());
+    parsedData.gstPercent = category?.noGst
+      ? 0
+      : (category?.gstPercent || (await getGlobalTax()));
   }
 
   parsedData.description = sanitizeProductHtml(parsedData.description || "");
@@ -1721,7 +1725,7 @@ const bulkImportRowBasedService = async (files, userId) => {
         isNewArrival: isTrue(item.NewArrival),
         isCollection: isTrue(item.Collection),
         isStarred: isTrue(item.Starred),
-        gstPercent: categoryDoc?.gstPercent || (await getGlobalTax()),
+        gstPercent: categoryDoc?.noGst ? 0 : (categoryDoc?.gstPercent || (await getGlobalTax())),
         lowStockThreshold: Number(item.Threshold) || 5,
         brandInfo: item.BrandInfo || "",
         warranty: item.Warranty || "No Warranty",

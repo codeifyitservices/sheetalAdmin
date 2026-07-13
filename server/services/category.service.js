@@ -58,6 +58,7 @@ export const createCategoryService = async (data, files) => {
     occasion,
     byPrice,
     gstPercent,
+    noGst,
     hsnCode,
     sizeMode,
     sizeChart,
@@ -133,7 +134,10 @@ export const createCategoryService = async (data, files) => {
     occasion: parsedOccasion,
     byPrice: parsedByPrice,
     gstPercent:
-      Number(gstPercent) > 0 ? Number(gstPercent) : await getGlobalTax(),
+      noGst === "true" || noGst === true
+        ? 0
+        : (Number(gstPercent) > 0 ? Number(gstPercent) : 0),
+    noGst: noGst === "true" || noGst === true,
     hsnCode: hsnCode || "",
     sizeMode: parsedSizing.sizeMode,
     sizeChart: parsedSizing.sizeChart,
@@ -171,7 +175,7 @@ export const createCategoryService = async (data, files) => {
 export const getAllCategoriesService = async () => {
   const categories = await Category.find({ isActive: true })
     .select(
-      "name slug mainImage bannerImage parentCategory subCategories style work fabric productType wearType occasion byPrice sizeMode sizeChart gstPercent hsnCode",
+      "name slug mainImage bannerImage parentCategory subCategories style work fabric productType wearType occasion byPrice sizeMode sizeChart gstPercent hsnCode noGst",
     )
     .populate("parentCategory", "name")
     .populate("sizeChart", "name table howToMeasureImage")
@@ -295,9 +299,10 @@ export const updateCategoryService = async (id, data, files) => {
     isActive: data.status === "Active",
     categoryBanner: data.categoryBanner,
     gstPercent:
-      Number(data.gstPercent) > 0
-        ? Number(data.gstPercent)
-        : await getGlobalTax(),
+      data.noGst === "true" || data.noGst === true
+        ? 0
+        : (Number(data.gstPercent) > 0 ? Number(data.gstPercent) : 0),
+    noGst: data.noGst === "true" || data.noGst === true,
     hsnCode: data.hsnCode || "",
     metaTitle: data.metaTitle,
     metaDescription: data.metaDescription,
@@ -420,9 +425,13 @@ export const updateCategoryService = async (id, data, files) => {
     { new: true, runValidators: true },
   );
 
+  const targetProductGst = updated.noGst
+    ? 0
+    : (updated.gstPercent > 0 ? updated.gstPercent : await getGlobalTax());
+
   await Product.updateMany(
     { category: id },
-    { $set: { gstPercent: updated.gstPercent || 0 } },
+    { $set: { gstPercent: targetProductGst } },
   );
 
   // Sync to n-gram search index

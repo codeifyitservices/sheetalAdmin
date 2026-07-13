@@ -111,6 +111,7 @@ export const updateSettings = async (data) => {
       // 1. Find categories with 0 GST (or not set)
       const categoriesToUpdate = await Category.find({
         $or: [{ gstPercent: 0 }, { gstPercent: { $exists: false } }],
+        noGst: { $ne: true },
       });
       const categoryIds = categoriesToUpdate.map((c) => c._id);
 
