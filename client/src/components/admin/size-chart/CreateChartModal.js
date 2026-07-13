@@ -391,40 +391,46 @@ export default function CreateChartModal({ isOpen, onClose, onSuccess }) {
             </button>
           </div>
 
-          <div className="space-y-3">
-            {rows.map((row, rowIndex) => (
-              <div
-                key={`row-${rowIndex}`}
-                className="rounded-xl border border-gray-200 bg-gray-50 p-4"
-              >
-                <div
-                  className="grid gap-3"
-                  style={{
-                    gridTemplateColumns: `repeat(${headers.length}, minmax(0, 1fr))`,
-                  }}
-                >
+          <div className="overflow-x-auto border border-gray-200 rounded-xl">
+            <table className="w-full text-sm text-left border-collapse">
+              <thead>
+                <tr className="bg-gray-50 border-b border-gray-200 text-gray-700 font-semibold">
                   {headers.map((header, cellIndex) => (
-                    <Field
-                      key={`cell-${rowIndex}-${header.id}`}
-                      label={header.label || `Column ${cellIndex + 1}`}
-                      value={row.cells[cellIndex] || ""}
-                      onChange={(value) => updateRowCell(rowIndex, cellIndex, value)}
-                      placeholder={cellIndex === 0 ? "S, M, L" : "Value"}
-                    />
+                    <th key={header.id} className="p-3 text-xs uppercase tracking-wider">
+                      {header.label || `Column ${cellIndex + 1}`}
+                    </th>
                   ))}
-                </div>
-                <div className="mt-3 flex justify-end">
-                  <button
-                    type="button"
-                    onClick={() => removeRow(rowIndex)}
-                    className="inline-flex items-center gap-1.5 text-xs font-semibold text-rose-600 hover:text-rose-700 cursor-pointer"
-                  >
-                    <Trash2 size={14} />
-                    Remove row
-                  </button>
-                </div>
-              </div>
-            ))}
+                  <th className="p-3 w-16 text-center">Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                {rows.map((row, rowIndex) => (
+                  <tr key={`row-${rowIndex}`} className="border-b border-gray-100 last:border-0 hover:bg-gray-50/50">
+                    {headers.map((header, cellIndex) => (
+                      <td key={`cell-${rowIndex}-${header.id}`} className="p-2">
+                        <input
+                          type="text"
+                          value={row.cells[cellIndex] || ""}
+                          onChange={(e) => updateRowCell(rowIndex, cellIndex, e.target.value)}
+                          placeholder={cellIndex === 0 ? "S, M, L" : "Value"}
+                          className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm text-black placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-indigo-300 bg-white"
+                        />
+                      </td>
+                    ))}
+                    <td className="p-2 text-center">
+                      <button
+                        type="button"
+                        onClick={() => removeRow(rowIndex)}
+                        className="p-2 text-rose-600 hover:text-rose-700 hover:bg-rose-50 rounded-lg transition-colors cursor-pointer"
+                        title="Remove row"
+                      >
+                        <Trash2 size={16} />
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
           </div>
 
           {/* Footer */}
@@ -447,22 +453,5 @@ export default function CreateChartModal({ isOpen, onClose, onSuccess }) {
         </form>
       </div>
     </div>
-  );
-}
-
-function Field({ label, value, onChange, placeholder }) {
-  return (
-    <label className="block">
-      <span className="block text-[11px] font-semibold text-black uppercase tracking-wider mb-1">
-        {label}
-      </span>
-      <input
-        type="text"
-        value={value}
-        onChange={(e) => onChange(e.target.value)}
-        placeholder={placeholder}
-        className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm text-black placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-indigo-300 bg-white"
-      />
-    </label>
   );
 }

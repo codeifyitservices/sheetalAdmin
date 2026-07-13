@@ -37,7 +37,14 @@ export default function AuthInitializer({ children }) {
 
   useEffect(() => {
     dispatch(initializeAuth()).then((result) => {
-      if (initializeAuth.rejected.match(result)) {
+      if (initializeAuth.fulfilled.match(result)) {
+        // Ensure frontend cookie is set in case it was cleared but localStorage exists
+        const token = localStorage.getItem("token");
+        if (token) {
+          const isSecure = window.location.protocol === "https:";
+          document.cookie = `token=${token}; path=/; max-age=604800; SameSite=Lax${isSecure ? "; Secure" : ""}`;
+        }
+      } else if (initializeAuth.rejected.match(result)) {
         const reason = result.payload;
 
         // "No token" = user was never logged in. Nothing to clear.

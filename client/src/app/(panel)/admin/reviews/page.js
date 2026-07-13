@@ -59,8 +59,8 @@ export default function ReviewsPage() {
     }
   };
 
-  const fetchReviews = async () => {
-    setLoading(true);
+  const fetchReviews = async (silent = false) => {
+    if (!silent) setLoading(true);
     try {
       const res = await getAdminReviews(page, PAGE_SIZE, filter);
       if (res.success) {
@@ -70,7 +70,7 @@ export default function ReviewsPage() {
     } catch {
       toast.error("Failed to fetch reviews");
     } finally {
-      setLoading(false);
+      if (!silent) setLoading(false);
     }
   };
 
@@ -104,7 +104,7 @@ export default function ReviewsPage() {
       const res = await updateReviewStatusAdmin(editingId, editForm);
       if (res.success) {
         toast.success("Review updated");
-        fetchReviews();
+        fetchReviews(true);
         fetchStats();
         closeEdit();
       } else toast.error(res.message || "Failed to update");
@@ -114,29 +114,50 @@ export default function ReviewsPage() {
   };
 
   const handleStatus = async (id, isApproved) => {
+    // Optimistically update the list locally to prevent loading spinner/layout shift
+    setReviews((prev) =>
+      prev.map((r) => (r._id === id ? { ...r, isApproved } : r))
+    );
+
     try {
       const res = await updateReviewStatusAdmin(id, { isApproved });
       if (res.success) {
         toast.success(`Review ${isApproved ? "approved" : "rejected"}`);
-        fetchReviews();
-        fetchStats(); // keep stat cards in sync after status change
-      } else toast.error(res.message || "Failed to update status");
+        fetchReviews(true); // silent refresh
+        fetchStats(); // keep stat cards in sync
+      } else {
+        toast.error(res.message || "Failed to update status");
+        fetchReviews(); // full refresh to revert
+        fetchStats();
+      }
     } catch {
       toast.error("Error updating status");
+      fetchReviews(); // full refresh to revert
+      fetchStats();
     }
   };
 
   const handleDelete = async (id) => {
     if (!window.confirm("Delete this review?")) return;
+    
+    // Optimistically remove the review locally
+    setReviews((prev) => prev.filter((r) => r._id !== id));
+
     try {
       const res = await deleteReviewAdmin(id);
       if (res.success) {
         toast.success("Review deleted");
-        fetchReviews();
-        fetchStats(); // keep stat cards in sync after delete
-      } else toast.error(res.message || "Failed to delete");
+        fetchReviews(true); // silent refresh
+        fetchStats();
+      } else {
+        toast.error(res.message || "Failed to delete");
+        fetchReviews(); // full refresh to revert
+        fetchStats();
+      }
     } catch {
       toast.error("Error deleting review");
+      fetchReviews(); // full refresh to revert
+      fetchStats();
     }
   };
 

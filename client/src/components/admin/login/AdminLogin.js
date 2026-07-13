@@ -25,6 +25,12 @@ export default function AdminLogin() {
         const data = await getAuthStatus();
         if (data?.user && data.user.role?.toLowerCase() === "admin") {
           dispatch(setCredentials({ user: data.user }));
+          // Ensure frontend cookie is set in case it was cleared but localStorage exists
+          const token = localStorage.getItem("token");
+          if (token) {
+            const isSecure = window.location.protocol === "https:";
+            document.cookie = `token=${token}; path=/; max-age=604800; SameSite=Lax${isSecure ? "; Secure" : ""}`;
+          }
           router.push("/admin");
         }
       } catch (err) {
@@ -52,9 +58,11 @@ export default function AdminLogin() {
         throw new Error("Unexpected response from server. Please try again.");
       }
 
-      // Store token in localStorage for the auth initializer check
+      // Store token in localStorage and cookie (so Next.js Edge middleware can protect admin routes)
       if (typeof window !== "undefined") {
         localStorage.setItem("token", data.data.token);
+        const isSecure = window.location.protocol === "https:";
+        document.cookie = `token=${data.data.token}; path=/; max-age=604800; SameSite=Lax${isSecure ? "; Secure" : ""}`;
       }
 
       dispatch(
