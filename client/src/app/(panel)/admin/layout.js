@@ -33,9 +33,23 @@ export default function AdminLayout({ children }) {
       }
     };
 
-    // Intercept global fetch calls
+    const getToken = () =>
+      typeof window !== "undefined" ? localStorage.getItem("token") : null;
+
+    // ── 1. Patch window.fetch: inject Bearer token + catch 401s ─────────────
     const originalFetch = window.fetch;
     window.fetch = async (...args) => {
+      // Inject Authorization header if we have a token
+      const token = getToken();
+      if (token) {
+        let [input, init = {}] = args;
+        const headers = new Headers(init.headers || {});
+        if (!headers.has("Authorization")) {
+          headers.set("Authorization", `Bearer ${token}`);
+        }
+        args = [input, { ...init, headers }];
+      }
+
       const response = await originalFetch(...args);
       if (response.status === 401) {
         const url = typeof args[0] === "string" ? args[0] : args[0]?.url || "";
@@ -46,8 +60,17 @@ export default function AdminLayout({ children }) {
       return response;
     };
 
-    // Intercept axios calls
-    const interceptorId = axios.interceptors.response.use(
+    // ── 2. Axios request interceptor: inject Bearer token ───────────────────
+    const requestInterceptorId = axios.interceptors.request.use((config) => {
+      const token = getToken();
+      if (token && !config.headers["Authorization"]) {
+        config.headers["Authorization"] = `Bearer ${token}`;
+      }
+      return config;
+    });
+
+    // ── 3. Axios response interceptor: catch 401s ────────────────────────────
+    const responseInterceptorId = axios.interceptors.response.use(
       (response) => response,
       (error) => {
         if (error.response?.status === 401) {
@@ -62,7 +85,8 @@ export default function AdminLayout({ children }) {
 
     return () => {
       window.fetch = originalFetch;
-      axios.interceptors.response.eject(interceptorId);
+      axios.interceptors.request.eject(requestInterceptorId);
+      axios.interceptors.response.eject(responseInterceptorId);
     };
   }, [dispatch, router]);
 

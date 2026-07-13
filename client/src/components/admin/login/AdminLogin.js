@@ -52,9 +52,7 @@ export default function AdminLogin() {
         throw new Error("Unexpected response from server. Please try again.");
       }
 
-      // Set token in cookie — 7 days, no Secure flag on HTTP (localhost)
-      const isSecure = typeof window !== "undefined" && window.location.protocol === "https:";
-      document.cookie = `token=${data.data.token}; path=/; max-age=604800; SameSite=Lax${isSecure ? "; Secure" : ""}`;
+      // Store token in localStorage for the auth initializer check
       if (typeof window !== "undefined") {
         localStorage.setItem("token", data.data.token);
       }

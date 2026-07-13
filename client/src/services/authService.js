@@ -28,9 +28,19 @@ export const adminLogout = async () => {
 
 // get auth status
 export const getAuthStatus = async () => {
+  // Send the token via both cookie (credentials: include) and Authorization header.
+  // The server's isAuthenticated middleware accepts either. The Bearer header is the
+  // reliable fallback when the httpOnly SameSite=None cookie isn't sent cross-origin.
+  const token =
+    typeof window !== "undefined" ? localStorage.getItem("token") : null;
+
+  const headers = {};
+  if (token) headers["Authorization"] = `Bearer ${token}`;
+
   const res = await fetch(`${API_BASE_URL}/auth/status`, {
     method: "GET",
     credentials: "include",
+    headers,
   });
 
   const data = await res.json();
